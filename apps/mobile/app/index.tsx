@@ -145,11 +145,13 @@ export default function Index() {
   switch (dest) {
     case "login":
       // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 로그아웃 상태의 첫 화면은
-      // 로그인 화면이 아니라 '시작' 화면이다. 시작하기는 예전처럼 로그인 화면으로 바꿔 들어가고
-      // (로그인 뒤 루트 판정은 그대로), 예시 커플은 로그인 없이 예시 스택을 연다.
+      // 로그인 화면이 아니라 '시작' 화면이다. 예시 커플은 로그인 없이 예시 스택을 연다.
+      // 2026-11-20 파운더 결정 7("권하는 대로"): 시작하기는 로그인 화면을 이 화면 위에 쌓아 연다. 안드로이드
+      // 뒤로 가기(iOS 는 왼쪽 가장자리 밀기)로 이 시작 화면에 돌아온다. 로그인을 마치면 로그인 화면이
+      // dismissTo("/") 로 이 자리까지 내려오고, 위의 판정이 홈으로 갈아 끼운다(startLoginBackNavigation.test.mjs).
       return (
         <InvitationStart
-          onStart={() => router.replace("/(auth)/login")}
+          onStart={() => router.push("/(auth)/login")}
           onExample={() => router.push("/example")}
         />
       );

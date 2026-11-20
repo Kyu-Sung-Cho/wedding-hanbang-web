@@ -152,7 +152,8 @@ test("signed-out people land on the start screen; signing in still goes through 
   const index = code("app/index.tsx");
   const loginCase = index.slice(index.indexOf('case "login":'), index.indexOf('case "consent":'));
   assert.match(loginCase, /<InvitationStart/u);
-  assert.match(loginCase, /onStart=\{\(\) => router\.replace\("\/\(auth\)\/login"\)\}/u);
+  // 2026-11-20 결정 7: 시작하기는 로그인 화면을 쌓아 연다(뒤로 가기로 시작 화면에 돌아온다).
+  assert.match(loginCase, /onStart=\{\(\) => router\.push\("\/\(auth\)\/login"\)\}/u);
   assert.match(loginCase, /onExample=\{\(\) => router\.push\("\/example"\)\}/u);
   assert.doesNotMatch(loginCase, /<Redirect/u);
   // 나머지 갈래와 관문 순서는 그대로다.
@@ -161,8 +162,8 @@ test("signed-out people land on the start screen; signing in still goes through 
   assert.match(index, /case "dashboard":\s*return <Redirect href="\/\(tabs\)\/lounge"\s*\/>/u);
   assert.ok(index.indexOf("await verifyMobileWebRuntime") < index.indexOf("supabase.auth.getSession"));
   assert.ok(index.indexOf("readMobileSignupConsentAccess(") < index.indexOf('.from("profiles")'));
-  // 로그인 화면은 성공하면 루트로 돌아와 같은 판정을 다시 거친다.
-  assert.match(read("app/(auth)/login.tsx"), /router\.replace\("\/"\)/u);
+  // 로그인 화면은 성공하면 루트로 돌아와 같은 판정을 다시 거친다. 아래에 쌓인 시작 화면 자리로 내려간다(결정 7).
+  assert.match(read("app/(auth)/login.tsx"), /router\.dismissTo\("\/"\)/u);
 });
 
 // ── 2026-11-17 리드 캡처(아티팩트와 같은 Chrome·같은 크기로 나란히)에서 찾은 것 ─────────────────────────

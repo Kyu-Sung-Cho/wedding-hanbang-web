@@ -23,6 +23,9 @@ type SignupConsentProps = Readonly<{
  * 눌림"이라고 읽는데, 이건 **법적 동의 컨트롤**이라 "체크박스, 선택됨"으로
  * 읽혀야 맞다. 모바일도 accessibilityRole="checkbox" 를 쓴다.
  * 겸사겸사 손으로 만든 버튼도 둘 줄었다.
+ *
+ * 빈 칸 테두리는 `inv-faint` 다(흰 바탕에서 3.77:1). 법적 동의 칸이라 칸 자체가 보여야 하고,
+ * 더 옅은 `inv-dashed` 는 1.54:1 이라 3:1 기준에 못 미친다. 앱(`authColors.unchecked`)도 같은 값이다.
  */
 function CheckBox({
   id,
@@ -53,10 +56,10 @@ function CheckBox({
       />
       <span
         aria-hidden="true"
-        className={`${box} rounded-[6px] border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--hb-focus-ring)] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
+        className={`${box} rounded-[6px] border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-inv-ink peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
           checked
-            ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]"
-            : "border-black/[0.14] bg-white text-transparent"
+            ? "border-inv-ink bg-inv-ink text-inv-white"
+            : "border-inv-faint bg-inv-white text-transparent"
         }`}
       >
         <Check className="size-3" strokeWidth={3} />
@@ -84,7 +87,7 @@ export default function SignupConsent({
   };
 
   return (
-    <div className="rounded-[6px] border border-black/[0.06] bg-white px-4 py-3.5">
+    <div className="rounded-[20px] border border-inv-chip-line bg-inv-white px-4 py-3.5">
       <div className="flex w-full items-center gap-2.5">
         <CheckBox
           id="signup-consent-all"
@@ -97,13 +100,13 @@ export default function SignupConsent({
         <label
           id="signup-consent-all-label"
           htmlFor="signup-consent-all"
-          className="cursor-pointer text-[14px] font-medium text-[var(--hb-text-strong)]"
+          className="cursor-pointer text-[14px] font-medium text-inv-ink"
         >
           전체 동의
         </label>
       </div>
 
-      <div className="my-3 h-px bg-black/[0.06]" />
+      <div className="my-3 h-px bg-inv-divider" />
 
       <ul className="space-y-2.5">
         {SIGNUP_CONSENT_ITEMS.map((item) => (
@@ -119,13 +122,13 @@ export default function SignupConsent({
             <label
               id={`signup-consent-${item.key}-label`}
               htmlFor={`signup-consent-${item.key}`}
-              className="flex-1 cursor-pointer text-[13px] text-[var(--hb-text-body)]"
+              className="flex-1 cursor-pointer text-[13px] text-inv-body"
             >
               <span
                 className={
                   item.required
-                    ? "font-medium text-[var(--hb-text-strong)]"
-                    : "text-[var(--hb-text-muted)]"
+                    ? "font-medium text-inv-ink"
+                    : "text-inv-muted"
                 }
               >
                 {item.required ? "[필수]" : "[선택]"}
@@ -137,7 +140,7 @@ export default function SignupConsent({
                 href={item.href}
                 target="_blank"
                 rel="noreferrer"
-                className="shrink-0 text-[12px] text-[var(--hb-text-muted)] underline underline-offset-2 hover:text-[var(--hb-text-strong)]"
+                className="shrink-0 text-[12px] text-inv-muted underline underline-offset-2 hover:text-inv-ink"
               >
                 보기
               </Link>
