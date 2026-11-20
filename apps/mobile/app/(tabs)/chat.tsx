@@ -5221,7 +5221,7 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
       <View style={st.header}>
-        <View style={st.headerLeft}><AmoraAvatar size={AMORA_CHAT_HEADER_LAYOUT.avatar} /><View style={st.headerTitles}><Text style={st.headerTitle} numberOfLines={1}>아모라</Text><Text style={st.headerSub} numberOfLines={1}>결혼 준비 동반자</Text></View></View>
+        <View style={st.headerLeft}><AmoraAvatar size={AMORA_CHAT_HEADER_LAYOUT.avatar} /><View style={st.headerTitles}><Text style={st.headerTitle} numberOfLines={1}>아모라</Text><Text style={st.headerSub} numberOfLines={1}>AI 웨딩 비서</Text></View></View>
         <View style={st.headerActions}>
           {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
           {/* 범위 줄의 세 번째 탭이 아니다 — 화면을 옮기는 버튼이다. 두 범위와 상대에게 쓰는 중에도 보인다. */}

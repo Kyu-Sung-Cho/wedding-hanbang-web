@@ -94,7 +94,7 @@ export default async function OpenGraphImage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ display: "flex", color: PAPER.pen, fontSize: 28 }}>
-            결혼 준비 동반자, 아모라
+            AI 웨딩 비서, 아모라
           </div>
           <div style={{ display: "flex", flexDirection: "column", fontSize: 58, lineHeight: 1.2, letterSpacing: -2 }}>
             <div style={{ display: "flex", color: PAPER.ink }}>{lead}</div>

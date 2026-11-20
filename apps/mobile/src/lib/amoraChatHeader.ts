@@ -38,7 +38,7 @@ export const AMORA_CHAT_HEADER_LAYOUT = {
 } as const;
 
 const HEADER_TITLE = "아모라";
-const HEADER_SUBTITLE = "결혼 준비 동반자";
+const HEADER_SUBTITLE = "AI 웨딩 비서";
 /** 메시지 수는 최근 200개 안팎이라 세 자리가 가장 넓다. */
 const WIDEST_MESSAGE_COUNT = 999;
 

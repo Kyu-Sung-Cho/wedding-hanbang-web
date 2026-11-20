@@ -308,7 +308,7 @@ describe("landing two-sided trust contract", () => {
     // 첫 화면은 무엇부터 할지 모르는 순간을 말하고, 질문을 둘의 결정으로 이어 준다.
     const heroCopy = contentBlock("hero", "amoraNote");
     expect(heroCopy).toMatch(/결혼 준비, 뭐부터 할까요\?[\s\S]*아모라와 하나씩 정해요\./u);
-    expect(heroCopy).toMatch(/AI 동반자 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
+    expect(heroCopy).toMatch(/AI 웨딩 비서 아모라와[^"\n]*지금 고민을 정리하고[^"\n]*직접 확인해 기록/u);
     expect(heroCopy).toMatch(/내가 원하는 결혼식부터 예산·일정·할 일까지/u);
     expectWired("hero.body");
     expectWired("hero.note");

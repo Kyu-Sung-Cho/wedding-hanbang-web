@@ -12,6 +12,8 @@
 2. `AGENTS.md`
 3. `docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md`
    - 현재 제품 계약 정본. 한 줄 정의·아모라 호칭·전면 범위·내부/외부 언어 경계
+   - 2026-11-16 개정(§0-A): 아모라는 먼저 일하는 AI 웨딩 비서다. 새 파일을 만들지 않고 이
+     정본을 고쳤다. 파일 이름의 `PARTNER`는 2026-08-08 판의 이름이다.
    - `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`를 승계했다(구 문서는 SUPERSEDED)
    - 모바일 완료 기준: `docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`
 4. 현재 source snapshot·릴리스 상태·다른 컴퓨터 인수인계:

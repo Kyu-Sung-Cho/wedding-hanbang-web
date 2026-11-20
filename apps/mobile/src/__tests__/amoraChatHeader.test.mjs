@@ -136,7 +136,7 @@ test("어림이 쓰는 숫자가 실제 머리 스타일의 숫자이고, 좁아
   assert.match(style("headerBoardBtnCompact"), /width: 44, paddingHorizontal: 0/);
   assert.match(style("headerBoardText"), /fontSize: AMORA_CHAT_HEADER_LAYOUT\.boardFontSize/);
   assert.match(style("headerIconBtn"), /width: 44, height: 44/);
-  assert.match(chat, /<AmoraAvatar size=\{AMORA_CHAT_HEADER_LAYOUT\.avatar\} \/><View style=\{st\.headerTitles\}><Text style=\{st\.headerTitle\} numberOfLines=\{1\}>아모라<\/Text><Text style=\{st\.headerSub\} numberOfLines=\{1\}>결혼 준비 동반자<\/Text><\/View>/);
+  assert.match(chat, /<AmoraAvatar size=\{AMORA_CHAT_HEADER_LAYOUT\.avatar\} \/><View style=\{st\.headerTitles\}><Text style=\{st\.headerTitle\} numberOfLines=\{1\}>아모라<\/Text><Text style=\{st\.headerSub\} numberOfLines=\{1\}>AI 웨딩 비서<\/Text><\/View>/);
   // 화면 폭과 시스템 글자 크기로 정한다.
   assert.match(chat, /const \{ width: windowWidth, fontScale \} = useWindowDimensions\(\);\n\s*const showBoardLabel = shouldShowAmoraBoardLabel\(windowWidth, fontScale\);/);
   assert.match(attribute(boardButton, "style"), /!showBoardLabel && st\.headerBoardBtnCompact/);
