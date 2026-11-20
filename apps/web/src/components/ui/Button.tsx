@@ -35,7 +35,7 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode, Ref } from 
 /**
  * 청첩장 디자인(2026-11-17) 변형. 파운더 아티팩트의 알약 버튼을 그대로 옮긴다.
  *
- *   - `ink`     먹색 채움, 흰 글자(시작하기·좋아요, 홀 찾아 주세요·2곳에 보내기)
+ *   - `ink`     먹색 채움, 흰 글자(시작하기·좋아요, 홀 찾아 주세요·문자로 보내기)
  *   - `soft`    돌빛 채움(고칠게요)
  *   - `outline` 흰 바탕에 가는 테두리(다른 시간 묻기·정렬 칩·빼기)
  *   - `dashed`  점선 테두리(반지와 예물 넣기)

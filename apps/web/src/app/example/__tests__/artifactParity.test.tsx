@@ -161,7 +161,8 @@ describe("폰 화면은 높이가 정해진 세로 단이다", () => {
   it.each([
     ["chat", "좋아요, 홀 찾아 주세요"],
     ["journey", "이 순서로 할게요"],
-    ["compare", "담은 2곳에 상담 문의하기"],
+    // 시안은 "담은 2곳에 상담 문의하기"다. 파운더 결정(D-83, 11-18)으로 일부러 다르게 했다.
+    ["compare", "담은 2곳에 문의 편지 쓰기"],
   ] as const)("%s: 아래 행동은 스크롤 칸 뒤에 붙어 줄지 않는다", async (name, label) => {
     const { container } = await render(PHONE_SCREENS[name]());
     const root = container.querySelector(`[data-invitation-screen="${name}"]`) as HTMLElement;

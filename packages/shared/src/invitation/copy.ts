@@ -11,7 +11,7 @@ export const START_COPY = {
   wordmark: "amora",
   tagline: "두 사람의 웨딩 비서",
   headingLines: ["청첩장을 보내는 날까지,", "준비는 제가 챙길게요"],
-  // 2026-11-18 리드 결정: 공개 화면은 오늘 되는 것만 약속한다. 웨딩홀 비교와 상담 문의 보내기는 운영에
+  // 파운더 확정(11-18): 공개 화면은 오늘 되는 것만 약속한다. 웨딩홀 비교와 상담 문의 보내기는 운영에
   // 아직 열리지 않아(홀 자료 0곳, 보내기 스위치 꺼짐) 아티팩트 원문 대신 오늘 되는 일(준비 순서, 두 분이
   // 정할 것)을 말한다. 줄 수를 원문과 맞췄다: 웹 시작 카드에서 390px 세 줄(마지막 줄 "요."), 440px 두 줄
   // (2026-11-18 같은 Chrome 으로 잼). 줄 수가 달라지면 카드 높이가 바뀌어 제목과 오브 사이가 달라진다.
@@ -95,7 +95,9 @@ export const COMPARE_COPY = {
     { id: "mood", label: "분위기" },
   ] as const,
   sourceNote: (dateLabel: string) => `업체가 공개한 가격으로 계산했어요. ${dateLabel} 기준이에요.`,
-  inquire: (count: number) => `담은 ${count}곳에 상담 문의하기`,
+  // 파운더 결정 D-83(11-18): 1단계는 두 분이 자기 휴대폰으로 보낸다. 아티팩트 원문 "담은 N곳에 상담 문의하기"와
+  // 일부러 다르다.
+  inquire: (count: number) => `담은 ${count}곳에 문의 편지 쓰기`,
 } as const;
 
 export type CompareSortId = (typeof COMPARE_COPY.sorts)[number]["id"];
@@ -112,9 +114,15 @@ export function withAndParticle(name: string): string {
   return `${name.trim()}${hasFinalConsonant ? "과" : "와"}`;
 }
 
+/**
+ * 파운더 결정 D-83(11-18): 1단계는 아모라가 문의 편지를 쓰고 두 분이 자기 휴대폰으로 업체마다 보낸다.
+ * dialogLabel·title·partnerRead·send 는 아티팩트 원문("상담 문의 보내기 전 확인", "이 편지를 N곳에 보낼까요?",
+ * "…같은 편지를 두 번 보내지 않아요.", "N곳에 보내기")과 일부러 다르다. send 에는 숫자를 쓰지 않는다.
+ * 지금 이 버튼은 승인 저장 흐름이고, 문자 앱을 여는 1단계 보내기는 아직 없다(PR #531 남은 일).
+ */
 export const LETTER_COPY = {
-  dialogLabel: "상담 문의 보내기 전 확인",
-  title: (count: number) => `이 편지를 ${count}곳에 보낼까요?`,
+  dialogLabel: "상담 문의 편지 확인",
+  title: (count: number) => `${count}곳에 보낼 편지예요`,
   to: (names: readonly string[]) => `${names.join(", ")}께`,
   signature: (first: string, second: string | null) =>
     second ? `${withAndParticle(first)} ${second} 드림` : `${first} 드림`,
@@ -129,8 +137,8 @@ export const LETTER_COPY = {
   notShared: "알려주지 않아요",
   switchLabel: (label: string) => `${label} 알려주기`,
   partnerRead: (partner: string) =>
-    `${partner} 님도 읽고 좋다고 했어요. 보낸 뒤 내용이 바뀌면 다시 여쭤보고, 같은 편지를 두 번 보내지 않아요.`,
-  send: (count: number) => `${count}곳에 보내기`,
+    `${partner} 님도 읽고 좋다고 했어요. 업체에는 두 분 휴대폰으로 한 곳씩 보내요.`,
+  send: "문자로 보내기",
   later: "나중에 할게요",
 } as const;
 
@@ -154,7 +162,9 @@ export const WEB_COPY = {
     { id: "plan", label: "준비 순서" },
   ] as const,
   decisionsHeading: "두 분이 정할 것",
-  activityHeading: "오늘 아모라가 한 일",
+  // 파운더 결정(11-18): 아티팩트 원문은 "오늘 아모라가 한 일"이다. 실제 줄은 담당자나 두 분이 한 일이라
+  // 누가 했든 참인 제목으로 바꿨다(줄마다 누가 했는지는 이름표가 말한다).
+  activityHeading: "오늘 한 일",
   inputLabel: "아모라에게 메시지",
   inputPlaceholder: "아모라에게 말하기",
   send: "보내기",

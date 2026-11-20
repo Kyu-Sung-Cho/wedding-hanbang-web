@@ -40,7 +40,8 @@ describe("InvitationCompare", () => {
     expect(cards.map((card) => text(card.querySelector("strong")))).toEqual(["소담 하우스", "가온 웨딩홀", "루체 컨벤션"]);
     expect(text(cards[0])).toContain("1,360");
     expect(text(cards[0])).toContain(COMPARE_COPY.manwon);
-    expect(text(cards[0])).toContain("가장 합리적이에요");
+    // 시안은 "가장 합리적이에요"다. 파운더 결정(11-18)으로 일부러 다르게 했다(가격 판정 대신 자료에서 나오는 사실).
+    expect(text(cards[0])).toContain("총액이 가장 낮아요");
     const photo = cards[0].querySelector("img");
     expect(photo?.getAttribute("src")).toBe("/photos/hall-sample-garden.webp");
     expect(photo?.getAttribute("alt")).toBe(COMPARE_COPY.photoAlt("소담 하우스"));

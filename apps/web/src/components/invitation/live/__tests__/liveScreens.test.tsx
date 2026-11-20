@@ -389,7 +389,7 @@ describe("웨딩홀 비교 /halls", () => {
     const empty = container.querySelector("[data-compare-empty]");
     expect(empty?.textContent).toContain(COMPARE_STATE_COPY.needConditions);
     expect(linkTo(empty as Element, "/wedding/lounge?conditions=1")?.textContent).toBe(COMPARE_STATE_COPY.needConditionsAction);
-    expect(container.textContent).not.toContain("상담 문의하기");
+    expect(container.textContent).not.toContain("문의 편지 쓰기");
   });
 
   it("확인한 홀이 없으면 그렇다고 말한다(운영에서 지금 보이는 화면)", async () => {
@@ -468,7 +468,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       }),
     });
     const { container } = await render(<LiveLetter />);
-    await click(buttonNamed(container, LETTER_COPY.send(2)));
+    await click(buttonNamed(container, LETTER_COPY.send));
     expect(container.textContent).toContain(LETTER_STATE_COPY.approvedNotSent);
   });
 
@@ -478,7 +478,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       "POST /api/invitation/letter/approve": apiError(409, "LETTER_VERSION_CHANGED", "편지 내용이 바뀌었어요."),
     });
     const { container } = await render(<LiveLetter />);
-    await click(buttonNamed(container, LETTER_COPY.send(2)));
+    await click(buttonNamed(container, LETTER_COPY.send));
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(LETTER_STATE_COPY.versionChanged);
   });
 
@@ -487,7 +487,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       "GET /api/invitation/letter": json(letterResponse({ letterId: LETTER_ID, versionId: VERSION, version: 1, fingerprint: FINGERPRINT, status: "queued", viewerCanApprove: false })),
     });
     const { container } = await render(<LiveLetter />);
-    expect(buttonNamed(container, LETTER_COPY.send(2)).disabled).toBe(true);
+    expect(buttonNamed(container, LETTER_COPY.send).disabled).toBe(true);
     expect(container.textContent).toContain(LETTER_STATE_COPY.alreadySent);
   });
 
@@ -514,7 +514,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       }),
     });
     const { container } = await render(<LiveLetter />);
-    const send = buttonNamed(container, LETTER_COPY.send(2));
+    const send = buttonNamed(container, LETTER_COPY.send);
     // 같은 그림에서 두 번 — 단추가 잠기기 전이다.
     await act(async () => {
       send.click();
@@ -660,7 +660,7 @@ describe("보내기 전 편지 확인 /halls/letter", () => {
       }),
     });
     const { container } = await render(<LiveLetter />);
-    await click(buttonNamed(container, LETTER_COPY.send(2)));
+    await click(buttonNamed(container, LETTER_COPY.send));
     expect(container.textContent).toContain(LETTER_STATE_COPY.dailyCap);
   });
 });
@@ -767,7 +767,7 @@ describe("직접 보내기(D-83 1단계) /halls/letter", () => {
 
     expect(text(container.querySelector("h1"))).toBe(LETTER_COPY.title(2));
     expect(container.querySelector("[data-letter-approver]")).not.toBeNull();
-    expect(buttonNamed(container, LETTER_COPY.send(2))).toBeDefined();
+    expect(buttonNamed(container, LETTER_COPY.send)).toBeDefined();
     expect(container.textContent).toContain(LETTER_STATE_COPY.approvedNotSent);
     expect(container.querySelector("[data-self-send]")).toBeNull();
     expect(container.querySelector("[data-self-send-missing]")).toBeNull();
@@ -787,7 +787,7 @@ describe("직접 보내기(D-83 1단계) /halls/letter", () => {
     });
     const { container } = await render(<LiveLetter />);
 
-    expect(buttonNamed(container, LETTER_COPY.send(2)).disabled).toBe(false);
+    expect(buttonNamed(container, LETTER_COPY.send).disabled).toBe(false);
     expect(container.querySelector("[data-letter-approver]")).not.toBeNull();
     expect(container.querySelector("[data-self-send-before-save]")).toBeNull();
     expect(container.textContent).not.toContain(SELF_SEND_COPY.beforeSave);
@@ -810,7 +810,7 @@ describe("직접 보내기(D-83 1단계) /halls/letter", () => {
     expect(container.textContent).not.toContain(LETTER_COPY.partnerRead("준호"));
     // 이미 저장한 판이고 고친 것이 없으니 저장 단추는 잠겨 있다. 승인(보내기) 단추는 없다.
     expect(buttonNamed(container, SELF_SEND_COPY.save).disabled).toBe(true);
-    expect(container.textContent).not.toContain(LETTER_COPY.send(2));
+    expect(container.textContent).not.toContain(LETTER_COPY.send);
 
     expect(container.querySelector("[data-self-send]")?.textContent).toContain(SELF_SEND_COPY.intro);
     expect(Array.from(container.querySelectorAll("[data-self-send-message]")).map((node) => node.getAttribute("data-self-send-message")))

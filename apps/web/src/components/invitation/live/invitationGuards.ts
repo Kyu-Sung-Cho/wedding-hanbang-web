@@ -41,8 +41,8 @@ export function isConditionsResponse(value: unknown): value is InvitationConditi
 const ACTORS: ReadonlySet<unknown> = new Set(["amora", "operator", "couple"]);
 
 /**
- * 오늘 한 일은 줄마다 누가 했는지(`actor`)가 있어야 받는다. 없으면 담당자의 일이 "오늘 아모라가 한 일" 아래에
- * 아모라의 일처럼 놓이므로, 그런 응답은 불러오기 실패로 다룬다.
+ * 오늘 한 일은 줄마다 누가 했는지(`actor`)가 있어야 받는다. 없으면 담당자나 두 분의 일이 "오늘 한 일" 아래에
+ * 누가 했는지 모른 채 놓여 아모라의 일로 읽힐 수 있으므로, 그런 응답은 불러오기 실패로 다룬다.
  */
 export function isActivityResponse(value: unknown): value is InvitationActivityResponse {
   return isRecord(value)

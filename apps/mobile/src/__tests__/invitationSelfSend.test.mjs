@@ -721,7 +721,7 @@ test("the sheet draws today's send button unless a main action is given, and the
   const base = { model: letterModel, onToggleShare: () => {}, onNavigate: () => {}, onSend: () => {}, notice: null };
   const today = sheetTree(base);
   assert.equal(visible(sheetTree({ ...base, title: undefined, hidePartnerRead: false, selfSend: undefined, mainAction: undefined })), visible(today), "주지 않은 칸은 오늘 시트와 같다");
-  assert.ok(buttonsOf(today).some((node) => node.props.label === LETTER_COPY.send(1)));
+  assert.ok(buttonsOf(today).some((node) => node.props.label === LETTER_COPY.send));
   assert.ok(textOf(today).includes(LETTER_COPY.title(1)));
   assert.ok(textOf(today).includes(LETTER_COPY.partnerRead("나")));
 
@@ -734,7 +734,7 @@ test("the sheet draws today's send button unless a main action is given, and the
     selfSend: element("SelfSendPanel"),
   });
   const labels = buttonsOf(own).map((node) => node.props.label);
-  assert.ok(!labels.includes(LETTER_COPY.send(1)), "보내기(승인) 단추를 그리지 않는다");
+  assert.ok(!labels.includes(LETTER_COPY.send), "보내기(승인) 단추를 그리지 않는다");
   assert.ok(textOf(own).includes(SELF_SEND_COPY.title(1)));
   assert.ok(!textOf(own).includes(LETTER_COPY.title(1)));
   assert.ok(!textOf(own).includes(LETTER_COPY.partnerRead("나")), "두 번 보내지 않는다는 약속을 하지 않는다");

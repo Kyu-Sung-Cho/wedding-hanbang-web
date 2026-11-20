@@ -104,7 +104,7 @@ export default function InvitationLetterSheet({
   const laterRef = useRef<HTMLAnchorElement>(null);
   const count = model.recipients.length;
   const backdrop = model.backdropPhoto ? photoSrc(model.backdropPhoto) : null;
-  const sendText = sendLabel ?? LETTER_COPY.send(count);
+  const sendText = sendLabel ?? LETTER_COPY.send;
 
   useEffect(() => {
     dialogRef.current?.focus({ preventScroll: true });

@@ -171,7 +171,7 @@ describe("화면 사이 이동은 아티팩트의 링크를 따른다", () => {
     await cleanup();
 
     const letter = await render(<ExampleLetterClient />);
-    expect(linkNamed(letter.container, LETTER_COPY.send(2)).getAttribute("href")).toBe("/example/consultation");
+    expect(linkNamed(letter.container, LETTER_COPY.send).getAttribute("href")).toBe("/example/consultation");
     expect(linkNamed(letter.container, LETTER_COPY.later).getAttribute("href")).toBe("/example/halls");
   });
 

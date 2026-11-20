@@ -11,7 +11,7 @@ import { hitSlopFor, lineHeight, palette, photoFill, shadow, typo } from "./invi
 type Props = {
   model: LetterModel;
   onToggleShare: (key: LetterShare["key"]) => void;
-  /** "2곳에 보내기". 없으면 상담 화면으로 간다(아티팩트 링크). */
+  /** "문자로 보내기". 없으면 상담 화면으로 간다(아티팩트 링크). */
   onSend?: () => void;
   /** "나중에 할게요". 없으면 비교 화면으로 간다(아티팩트 링크). */
   onLater?: () => void;
@@ -150,7 +150,7 @@ export default function InvitationLetterSheet({
               />
             ) : (
               <InvitationButton
-                label={LETTER_COPY.send(count)}
+                label={LETTER_COPY.send}
                 // 받을 곳이 없으면 보낼 수 없다. 저장·승인을 기다리는 동안에도 다시 누르지 못한다.
                 onPress={count > 0 && !sendBusy ? (onSend ?? (() => onNavigate("status"))) : undefined}
                 variant="ink"
