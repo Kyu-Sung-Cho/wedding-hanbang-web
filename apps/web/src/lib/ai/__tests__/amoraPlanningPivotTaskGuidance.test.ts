@@ -12,6 +12,8 @@ import { getAvailableChatTools } from "@/lib/ai/placeSearchRouting";
 import { determineStage, matchedSpecialistByKeyword, routeSpecialist } from "@/lib/ai/stage-router";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
+
 type Context = Parameters<typeof buildAmoraSystemPrompt>[0];
 type Options = Parameters<typeof buildAmoraSystemPrompt>[1];
 const BASE: Context = {
@@ -111,7 +113,7 @@ describe("큰 실무 전환과 작은 선호의 질문 목적을 원래 규칙�
     const options = selectedOptions(userText);
     expect(options.questionScope?.scope).toBe("W0_wedding_core");
     const context = saturated ? {
-      ...BASE, chatSummaries: Array.from({ length: 30 }, () => "합성 과거 준비 기록. ".repeat(100)),
+      ...BASE, pastDecisions: saturatingDecisionHistory("합성 과거 준비 기록."),
     } : BASE;
     const prompt = buildAmoraSystemPrompt(context, noTools ? { ...options, enabledToolNames: [] } : options);
     expectPivotGuidance(prompt);

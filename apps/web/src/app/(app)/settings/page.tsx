@@ -1469,6 +1469,29 @@ export default function SettingsPage() {
         </Link>
       </motion.div>
 
+      {/* 아모라가 하는 일(25장 3절 허락 규칙) */}
+      <motion.div
+        {...fadeIn}
+        transition={{ duration: 0.5, delay: 0.12 }}
+        className="mb-6 overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white"
+      >
+        <Link
+          {...weddingLinkProps("/settings/amora-permissions")}
+          className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8F6662]"
+        >
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] bg-[#8F6662] shadow-[var(--shadow-raised)]">
+            <ShieldCheck className="h-5 w-5 text-white" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[17px] font-medium text-[var(--hb-text-strong)]">아모라가 하는 일</span>
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-text-muted)]">
+              혼자 하는 일과 물어보고 하는 일, 하지 않는 일을 보고 알림과 기억을 정해요
+            </span>
+          </span>
+          <ChevronRight className="h-5 w-5 flex-shrink-0 text-[var(--hb-text-muted)]" />
+        </Link>
+      </motion.div>
+
       {/* 아모라 기억 관리 */}
       <motion.div
         {...fadeIn}

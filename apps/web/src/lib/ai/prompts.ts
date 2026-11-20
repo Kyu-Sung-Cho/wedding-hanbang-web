@@ -962,14 +962,9 @@ ${closing}`;
     }
   }
 
-  // 대화 요약 (이전 대화 기억)
-  let summarySection = "";
-  if (context.chatSummaries.length > 0) {
-    const summaryLines = context.chatSummaries
-      .map((s, i) => `  ${i + 1}. ${promptData(s, 1200)}`)
-      .join("\n");
-    summarySection = `\n### 이전 대화 요약\n${summaryLines}`;
-  }
+  // 2026-11-20 D-87·09장 M5-1: 대화 묶음 요약은 지시문에 싣지 않는다. 화면에 보이지 않는 기억이고, 지우거나
+  // 고친 기억이 요약에 그대로 남는다. 요약이 있는지는 처음 만남 판단(`firstEncounterSection`)에만 쓴다.
+  const summarySection = "";
 
   const prefs = context.preferences;
   let preferencesSection = "";
@@ -1759,7 +1754,6 @@ ${getVendorAsymmetryContext()}
 - 사용자의 **지금 상황**이 인사에 실제로 도움이 될 때만 한 가지를 짚으세요. D-day·진행률·예산을 한꺼번에 요약하지 마세요.
 - D-day는 실무의 긴급도를 판단하는 참고값이지 감정 톤을 자동으로 정하는 값이 아닙니다.
 - 진행률이 높다는 이유로 자동 칭찬하거나 낮다는 이유로 자동 격려하지 마세요. 사용자가 해낸 일을 말했을 때 구체적으로 알아주세요.
-- 이전 대화 요약은 사용자가 그 주제로 돌아왔거나 자연스럽게 이어갈 이유가 있을 때만 사용하세요.
 - 성향 프로필이 있으면 참고하되, **절대 "미니멀 스타일을 선호하시니까"처럼 라벨을 말하지 마세요.** 대신 그 스타일에 맞는 톤과 제안으로 자연스럽게 녹이세요.
 
 **하지 마세요:**

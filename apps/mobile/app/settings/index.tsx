@@ -24,6 +24,7 @@ import {
   EyeOff,
   Users,
   BrainCircuit,
+  ShieldCheck,
   BookOpen,
   SlidersHorizontal,
 } from "lucide-react-native";
@@ -933,6 +934,13 @@ export default function SettingsScreen() {
             title="아모라 도움 방식"
             description="추천·비교·공감·실행 중 내가 편한 순서를 직접 정해요"
             onPress={() => router.push("/settings/amora-style" as const)}
+          />
+          <View style={styles.divider} />
+          <ActionRow
+            icon={<ShieldCheck size={18} color={colors.noir[800]} />}
+            title="아모라가 하는 일"
+            description="혼자 하는 일과 물어보고 하는 일, 하지 않는 일을 보고 알림과 기억을 정해요"
+            onPress={() => router.push("/settings/amora-permissions" as const)}
           />
           <View style={styles.divider} />
           <ActionRow

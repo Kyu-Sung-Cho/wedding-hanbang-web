@@ -5,6 +5,7 @@ import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { AMORA_STATUS_SUMMARY_EVIDENCE_RULE } from "@/lib/ai/amoraVoice";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import type { AmoraQuestionScopeClassification } from "@/lib/ai/amoraQuestionScope";
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
 
 type Context = Parameters<typeof buildAmoraSystemPrompt>[0];
 type Options = Parameters<typeof buildAmoraSystemPrompt>[1];
@@ -31,7 +32,7 @@ describe("준비 상태 요약의 근거가 최종 조립에서도 보존된다"
     for (const enabledToolNames of [readToolNames, []]) {
       for (const saturated of [false, true]) {
         const prompt = buildAmoraSystemPrompt(saturated ? {
-          ...context, chatSummaries: Array.from({ length: 30 }, () => "합성 과거 대화 ".repeat(1000)),
+          ...context, pastDecisions: saturatingDecisionHistory("합성 과거 대화"),
         } : context, { ...options, questionScope: scope(value), enabledToolNames });
         expect(prompt.split(heading)).toHaveLength(2);
         expect(prompt.split(AMORA_STATUS_SUMMARY_EVIDENCE_RULE)).toHaveLength(2);

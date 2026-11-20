@@ -10,6 +10,8 @@ import { getAvailableChatTools } from "@/lib/ai/placeSearchRouting";
 import { determineStage, matchedSpecialistByKeyword, routeSpecialist } from "@/lib/ai/stage-router";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
+
 type Context = Parameters<typeof buildAmoraSystemPrompt>[0];
 type Options = Parameters<typeof buildAmoraSystemPrompt>[1];
 const BASE: Context = { weddingDate:null, budget:0, venue:null, progress:{}, preparationStatus:null,
@@ -48,7 +50,7 @@ describe("바뀐 대상의 이유와 이유 답변 후속을 같은 보호 지�
   it.each(CASES)("%s: 선택된 도구 및 no-tool 포화 답변에도 목적·예외가 사라지지 않는다",(_label,userText)=>{
     const selected=options(userText);expect(selected.questionScope?.scope).toBe("W0_wedding_core");
     for(const saturated of [false,true]) for(const noTools of [false,true]) {
-      const context=saturated?{...BASE,chatSummaries:Array.from({length:30},()=>"합성 과거 설명과 이전 AI의 신혼집 예산 질문. ".repeat(100))}:BASE;
+      const context=saturated?{...BASE,pastDecisions:saturatingDecisionHistory("합성 과거 설명과 이전 AI의 신혼집 예산 질문.")}:BASE;
       const prompt=buildAmoraSystemPrompt(context,noTools?{...selected,enabledToolNames:[]}:selected);
       const pivot=protectedLine(prompt,"[준비 방향 변경]");
       expect(pivot).toContain("바꾼 대상의 이유만 한 번");

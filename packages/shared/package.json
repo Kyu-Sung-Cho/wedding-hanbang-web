@@ -20,6 +20,7 @@
     "./mediation-provenance": "./src/contracts/mediationProvenance.mjs",
     "./community-notification": "./src/contracts/communityNotification.mjs",
     "./amora-push": "./src/contracts/amoraPush.mjs",
+    "./amora-permissions": "./src/contracts/amoraPermissions.mjs",
     "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs",
     "./budget-share": "./src/contracts/budgetShare.mjs",
     "./amora-personal-actions": "./src/contracts/amoraPersonalActions.mjs",

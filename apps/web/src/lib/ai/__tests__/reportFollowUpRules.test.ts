@@ -22,6 +22,8 @@ import {
   type WeddingPlannerPromptContext,
 } from "@/lib/ai/prompts";
 
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
+
 const PRODUCTION_ENABLED_TOOL_NAMES = BETA_SAFE_TOOLS
   .filter((tool) => !isMutatingTool(tool.name))
   .map((tool) => tool.name);
@@ -153,7 +155,7 @@ describe("공개 준비 의견의 귀속은 마지막 보호 계약에 전달한
   };
   const contexts: Array<{ name: string; context: WeddingPlannerPromptContext }> = [
     { name: "포화된 프로필", context: { ...promptContext(), amoraProfiles: { shared: denseProfile, private: denseProfile } } },
-    { name: "긴 대화 요약", context: { ...promptContext(), chatSummaries: Array.from({ length: 30 }, (_, index) => `합성 요약 ${index}. 준비 조건을 확인함. `.repeat(30)) } },
+    { name: "긴 결정 기록", context: { ...promptContext(), pastDecisions: saturatingDecisionHistory("합성 결정. 준비 조건을 확인함.") } },
   ];
   it.each(contexts)("$name이 절단되어도 귀속·안전·실행 경계를 한 번 보존한다", ({ context }) => {
     for (const enabledToolNames of [PRODUCTION_ENABLED_TOOL_NAMES, []]) {
@@ -339,13 +341,12 @@ describe("방향 변경의 대화 기준은 도구 권한과 분리한다", () =
     { label: "포화 프로필", context: {
       ...promptContext(), amoraProfiles: { shared: denseProfile, private: denseProfile },
     } },
-    { label: "긴 일정·요약", context: {
+    { label: "긴 일정·결정 기록", context: {
       ...promptContext(),
       scheduleEvents: Array.from({ length: 40 }, (_, index) => ({
         id: `evt-${index}`, title: `일정 ${index}: 견적 문의`, date: "2027-03-01",
       })),
-      chatSummaries: Array.from({ length: 30 }, (_, index) =>
-        `요약 ${index}. 예식장 후보와 촬영 견적을 비교한 합성 대화. `.repeat(30)),
+      pastDecisions: saturatingDecisionHistory("예식장 후보와 촬영 견적을 비교한 합성 기록."),
     } },
   ];
 

@@ -23,6 +23,8 @@ import {
 } from "@/lib/ai/stage-router";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
+
 type PromptContext = Parameters<typeof buildAmoraSystemPrompt>[0];
 type PromptOptions = Parameters<typeof buildAmoraSystemPrompt>[1];
 
@@ -130,11 +132,10 @@ const ADDITIONAL_COMPOSITIONS: Array<{
     mustTruncate: true,
   },
   {
-    name: "실제 T3와 긴 대화 요약",
+    name: "실제 T3와 긴 결정 기록",
     userText: ACTUAL_T3,
     context: {
-      chatSummaries: Array.from({ length: 30 }, (_, index) =>
-        `합성 요약 ${index}. 두 사람의 준비 조건을 확인함. `.repeat(30)),
+      pastDecisions: saturatingDecisionHistory("합성 결정. 두 사람의 준비 조건을 확인함."),
     },
     mustTruncate: true,
   },

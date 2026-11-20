@@ -10,6 +10,8 @@ import { getAvailableChatTools } from "@/lib/ai/placeSearchRouting";
 import { determineStage, matchedSpecialistByKeyword, routeSpecialist } from "@/lib/ai/stage-router";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
+
 type Context = Parameters<typeof buildAmoraSystemPrompt>[0];
 type Options = Parameters<typeof buildAmoraSystemPrompt>[1];
 const BASE: Context = {
@@ -106,7 +108,7 @@ describe("의견 수집과 조율 요청을 원래 대화 규칙에서 구분한
     expect(options.questionScope?.scope).toBe("W0_wedding_core");
     expect(options.enabledToolNames?.length).toBeGreaterThan(0);
     const context = saturated ? {
-      ...BASE, chatSummaries: Array.from({ length: 30 }, () => "합성된 과거 준비 기록. ".repeat(100)),
+      ...BASE, pastDecisions: saturatingDecisionHistory("합성된 과거 준비 기록."),
     } : BASE;
     const prompt = buildAmoraSystemPrompt(context, noTools ? { ...options, enabledToolNames: [] } : options);
     expectAlignedGuidance(prompt);
