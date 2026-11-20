@@ -275,6 +275,30 @@ describe("halls for a pasted reply (D-83 stage 1)", () => {
 });
 
 describe("activity", () => {
+  it("adds today's consultation from a pasted reply as the couple's entry, reading hall names only then", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-16T05:00:00Z"));
+    try {
+      const at = "2026-11-16T04:50:00.000Z";
+      const pasted = {
+        id: "evt_paste", date: "2026-11-30", title: "가온 웨딩홀 상담", categoryKey: "venue", status: "planned",
+        assignee: { kind: "couple" }, createdAt: at, updatedAt: at, sourceKey: `hall-consultation-pasted:${IDS.hallB}:2026-11-30`,
+      };
+      const client = useClient(tables({ __events: [pasted] }));
+      const body = await (await getActivity(jsonRequest(`${URL_BASE}/activity`, "GET"))).json();
+      expect(body.activity[0]).toEqual({ timeLabel: "13:50", actor: "couple", text: "가온 웨딩홀 상담이 일정에 들어갔어요" });
+      expect(body.activity).toHaveLength(4);
+      expect(client.calls.some((call) => call.table === "hall_listings")).toBe(true);
+
+      // 오늘 붙여 넣어 넣은 상담이 없으면 홀 자료를 읽지 않는다(이 기능 전과 같은 읽기).
+      const quiet = useClient(tables());
+      expect((await getActivity(jsonRequest(`${URL_BASE}/activity`, "GET"))).status).toBe(200);
+      expect(quiet.calls.some((call) => call.table === "hall_listings")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("lists only timestamps that exist in the records", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-16T05:00:00Z"));

@@ -737,7 +737,7 @@ test("the sheet draws today's send button unless a main action is given, and the
   assert.ok(!labels.includes(LETTER_COPY.send), "보내기(승인) 단추를 그리지 않는다");
   assert.ok(textOf(own).includes(SELF_SEND_COPY.title(1)));
   assert.ok(!textOf(own).includes(LETTER_COPY.title(1)));
-  assert.ok(!textOf(own).includes(LETTER_COPY.partnerRead("나")), "두 번 보내지 않는다는 약속을 하지 않는다");
+  assert.ok(!textOf(own).includes(LETTER_COPY.partnerRead("나")), "직접 보내기에는 상대 승인이 없어 상대가 읽었다는 줄을 그리지 않는다");
   assert.ok(nodesOf(own).some((node) => node.type === "SelfSendPanel"));
   buttonsOf(own).find((node) => node.props.label === SELF_SEND_COPY.save).props.onPress();
   assert.deepEqual(pressed, ["save"]);

@@ -1,7 +1,7 @@
 import type { LetterState } from "@hanbang/shared/invitation";
 import { describe, expect, it } from "vitest";
 import type { ScheduleEvent } from "@/types/database.types";
-import { buildActivity } from "../activity";
+import { buildActivity, pastedHallIdsAddedToday } from "../activity";
 import {
   CONSULTATION_SOURCE_PREFIX,
   PASTED_CONSULTATION_SOURCE_PREFIX,
@@ -301,7 +301,25 @@ describe("consultations picked from a pasted reply (D-83 stage 1)", () => {
     expect(findPastedInCalendar([event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30") })], key)).toBeNull();
     expect(findPastedInCalendar([event({ sourceKey: consultationSourceKey(confirmed.id) })], key)).toBeNull();
     expect(isInCalendar([event({ sourceKey: key })], confirmed.id)).toBeNull();
-    // 오늘 한 일은 답장 일정만 센다. 붙여 넣어 넣은 일정은 답장 ID 로 읽히지 않는다.
+    // 붙여 넣어 넣은 일정은 답장 ID 로 읽히지 않는다. 홀 이름을 받지 못했으면 오늘 한 일 줄도 만들지 않는다.
     expect(buildActivity({ timeline: { dispatches: [], replies: [], versions: [] }, events: [event({ sourceKey: key })], now: NOW })).toEqual([]);
+  });
+
+  it("puts today's pasted consultations into today's activity as the couple's own entry", () => {
+    const empty = { dispatches: [], replies: [], versions: [] };
+    const today = event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30", "14:00") });
+    const yesterday = event({
+      id: "evt_old", sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-29"),
+      createdAt: "2026-11-15T02:10:00.000Z", updatedAt: "2026-11-15T02:10:00.000Z",
+    });
+    const names = new Map([[HALL_A, "소담 하우스"]]);
+    expect(buildActivity({ timeline: empty, events: [today, yesterday], now: NOW, pastedHallNames: names })).toEqual([
+      { timeLabel: "11:10", actor: "couple", text: LIVE_COPY.activity.schedule("소담 하우스") },
+    ]);
+    // 활동 경로는 오늘 붙여 넣어 넣은 상담의 홀만 읽는다. 다른 날 것과 답장 일정은 빼고, 같은 홀은 한 번만이다.
+    const second = event({ id: "evt_2", sourceKey: pastedConsultationSourceKey(HALL_A, "2026-12-01") });
+    const reply = event({ id: "evt_reply", sourceKey: consultationSourceKey(confirmed.id) });
+    expect(pastedHallIdsAddedToday([today, second, yesterday, reply], NOW)).toEqual([HALL_A]);
+    expect(pastedHallIdsAddedToday([yesterday, reply], NOW)).toEqual([]);
   });
 });
