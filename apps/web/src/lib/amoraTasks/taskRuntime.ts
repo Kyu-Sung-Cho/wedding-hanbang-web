@@ -1,8 +1,10 @@
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ymdInKst } from "@/lib/utils/kstDate";
+import { log } from "@/utils/log";
 import { defaultAmoraTaskAdapters } from "./adapters";
 import { isAmoraTasksEnabled } from "./config";
+import { amoraTaskFailure } from "./report";
 import { createOpenAITaskModelCaller } from "./taskModel";
 import { createSupabaseAmoraTaskStore } from "./taskStore";
 import { executeAmoraTaskReadTool, loadAmoraTaskWeddingContext } from "./taskTools";
@@ -43,7 +45,7 @@ export async function runAmoraTaskWorkerOnce(
   try {
     return await runAmoraTaskWorker(createAmoraTaskWorkerDeps(), budget);
   } catch (error) {
-    console.error("[amora-tasks] worker run failed", { name: error instanceof Error ? error.name : "UnknownError" });
+    log.error("[amora-tasks] worker run failed", amoraTaskFailure("AMORA_TASKS_KICK_FAILED", error));
     return null;
   }
 }

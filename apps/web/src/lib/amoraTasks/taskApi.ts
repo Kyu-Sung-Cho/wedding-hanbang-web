@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { AMORA_TASK_ID_PATTERN } from "@hanbang/shared/amora-tasks";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { amoraTaskFailure } from "./report";
 import type { AmoraTaskMemberRow } from "./taskStore";
 
 /** 맡은 일 API 의 공통 부분. 응답은 앱과 웹이 같은 계약(`@hanbang/shared/amora-tasks`)으로 읽는다. */
@@ -43,7 +45,7 @@ export async function resolveTaskViewer(
   }
   const { data: profile, error } = await supabase.from("profiles").select("couple_id").eq("id", user.id).maybeSingle();
   if (error) {
-    console.error("[amora-tasks] profile read failed", { code: error.code });
+    log.error("[amora-tasks] profile read failed", amoraTaskFailure("AMORA_TASKS_PROFILE_UNAVAILABLE", error));
     return { ok: false, response: taskJson({ error: "커플 정보를 확인하지 못했어요.", code: "AMORA_TASKS_PROFILE_UNAVAILABLE" }, 503) };
   }
   const coupleId = typeof profile?.couple_id === "string" && AMORA_TASK_ID_PATTERN.test(profile.couple_id)

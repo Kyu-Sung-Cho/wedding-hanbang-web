@@ -14,6 +14,12 @@ const state = vi.hoisted(() => ({
   gate: { allowed: true, reply: null as string | null },
   gateInputs: [] as unknown[],
   starts: 0,
+  adminError: null as null | { code: string; message: string },
+  logged: [] as unknown[][],
+}));
+
+vi.mock("@/utils/log", () => ({
+  log: { error: (...args: unknown[]) => { state.logged.push(args); } },
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -34,10 +40,12 @@ vi.mock("@/lib/supabase/admin", () => ({
       const chain: Record<string, unknown> = {};
       chain.select = () => chain;
       chain.eq = () => chain;
-      chain.maybeSingle = async () => ({
-        data: { title: "할 일과 마감 정리", input: { horizon_days: 60 }, couple_id: "10000000-0000-4000-8000-000000000001" },
-        error: null,
-      });
+      chain.maybeSingle = async () => (state.adminError
+        ? { data: null, error: state.adminError }
+        : {
+          data: { title: "할 일과 마감 정리", input: { horizon_days: 60 }, couple_id: "10000000-0000-4000-8000-000000000001" },
+          error: null,
+        });
       return chain;
     },
   }),
@@ -81,6 +89,8 @@ afterEach(() => {
   state.gate = { allowed: true, reply: null };
   state.gateInputs = [];
   state.starts = 0;
+  state.adminError = null;
+  state.logged = [];
 });
 
 describe("POST /api/amora/tasks/:id 맡기기와 문지기", () => {
@@ -107,5 +117,19 @@ describe("POST /api/amora/tasks/:id 맡기기와 문지기", () => {
     expect(await (await start()).json()).toEqual({ enabled: false, available: false, tasks: [] });
     expect(state.gateInputs).toEqual([]);
     expect(state.starts).toBe(0);
+  });
+
+  it("카드를 읽다 DB 가 실패하면 503 이고 Sentry 로 보고하되, DB 오류 문장은 싣지 않는다", async () => {
+    vi.stubEnv("AMORA_TASKS_ENABLED", "true");
+    // 라우트는 이 오류 객체를 그대로 던진다. 보고에는 자리·종류·코드만 가야 한다.
+    state.adminError = { code: "XX000", message: "Key (couple_id)=(홍길동) violates" };
+    const response = await start();
+    expect(response.status).toBe(503);
+    expect(state.starts).toBe(0);
+    expect(state.logged).toHaveLength(1);
+    const [scope, reported] = state.logged[0] as [string, unknown];
+    expect(scope).toBe("[amora-tasks] action failed");
+    expect(reported).toBeInstanceOf(Error);
+    expect((reported as Error).message).toBe("AMORA_TASK_ACTION_FAILED (UnknownError XX000)");
   });
 });

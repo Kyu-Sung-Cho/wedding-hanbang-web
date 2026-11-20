@@ -4,8 +4,10 @@ import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ymdInKst } from "@/lib/utils/kstDate";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { log } from "@/utils/log";
 import { defaultAmoraTaskAdapters, type AmoraTaskAdapters } from "./adapters";
 import { AMORA_TASK_OFFER_TTL_SECONDS, isAmoraTasksEnabled } from "./config";
+import { amoraTaskFailure } from "./report";
 import { AMORA_TASK_KIND_SPECS, DATE_PREFERENCES, DATE_PURPOSES, SDM_FIELDS, cleanTaskText, normalizeAmoraTaskInput } from "./taskKinds";
 import { createSupabaseAmoraTaskStore, isAmoraTaskStorageUnavailable, type AmoraTaskStore } from "./taskStore";
 
@@ -194,7 +196,7 @@ export async function executeOfferAmoraTask(
     if (isAmoraTaskStorageUnavailable(error)) {
       return failure(toolInput, "tasks_unavailable", "지금은 이 일을 맡을 수 없어요.");
     }
-    console.error("[amora-tasks] offer failed", { name: error instanceof Error ? error.name : "UnknownError" });
+    log.error("[amora-tasks] offer failed", amoraTaskFailure("AMORA_TASK_OFFER_FAILED", error));
     return failure(toolInput, "task_offer_failed", "카드를 만들지 못했어요. 잠시 뒤에 다시 말씀해 주세요.");
   }
 }

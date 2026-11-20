@@ -1,6 +1,8 @@
 import { isAmoraTasksEnabled } from "@/lib/amoraTasks/config";
+import { amoraTaskFailure } from "@/lib/amoraTasks/report";
 import { resolveTaskViewer, taskJson, taskOffResponse, toTaskSummary } from "@/lib/amoraTasks/taskApi";
 import { isAmoraTaskStorageUnavailable, listAmoraTasksForMember } from "@/lib/amoraTasks/taskStore";
+import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -20,7 +22,7 @@ export async function GET(request: Request) {
     return taskJson({ enabled: true, available: true, tasks: rows.map(toTaskSummary) });
   } catch (error) {
     if (isAmoraTaskStorageUnavailable(error)) return taskOffResponse("unavailable");
-    console.error("[amora-tasks] list failed", { name: error instanceof Error ? error.name : "UnknownError" });
+    log.error("[amora-tasks] list failed", amoraTaskFailure("AMORA_TASKS_LIST_FAILED", error));
     return taskJson({ error: "맡은 일을 불러오지 못했어요.", code: "AMORA_TASKS_LIST_FAILED" }, 503);
   }
 }

@@ -13,6 +13,13 @@ const state = vi.hoisted(() => ({
   listError: null as null | { code: string; message: string },
   rows: [] as Record<string, unknown>[],
   workerCalls: 0,
+  workerError: null as Error | null,
+  logged: [] as unknown[][],
+}));
+
+// 5xx 는 Sentry 로 가는 유일한 길(`log.error`)로 보고해야 한다(scripts/tests/no-silent-5xx-catch.test.mjs).
+vi.mock("@/utils/log", () => ({
+  log: { error: (...args: unknown[]) => { state.logged.push(args); } },
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -39,6 +46,7 @@ vi.mock("@/lib/amoraTasks/taskRuntime", () => ({
 vi.mock("@/lib/amoraTasks/taskWorker", () => ({
   runAmoraTaskWorker: async () => {
     state.workerCalls += 1;
+    if (state.workerError) throw state.workerError;
     return { claimed: 0, done: 0, needsReview: 0, paused: 0, lost: 0, notified: 0, notifySkipped: 0, notifyDeferred: 0 };
   },
 }));
@@ -54,7 +62,17 @@ afterEach(() => {
   state.listError = null;
   state.rows = [];
   state.workerCalls = 0;
+  state.workerError = null;
+  state.logged = [];
 });
+
+/** 보고된 오류 하나를 꺼낸다. 원래 오류가 아니라 자리·종류만 담은 새 Error 여야 한다. */
+function onlyReport(): { scope: string; message: string } {
+  expect(state.logged).toHaveLength(1);
+  const [scope, reported] = state.logged[0] as [string, unknown];
+  expect(reported).toBeInstanceOf(Error);
+  return { scope, message: (reported as Error).message };
+}
 
 describe("GET /api/amora/tasks", () => {
   it("로그인하지 않으면 401", async () => {
@@ -91,6 +109,24 @@ describe("GET /api/amora/tasks", () => {
     expect(Object.keys(body.tasks[0]).sort()).toEqual(
       ["createdAt", "finishedAt", "id", "kind", "reviewReason", "startedAt", "status", "title", "updatedAt"],
     );
+  });
+
+  it("읽다 실패하면 503 이고 Sentry 로 보고하되, DB 오류 문장과 모양이 이상한 코드는 싣지 않는다", async () => {
+    vi.stubEnv("AMORA_TASKS_ENABLED", "true");
+    state.listError = { code: "K(홍길동)", message: "Key (name)=(홍길동) already exists" };
+    const response = await listTasks(request());
+    expect(response.status).toBe(503);
+    const report = onlyReport();
+    expect(report.scope).toBe("[amora-tasks] list failed");
+    expect(report.message).toMatch(/^AMORA_TASKS_LIST_FAILED \([A-Za-z]+\)$/);
+    expect(report.message).not.toContain("홍길동");
+  });
+
+  it("표가 아직 없을 때(42P01)는 고장이 아니라서 보고하지 않는다", async () => {
+    vi.stubEnv("AMORA_TASKS_ENABLED", "true");
+    state.listError = { code: "42P01", message: "relation \"public.amora_tasks\" does not exist" };
+    expect((await listTasks(request())).status).toBe(200);
+    expect(state.logged).toEqual([]);
   });
 });
 
@@ -131,6 +167,20 @@ describe("GET /api/cron/amora-tasks", () => {
     vi.stubEnv("AMORA_TASKS_ENABLED", "true");
     expect((await cron("Bearer s3cret")).status).toBe(200);
     expect(state.workerCalls).toBe(1);
+    expect(state.logged).toEqual([]);
+  });
+
+  it("일꾼이 던지면 503 이고 Sentry 로 보고하되, 원래 오류 문장과 모양이 이상한 이름은 싣지 않는다", async () => {
+    vi.stubEnv("CRON_SECRET", "s3cret");
+    vi.stubEnv("AMORA_TASKS_ENABLED", "true");
+    const thrown = new Error("row for 010-1234-5678 홍길동");
+    thrown.name = "홍길동 Error";
+    state.workerError = thrown;
+    const response = await cron("Bearer s3cret");
+    expect(response.status).toBe(503);
+    const report = onlyReport();
+    expect(report.scope).toBe("[amora-tasks-cron] run failed");
+    expect(report.message).toBe("AMORA_TASKS_CRON_FAILED (UnknownError)");
   });
 
   it("예약 목록(vercel.json)에 한 번만 있다", () => {

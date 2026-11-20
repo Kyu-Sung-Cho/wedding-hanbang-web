@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAmoraTasksEnabled } from "@/lib/amoraTasks/config";
+import { amoraTaskFailure } from "@/lib/amoraTasks/report";
 import { AMORA_TASK_CRON_BUDGET, createAmoraTaskWorkerDeps } from "@/lib/amoraTasks/taskRuntime";
 import { runAmoraTaskWorker } from "@/lib/amoraTasks/taskWorker";
+import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
     const stats = await runAmoraTaskWorker(createAmoraTaskWorkerDeps(), AMORA_TASK_CRON_BUDGET);
     return NextResponse.json({ ok: true, enabled: true, ...stats });
   } catch (error) {
-    console.error("[amora-tasks-cron] run failed", { name: error instanceof Error ? error.name : "UnknownError" });
+    log.error("[amora-tasks-cron] run failed", amoraTaskFailure("AMORA_TASKS_CRON_FAILED", error));
     return NextResponse.json({ error: "task queue unavailable" }, { status: 503 });
   }
 }

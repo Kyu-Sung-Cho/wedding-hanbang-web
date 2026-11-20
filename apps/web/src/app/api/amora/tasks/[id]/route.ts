@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { AMORA_TASK_ID_PATTERN } from "@hanbang/shared/amora-tasks";
 import { defaultAmoraTaskAdapters } from "@/lib/amoraTasks/adapters";
 import { AMORA_TASK_LIMITS, isAmoraTasksEnabled } from "@/lib/amoraTasks/config";
+import { amoraTaskFailure } from "@/lib/amoraTasks/report";
 import { resolveTaskViewer, taskJson, taskOffResponse, toTaskDetail } from "@/lib/amoraTasks/taskApi";
 import { AMORA_TASK_KICK_BUDGET, runAmoraTaskWorkerOnce } from "@/lib/amoraTasks/taskRuntime";
 import {
@@ -10,6 +11,7 @@ import {
   isAmoraTaskStorageUnavailable,
 } from "@/lib/amoraTasks/taskStore";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +38,7 @@ export async function GET(request: Request, context: RouteContext) {
     return taskJson({ enabled: true, available: true, task: toTaskDetail(row) });
   } catch (error) {
     if (isAmoraTaskStorageUnavailable(error)) return taskOffResponse("unavailable");
-    console.error("[amora-tasks] detail failed", { name: error instanceof Error ? error.name : "UnknownError" });
+    log.error("[amora-tasks] detail failed", amoraTaskFailure("AMORA_TASK_READ_FAILED", error));
     return taskJson({ error: "맡은 일을 불러오지 못했어요.", code: "AMORA_TASK_READ_FAILED" }, 503);
   }
 }
@@ -130,7 +132,7 @@ export async function POST(request: Request, context: RouteContext) {
     return taskJson({ ok: result.ok, code: result.code, status: result.status }, result.ok ? 200 : STATUS_BY_CODE[result.code] ?? 409);
   } catch (error) {
     if (isAmoraTaskStorageUnavailable(error)) return taskOffResponse("unavailable");
-    console.error("[amora-tasks] action failed", { name: error instanceof Error ? error.name : "UnknownError" });
+    log.error("[amora-tasks] action failed", amoraTaskFailure("AMORA_TASK_ACTION_FAILED", error));
     return taskJson({ error: "지금은 처리하지 못했어요. 잠시 뒤에 다시 눌러 주세요.", code: "AMORA_TASK_ACTION_FAILED" }, 503);
   }
 }
