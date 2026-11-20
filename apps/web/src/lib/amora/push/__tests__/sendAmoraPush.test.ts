@@ -146,10 +146,13 @@ describe("sendAmoraPush", () => {
 
     const down = deps({ expo: () => { throw new Error("offline"); } });
     expect(await sendAmoraPush(INPUT, down.value)).toEqual({ sent: false, reason: "provider_error" });
-    expect(down.rpc).toHaveBeenLastCalledWith("record_amora_push_result", expect.objectContaining({
+    // 잠깐의 네트워크 오류로 남의 기기를 풀지 않는다(등록되지 않은 기기만 푼다).
+    expect(down.rpc).toHaveBeenLastCalledWith("record_amora_push_result", {
+      p_delivery_id: DELIVERY,
       p_ticketed_count: 0,
       p_error_code: "network_error",
-    }));
+      p_unregistered: [],
+    });
   });
 
   it("DB 응답이 모양에 맞지 않으면 보내지 않는다", async () => {
