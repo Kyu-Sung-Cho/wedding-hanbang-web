@@ -32,7 +32,7 @@ export const AMORA_PERMISSION_COPY = Object.freeze({
   neverNote: "업체에 보내는 일은 두 분이 직접 해요.",
   controlsTitle: "알림과 기억",
   memoryLink: "아모라가 기억하는 것 보기",
-  memoryLinkSub: "기억을 켜고 끄거나 지울 수 있어요",
+  memoryLinkSub: "아모라가 기억하는 것을 보고 고치거나 지울 수 있어요",
 });
 
 /**
