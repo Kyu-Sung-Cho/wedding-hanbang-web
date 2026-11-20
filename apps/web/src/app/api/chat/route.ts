@@ -3808,7 +3808,9 @@ export async function POST(request: Request) {
   const webLookupTurn = planAmoraWebLookupTurn({
     tools: AMORA_WEB_LOOKUP_TOOLS, questionScope: questionScope.scope, requestKind, isDemo,
     isDurableUserMessageBound, userTexts: [carriedToolIntent?.priorUserText, lastUserText],
-    blockedTerms: [brideName, groomName],
+    // 커플 두 사람의 이름은 검색어에서 뺀다(API HUB 약관 일반조건 7.4 ⑦). 표시용 brideName·groomName 은
+    // 중립 구성(멤버 모델 2)에서 null 이라, 디렉터리의 이름을 역할과 상관없이 모은다(2026-11-20 갈래 4 지적).
+    blockedTerms: profiles.map((profile) => profile.name),
     renderedToolsHeader: request.headers.get("x-hanbang-rendered-tools"),
   });
   const availableTools = [...filterAmoraToolsByQuestionScope(

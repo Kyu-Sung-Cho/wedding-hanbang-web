@@ -272,6 +272,8 @@ const mocks = vi.hoisted(() => {
     summariesError: null as { code: string; message: string } | null,
     decisionsError: null as { code: string; message: string } | null,
     directoryRows: [] as Array<Record<string, unknown>>,
+    /** `couples.member_model_version`. AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED 가 켜졌을 때만 읽힌다. */
+    memberModelVersion: 1 as 1 | 2,
     memoryEnablement: {
       shared: false,
       bride_private: false,
@@ -447,6 +449,9 @@ vi.mock("@/lib/supabase/server", () => ({
         return queryResult(mocks.directoryRows, {
           onSelectError: () => mocks.directoryError,
         });
+      }
+      if (table === "couples") {
+        return queryResult([{ member_model_version: mocks.memberModelVersion }]);
       }
       if (table === "vendor_bookings") {
         return queryResult([], {
@@ -1147,6 +1152,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.journeyError = null;
     mocks.journeyStateRevision = 0;
     mocks.directoryError = null;
+    mocks.memberModelVersion = 1;
     mocks.bookingsError = null;
     mocks.summariesError = null;
     mocks.decisionsError = null;
@@ -2482,6 +2488,34 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         expect(offered).not.toContain("search_web");
         expect(offered).not.toContain("read_page");
       } finally {
+        restoreWebEnv();
+      }
+    });
+
+    it("중립 구성 커플(멤버 모델 2)에서도 두 사람 이름을 검색어에서 뺄 낱말로 넘긴다", async () => {
+      // 표시용 brideName·groomName 은 중립 구성에서 null 이라, 그것을 넘기면 이름 빼기가 비었다(2026-11-20 갈래 4 지적).
+      setWebEnv(WEB_ENV);
+      const savedNeutral = process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED;
+      process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED = "true";
+      mocks.memberModelVersion = 2;
+      const text = "강남 웨딩홀 후보 찾아줘";
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.executeTool.mockResolvedValueOnce(searchWebResult);
+      mocks.provider
+        .mockResolvedValueOnce(providerResult(call("call_search", "search_web", { query: "강남 웨딩홀" })))
+        .mockResolvedValueOnce(providerResult({ fullText: "찾은 곳을 카드로 보여 드렸어요." }));
+      try {
+        const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+        expect(response.status).toBe(200);
+        await response.text();
+        expect(mocks.executeTool.mock.calls.map((entry) => entry[0])).toEqual(["search_web"]);
+        const context = mocks.executeTool.mock.calls[0]?.[2] as { webLookup?: { blockedTerms?: readonly string[] } } | undefined;
+        expect(context?.webLookup?.blockedTerms).toEqual(["테스트 신부", "테스트 신랑"]);
+      } finally {
+        mocks.executeTool.mockReset();
+        mocks.memberModelVersion = 1;
+        if (savedNeutral === undefined) delete process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED;
+        else process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED = savedNeutral;
         restoreWebEnv();
       }
     });
