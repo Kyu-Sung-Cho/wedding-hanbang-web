@@ -118,8 +118,8 @@ export const REVIEWED_STATEMENTS = frozen({
       '6efd546609ab2b02f51fd185ff982dc515d2caa8de07c0a08e34bdf44dfed3b6', 'ba18505be3e7dbf1368f218de7659acda16aea6d9e787af57f5334f9bde1ea32',
       '6de1acec80b7c6b653be49c7fd5549b7f2ea8a171628e5109fa4d444e4b2bfec']) }),
   '20261120120000': frozen({
-    special: frozen(['5faca452d31c9d670eb0a6f313d355a4463b9281745838671b2da2e87a8e8642']),
-    existingTable: frozen(['6e05eeb3966b90d0b89f2200a820d291b8f9ac87497b5596ed68a1d81db78fcc', '318db5abc55de23c4339db00f77b134c6c34e3bf63a2240f62c554417a3daa17',
+    special: frozen(['02c78e43fcf81ef74507bdc628434254814f09e3f6149395677e7e5b63684489']),
+    existingTable: frozen(['6e05eeb3966b90d0b89f2200a820d291b8f9ac87497b5596ed68a1d81db78fcc', 'ce9cd19a5b69c23f8f0ad19e796dd6dd0a554376ad2e723feb84721c7d3fb53a',
       '4865b5b6b81aa5aa899bef97bb5b6721a0955c31c93b7933a2c3386c3050f57f']) }),
   '20261120130000': frozen({
     special: frozen(['6d60d1ef855cc824e5a6e069fb5b65b5b7629675ad4cdfddf33efcc5efbddba5']), existingTable: frozen([]) }),

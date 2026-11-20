@@ -207,8 +207,8 @@ test('repinning cannot admit new top-level data statements, extra objects or unr
     const cadence = readFileSync(resolve(repo.dir, CADENCE), 'utf8');
     rejected(CADENCE, cadence.replace(recreate, ''), 'APRO_DDL_EXISTING_TABLE_SCOPE_INVALID');
     const todayOne = readFileSync(resolve(repo.dir, TODAY_ONE), 'utf8');
-    rejected(TODAY_ONE, todayOne.replace("'task_deadline', 'couple_decision', 'inquiry_waiting'\n    )) NOT VALID;",
-      "'task_deadline', 'couple_decision', 'inquiry_waiting', 'vendor_offer'\n    )) NOT VALID;"), 'APRO_DDL_EXISTING_TABLE_SCOPE_INVALID');
+    rejected(TODAY_ONE, todayOne.replace("'task_deadline', 'couple_decision', 'inquiry_waiting', 'task_done'\n    )) NOT VALID;",
+      "'task_deadline', 'couple_decision', 'inquiry_waiting', 'task_done', 'vendor_offer'\n    )) NOT VALID;"), 'APRO_DDL_EXISTING_TABLE_SCOPE_INVALID');
     const push = readFileSync(resolve(repo.dir, PUSH), 'utf8');
     rejected(PUSH, beforeCommit(push, 'CREATE TABLE public.amora_push_extra(id uuid);'), 'APRO_DDL_TABLE_SCOPE_INVALID');
     rejected(PUSH, push.replace('ALTER TABLE public.amora_push_preferences FORCE ROW LEVEL SECURITY;\n', ''), 'APRO_FIXTURE_INVALID');

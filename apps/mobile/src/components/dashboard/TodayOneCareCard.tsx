@@ -42,6 +42,7 @@ const TODAY_ONE_KIND_LABELS: Record<TodayOneCareKind, { record: string; revision
   task_deadline: { record: "할 일", revision: "준비" },
   couple_decision: { record: "문의 기록", revision: "준비" },
   inquiry_waiting: { record: "문의 기록", revision: "준비" },
+  task_done: { record: "맡은 일", revision: "준비" },
 };
 type ViewState =
   | { kind: "loading" }

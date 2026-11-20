@@ -20,7 +20,8 @@ import type { TodayOneCandidate } from "./todayOne";
  *   couple_decision  홈의 "두 분이 정할 것" 가운데 문의에서 생긴 줄(업체가 제안한 시간, 편지 확인)
  *   inquiry_waiting  보낸 문의가 48시간 넘게 답이 없음
  *
- * 끝난 맡은 일(갈래 4)은 `TODAY_ONE_EXTRA_SOURCES` 에 그 갈래가 자기 고르기를 더하는 자리만 둔다.
+ * 끝난 맡은 일(`task_done`, 갈래 4)은 종류·다음 행동 짝·DB 검사를 미리 두었고, 고르기는 그 갈래가
+ * `TODAY_ONE_EXTRA_SOURCES` 에 한 줄로 더한다.
  */
 
 export const INQUIRY_WAITING_HOURS = 48;
@@ -262,8 +263,9 @@ export function buildTodayOneInquiryWaitingCandidates(input: {
 
 /**
  * 다른 갈래가 자기 고르기를 더하는 자리(25장 6절). 갈래 4(맡은 일)가 "끝난 맡은 일"을 여기에 더한다.
- * 그 갈래는 공용 계약(`TODAY_ONE_CARE_KINDS`·`TODAY_ONE_CARE_NEXT_ACTIONS`)과 DB 검사
- * (`amora_today_one_presentation_is_valid`, `amora_today_one_signals_kind_check`)에 자기 종류를 같이 더해야 한다.
+ * `task_done` 은 공용 계약(`TODAY_ONE_CARE_KINDS`·`TODAY_ONE_CARE_NEXT_ACTIONS`, "맡은 일 보기" → /lounge)과
+ * DB 검사(20261120120000 의 `amora_today_one_presentation_is_valid`·`amora_today_one_signals_kind_check`)에 이미
+ * 있다. 그 갈래는 둘을 자기 마이그레이션에서 다시 정의하지 않는다(정의가 두 벌로 갈라진다).
  */
 export type TodayOneExtraSource = {
   name: string;

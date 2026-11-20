@@ -3,13 +3,15 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
--- 2026-11-20 (설계 25장 2절, 결정 D-8·D-86): 오늘의 한 가지가 고르는 것을 넷으로 늘린다.
+-- 2026-11-20 (설계 25장 2절, 결정 D-8·D-86): 오늘의 한 가지가 고르는 종류에 넷을 더한다.
 --
 --   task_deadline    함께 쓰는 할 일의 마감이 오늘·내일·사흘 뒤다.        다음 행동 "할 일 보기"  → /lounge
 --   couple_decision  두 분이 정할 것(업체가 제안한 상담 시간, 편지 확인).  다음 행동 "정할 것 보기" → /halls/consultation, /halls/letter
 --   inquiry_waiting  보낸 문의가 48시간 넘게 답이 없다.                 다음 행동 "문의 보기"   → /halls/consultation
+--   task_done        아모라가 맡은 일이 끝났다(갈래 4).                 다음 행동 "맡은 일 보기" → /lounge
 --
--- 끝난 맡은 일(갈래 4)은 아직 없어서 여기 넣지 않는다. 그 갈래가 자기 마이그레이션에서 같은 방식으로 더한다.
+-- task_done 은 자리만 둔다. 고르는 코드는 갈래 4가 서버에 더하고(TODAY_ONE_EXTRA_SOURCES), 그 전에는 이 종류의
+-- 카드가 만들어지지 않는다. 검사 함수와 종류 CHECK 를 여기 한곳에서 정의해 두 벌로 갈라지지 않게 한다.
 --
 -- 고르는 것은 서버 코드의 규칙이고 문장은 정해진 틀이다. 이 함수는 종류마다 다음 행동의 글과 주소를 정확한 짝으로
 -- 다시 지킨다. 바깥 연락·발송·새 실행 권한은 더하지 않는다(카드는 앱 안에만 보인다).
@@ -39,7 +41,7 @@ BEGIN
      OR (SELECT count(*) FROM jsonb_object_keys(p_value)) <> 7
      OR p_value->>'kind' NOT IN (
        'schedule_moment', 'budget_guardrail',
-       'task_deadline', 'couple_decision', 'inquiry_waiting'
+       'task_deadline', 'couple_decision', 'inquiry_waiting', 'task_done'
      )
      OR NOT public.amora_today_one_text_is_safe(p_value->>'whyNow', 1, 240)
      OR NOT public.amora_today_one_text_is_safe(p_value->>'impact', 1, 180)
@@ -92,6 +94,9 @@ BEGIN
      ))
      OR (v_kind = 'inquiry_waiting' AND (
        v_label <> '문의 보기' OR v_href <> '/halls/consultation'
+     ))
+     OR (v_kind = 'task_done' AND (
+       v_label <> '맡은 일 보기' OR v_href <> '/lounge'
      )) THEN
     RETURN false;
   END IF;
@@ -129,7 +134,7 @@ ALTER TABLE public.amora_today_one_signals
   ADD CONSTRAINT amora_today_one_signals_kind_check
     CHECK (kind IN (
       'schedule_moment', 'budget_guardrail',
-      'task_deadline', 'couple_decision', 'inquiry_waiting'
+      'task_deadline', 'couple_decision', 'inquiry_waiting', 'task_done'
     )) NOT VALID;
 ALTER TABLE public.amora_today_one_signals
   VALIDATE CONSTRAINT amora_today_one_signals_kind_check;
@@ -140,9 +145,9 @@ REVOKE ALL ON FUNCTION public.amora_today_one_presentation_is_valid(jsonb)
   FROM PUBLIC, anon, authenticated, service_role;
 
 COMMENT ON FUNCTION public.amora_today_one_presentation_is_valid(jsonb) IS
-  'Exact TodayOne presentation validator: schedule_moment, budget_guardrail, task_deadline, couple_decision, inquiry_waiting with fixed next actions.';
+  'Exact TodayOne presentation validator: schedule_moment, budget_guardrail, task_deadline, couple_decision, inquiry_waiting, task_done with fixed next actions.';
 COMMENT ON TABLE public.amora_today_one_signals IS
-  'Latest recipient-scoped, source-revision-bound in-app TodayOne evidence (schedule, recorded spend, shared to-dos, couple decisions, waiting inquiries). The card itself is never sent outside the app.';
+  'Latest recipient-scoped, source-revision-bound in-app TodayOne evidence (schedule, recorded spend, shared to-dos, couple decisions, waiting inquiries, finished Amora tasks). The card itself is never sent outside the app.';
 
 DO $postconditions$
 DECLARE
@@ -161,7 +166,7 @@ BEGIN
   END IF;
   FOREACH v_kind IN ARRAY ARRAY[
     'schedule_moment', 'budget_guardrail',
-    'task_deadline', 'couple_decision', 'inquiry_waiting'
+    'task_deadline', 'couple_decision', 'inquiry_waiting', 'task_done'
   ] LOOP
     IF position(v_kind IN v_kind_definition) = 0 THEN
       RAISE EXCEPTION 'AMORA_TODAY_ONE_MORE_KINDS_POSTCONDITION_FAILED';
