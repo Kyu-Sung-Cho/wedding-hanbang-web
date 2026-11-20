@@ -326,6 +326,43 @@ describe("paste-schedule write", () => {
     expect(addedEvent(otherTime).sourceKey).toBe(`hall-consultation-pasted:${IDS.hallA}:2026-11-30T15:00`);
   });
 
+  it("sees a consultation moved in the schedule where it is now, so its first slot can be picked again", async () => {
+    const moved = {
+      id: "evt_moved", date: "2026-12-01", time: "15:00", title: "소담 하우스 상담", sourceKey: PICK_KEY,
+      createdAt: "2026-11-16T03:00:00.000Z", updatedAt: "2026-11-17T03:00:00.000Z",
+    };
+    // 열쇠에는 처음 자리(11/30 14:00)가 남아 있지만 그 자리는 비어 있다: 다시 고르면 새로 넣는다.
+    installClient(tables({ progress: { __events: [moved] } }));
+    const firstSlot = installAdmin();
+    const first = await post(PICK);
+    expect(first.status).toBe(200);
+    expect(firstSlot.rpc).toHaveBeenCalledTimes(1);
+    expect(addedEvent(firstSlot)).toMatchObject({ date: "2026-11-30", time: "14:00", sourceKey: PICK_KEY });
+    await expect(first.json()).resolves.toMatchObject({ added: true, alreadyInCalendar: false });
+
+    // 옮긴 자리(12/1 15:00)를 고르면 이미 있다고 하고 두 번 넣지 않는다.
+    installClient(tables({ progress: { __events: [moved] } }));
+    const movedSlot = installAdmin();
+    const second = await post({ ...PICK, date: "2026-12-01", time: "15:00" });
+    expect(second.status).toBe(200);
+    expect(movedSlot.rpc).not.toHaveBeenCalled();
+    await expect(second.json()).resolves.toEqual({ added: false, alreadyInCalendar: true, eventId: "evt_moved" });
+  });
+
+  it("finds the day's consultation for a day-only pick even after its time was filled in, so it is not added twice", async () => {
+    const timed = {
+      id: "evt_day", date: "2026-11-30", time: "14:00", title: "소담 하우스 상담",
+      sourceKey: `hall-consultation-pasted:${IDS.hallA}:2026-11-30`,
+      createdAt: "2026-11-16T03:00:00.000Z", updatedAt: "2026-11-17T03:00:00.000Z",
+    };
+    installClient(tables({ progress: { __events: [timed] } }));
+    const admin = installAdmin();
+    const response = await post({ hallId: IDS.hallA, date: "2026-11-30" });
+    expect(response.status).toBe(200);
+    expect(admin.rpc).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({ added: false, alreadyInCalendar: true, eventId: "evt_day" });
+  });
+
   it("keeps a consultation from an operator-recorded reply apart from a pasted one", async () => {
     const fromReply = {
       id: "evt_reply", date: "2026-11-30", time: "14:00", title: "소담 하우스 상담", sourceKey: `hall-consultation:${IDS.replyA}`,

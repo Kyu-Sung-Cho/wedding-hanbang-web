@@ -1,7 +1,7 @@
 import type { LetterState } from "@hanbang/shared/invitation";
 import { describe, expect, it } from "vitest";
 import type { ScheduleEvent } from "@/types/database.types";
-import { buildActivity, pastedHallIdsAddedToday } from "../activity";
+import { buildActivity, pastedConsultationHallId, pastedHallIdsAddedToday } from "../activity";
 import {
   CONSULTATION_SOURCE_PREFIX,
   PASTED_CONSULTATION_SOURCE_PREFIX,
@@ -294,12 +294,28 @@ describe("consultations picked from a pasted reply (D-83 stage 1)", () => {
     }
   });
 
-  it("finds an earlier pick, ignores cancelled ones, and never mixes it up with a reply consultation", () => {
+  it("finds an earlier pick by the hall and the event's current day and time, ignores cancelled ones, and never mixes it up with a reply consultation", () => {
     const key = pastedConsultationSourceKey(HALL_A, "2026-11-30", "14:00");
-    expect(findPastedInCalendar([event({ sourceKey: key })], key)?.id).toBe("evt_paste");
-    expect(findPastedInCalendar([event({ sourceKey: key, status: "cancelled" })], key)).toBeNull();
-    expect(findPastedInCalendar([event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30") })], key)).toBeNull();
-    expect(findPastedInCalendar([event({ sourceKey: consultationSourceKey(confirmed.id) })], key)).toBeNull();
+    const slot = { hallId: HALL_A, date: "2026-11-30", time: "14:00" };
+    expect(findPastedInCalendar([event({ sourceKey: key, time: "14:00" })], slot)?.id).toBe("evt_paste");
+    expect(findPastedInCalendar([event({ sourceKey: key, time: "14:00", status: "cancelled" })], slot)).toBeNull();
+    // 날짜만 고른 자리와 시각까지 고른 자리는 다른 자리다.
+    const dayOnly = event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30") });
+    expect(findPastedInCalendar([dayOnly], slot)).toBeNull();
+    expect(findPastedInCalendar([dayOnly], { hallId: HALL_A, date: "2026-11-30" })?.id).toBe("evt_paste");
+    // 날짜만 고르면 그날 그 홀의 상담이 시각과 상관없이 있으면 있는 것이다(일정 화면에서 시각을 채운 상담).
+    const dayLaterTimed = event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30"), time: "14:00" });
+    expect(findPastedInCalendar([dayLaterTimed], { hallId: HALL_A, date: "2026-11-30" })?.id).toBe("evt_paste");
+    expect(findPastedInCalendar([dayLaterTimed], { hallId: HALL_A, date: "2026-12-01" })).toBeNull();
+    expect(findPastedInCalendar([dayLaterTimed], { hallId: HALL_B, date: "2026-11-30" })).toBeNull();
+    // 같은 자리라도 다른 홀의 상담, 답장으로 넣은 상담은 아니다.
+    expect(findPastedInCalendar([event({ sourceKey: pastedConsultationSourceKey(HALL_B, "2026-11-30", "14:00"), time: "14:00" })], slot)).toBeNull();
+    expect(findPastedInCalendar([event({ sourceKey: consultationSourceKey(confirmed.id), time: "14:00" })], slot)).toBeNull();
+    // 일정 화면에서 옮긴 상담은 옮긴 자리에 있다. 열쇠에 남은 처음 자리는 비어 있다.
+    const moved = event({ sourceKey: key, date: "2026-12-01", time: "15:00" });
+    expect(findPastedInCalendar([moved], slot)).toBeNull();
+    expect(findPastedInCalendar([moved], { hallId: HALL_A, date: "2026-12-01", time: "15:00" })?.id).toBe("evt_paste");
+    expect(findPastedInCalendar([event({ sourceKey: key, date: "2026-12-02", time: "14:00" })], slot)).toBeNull();
     expect(isInCalendar([event({ sourceKey: key })], confirmed.id)).toBeNull();
     // 붙여 넣어 넣은 일정은 답장 ID 로 읽히지 않는다. 홀 이름을 받지 못했으면 오늘 한 일 줄도 만들지 않는다.
     expect(buildActivity({ timeline: { dispatches: [], replies: [], versions: [] }, events: [event({ sourceKey: key })], now: NOW })).toEqual([]);
@@ -321,5 +337,22 @@ describe("consultations picked from a pasted reply (D-83 stage 1)", () => {
     const reply = event({ id: "evt_reply", sourceKey: consultationSourceKey(confirmed.id) });
     expect(pastedHallIdsAddedToday([today, second, yesterday, reply], NOW)).toEqual([HALL_A]);
     expect(pastedHallIdsAddedToday([yesterday, reply], NOW)).toEqual([]);
+  });
+
+  it("takes a hall id from the key only when it is shaped like one, so a hand-written key cannot break the hall read", () => {
+    expect(pastedConsultationHallId(pastedConsultationSourceKey(HALL_A.toUpperCase(), "2026-11-30"))).toBe(HALL_A);
+    expect(pastedConsultationHallId("hall-consultation-pasted:abc:2026-11-30")).toBeNull();
+    expect(pastedConsultationHallId("hall-consultation-pasted::2026-11-30")).toBeNull();
+    expect(pastedConsultationHallId(consultationSourceKey(confirmed.id))).toBeNull();
+    expect(pastedConsultationHallId(undefined)).toBeNull();
+    // 앞머리가 비슷해도(같은 길이의 다른 열쇠) 붙여 넣은 상담의 열쇠가 아니면 홀 ID 를 꺼내지 않는다.
+    expect(pastedConsultationHallId(`hall-consultation-manual:${HALL_A}:2026-11-30`)).toBeNull();
+    // 두 분이 일정 기록에 직접 써 넣은 열쇠는 홀 읽기에 가지 않고, 그 줄만 빠진다.
+    const handWritten = event({ id: "evt_hand", sourceKey: "hall-consultation-pasted:abc:2026-11-30" });
+    const today = event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30", "14:00") });
+    expect(pastedHallIdsAddedToday([handWritten, today], NOW)).toEqual([HALL_A]);
+    const names = new Map([[HALL_A, "소담 하우스"]]);
+    expect(buildActivity({ timeline: { dispatches: [], replies: [], versions: [] }, events: [handWritten, today], now: NOW, pastedHallNames: names }))
+      .toEqual([{ timeLabel: "11:10", actor: "couple", text: LIVE_COPY.activity.schedule("소담 하우스") }]);
   });
 });

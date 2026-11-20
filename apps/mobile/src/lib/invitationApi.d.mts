@@ -75,6 +75,7 @@ export function isJourneyModel(value: unknown): value is JourneyModel;
 export function isCompareModel(value: unknown): value is CompareModel;
 export function cleanConditionsPatch(patch: unknown): InvitationConditionsPatch | null;
 export function isLetterVersionChanged(result: InvitationResult<unknown>): boolean;
+export function isSelfSendRefusal(result: InvitationResult<unknown>): boolean;
 
 export type JourneyPlanValue = { off: readonly string[]; addOns: readonly string[] };
 export function toggledJourneyPlan(plan: JourneyPlanValue, kind: "stage" | "addOn", key: string): { off: string[]; addOns: string[] };

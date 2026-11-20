@@ -1,5 +1,6 @@
 import type { InvitationActivityEntry, InvitationActor } from "@hanbang/shared/invitation";
 import type { ScheduleEvent } from "@/types/database.types";
+import { isUuid } from "@/utils/requestValidation";
 import { CONSULTATION_SOURCE_PREFIX, PASTED_CONSULTATION_SOURCE_PREFIX } from "./consultation";
 import type { InquiryTimeline } from "./inquiryRepository";
 import { hhmm, kstParts } from "./kstFormat";
@@ -16,11 +17,15 @@ import { LIVE_COPY } from "./liveCopy";
 
 type Line = { at: string; actor: InvitationActor; text: string };
 
-/** 붙여 넣은 답으로 넣은 상담 일정(D-83 1단계)의 웨딩홀 ID. 열쇠는 `hall-consultation-pasted:<홀 ID>:<날짜>[T<시각>]` 이다. */
+/**
+ * 붙여 넣은 답으로 넣은 상담 일정(D-83 1단계)의 웨딩홀 ID. 열쇠는 `hall-consultation-pasted:<홀 ID>:<날짜>[T<시각>]` 이다.
+ * 일정 기록은 두 분이 직접 써 넣을 수도 있어서, 홀 ID 모양(UUID)이 아닌 열쇠는 그 줄만 버린다. 그대로 홀 읽기에 넘기면
+ * DB 가 읽기 전체를 거절해 오늘 한 일이 통째로 사라진다.
+ */
 export function pastedConsultationHallId(sourceKey: string | undefined): string | null {
   if (!sourceKey?.startsWith(PASTED_CONSULTATION_SOURCE_PREFIX)) return null;
   const hallId = sourceKey.slice(PASTED_CONSULTATION_SOURCE_PREFIX.length).split(":")[0];
-  return hallId.length > 0 ? hallId : null;
+  return isUuid(hallId) ? hallId.toLowerCase() : null;
 }
 
 /** 오늘(한국 날짜) 붙여 넣은 답으로 넣은 상담의 웨딩홀 ID(겹치지 않게). 활동 경로는 이 홀들의 이름만 읽는다. */

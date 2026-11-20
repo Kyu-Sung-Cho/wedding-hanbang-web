@@ -369,6 +369,13 @@ export function useInvitationLetter(identity: LiveIdentity): InvitationLetterSta
       });
       if (!mounted.current) return;
       if (!approved.ok) {
+        // 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜졌다. 실패한 것은 없으니 아무 말도 남기지 않고 다시 읽는다:
+        // 다시 읽은 편지에는 보낼 글(`selfSend`)이 있고 이 화면은 그 모습을 그릴 줄 안다(앱 화면도 같다).
+        if (approved.code === "SELF_SEND_MODE") {
+          setNotice(null);
+          reloadLetter();
+          return;
+        }
         setNotice({ tone: "error", text: letterFailedMessage(approved) });
         // 판이 바뀌었으면 바뀐 편지를 다시 읽는다. 사람이 다시 읽고 다시 눌러야 한다.
         if (approved.code === "LETTER_VERSION_CHANGED" || approved.code === "LETTER_LOCKED") reloadLetter();
@@ -421,6 +428,13 @@ export function useInvitationLetter(identity: LiveIdentity): InvitationLetterSta
         const result = await invitationRequest("/approver", { method: "PUT", body, accept: isApproverResponse });
         if (!mounted.current) return;
         if (!result.ok) {
+          // 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜졌다(보내기와 같다). 승인 방식은 이제 쓰이지 않고 실패한 것도 없으니
+          // 아무 말도 남기지 않고 편지를 다시 읽어 보낼 글을 보인다. 서버의 문장(앱을 업데이트하라는 말)은 옛 앱에게 하는 말이다.
+          if (result.code === "SELF_SEND_MODE") {
+            setNotice(null);
+            reloadLetter();
+            return;
+          }
           setNotice({ tone: "error", text: approverFailedMessage(result) });
           return;
         }

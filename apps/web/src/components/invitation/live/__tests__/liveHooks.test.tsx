@@ -802,6 +802,49 @@ describe("useInvitationLetter: 직접 보내기(D-83 1단계)", () => {
     await render(<regionOnly.Probe />);
     expect(regionOnly.result.current.missingConditions).toEqual([]);
   });
+
+  it("화면을 연 뒤 직접 보내기가 켜져 승인을 받지 않으면(409 SELF_SEND_MODE) 실패라고 하지 않고 편지를 다시 읽어 보낼 글을 보인다", async () => {
+    const api = letterApi({
+      "GET /api/invitation/letter": [
+        // 스위치가 꺼져 있을 때 연 화면: 칸이 없다.
+        json(letterResponse(SAVED)),
+        // 다시 읽으면 켜진 서버의 편지다: 저장한 판으로 엮은 보낼 글이 있다.
+        json(selfSendLetterResponse(SAVED, { selfSend: selfSendFor() })),
+      ],
+      "POST /api/invitation/letter/approve": apiError(409, "SELF_SEND_MODE", "지금은 두 분이 편지를 직접 보내요."),
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+    expect(result.current.selfSendMode).toBe(false);
+
+    await result.current.send();
+    await flush();
+    expect(api.count("POST", "/api/invitation/letter/approve")).toBe(1);
+    expect(api.count("GET", "/api/invitation/letter")).toBe(2);
+    expect(result.current.selfSendMode).toBe(true);
+    expect(result.current.selfSend?.versionId).toBe(VERSION);
+    expect(result.current.notice).toBeNull();
+  });
+
+  it("승인 방식을 바꾸다 직접 보내기가 켜진 것을 알아도(409 SELF_SEND_MODE) 실패라고 하지 않고 편지를 다시 읽는다", async () => {
+    const api = letterApi({
+      "GET /api/invitation/letter": [
+        json(letterResponse(SAVED)),
+        json(selfSendLetterResponse(SAVED, { selfSend: selfSendFor() })),
+      ],
+      "PUT /api/invitation/approver": apiError(409, "SELF_SEND_MODE", "지금은 두 분이 편지를 직접 보내요."),
+    });
+    const { result, Probe } = probe(() => useInvitationLetter(identity()));
+    await render(<Probe />);
+    expect(result.current.selfSendMode).toBe(false);
+
+    await result.current.chooseApprover("both");
+    await flush();
+    expect(api.count("PUT", "/api/invitation/approver")).toBe(1);
+    expect(api.count("GET", "/api/invitation/letter")).toBe(2);
+    expect(result.current.selfSendMode).toBe(true);
+    expect(result.current.notice).toBeNull();
+  });
 });
 
 describe("직접 보내기·붙여 넣기 응답의 경계 검사", () => {

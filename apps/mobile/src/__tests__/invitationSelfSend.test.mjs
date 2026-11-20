@@ -748,7 +748,10 @@ test("the sheet draws today's send button unless a main action is given, and the
 // ── 편지 화면 ───────────────────────────────────────────────────────────────
 
 /** 편지 화면을 돌린다. `answer` 를 주면 제안의 확인·거절은 그 답(기다리게 할 약속도 된다)을 돌려준다. */
-function letterScreen({ letter, saveResults = [], approver = approverView, os = "ios", answer }) {
+function letterScreen({ letter, letters = null, saveResults = [], approver = approverView, os = "ios", answer, approveMessage = null }) {
+  // `letters` 를 주면 편지를 읽을 때마다 앞에서부터 하나씩 준다(마지막 것은 계속 준다).
+  const queue = letters ? [...letters] : null;
+  const nextLetter = () => (queue ? (queue.length > 1 ? queue.shift() : queue[0]) : letter);
   const host = createHost();
   const calls = [];
   const events = [];
@@ -757,10 +760,10 @@ function letterScreen({ letter, saveResults = [], approver = approverView, os = 
   const answered = { ok: true, data: { ...approver, pending: null } };
   const respond = () => (answer ? answer() : answered);
   const api = {
-    letter: async () => { calls.push(["letter"]); return { ok: true, data: letter }; },
+    letter: async () => { calls.push(["letter"]); return { ok: true, data: nextLetter() }; },
     approver: async () => { calls.push(["approver"]); return { ok: true, data: approver }; },
     saveLetter: async (body) => { calls.push(["saveLetter", body]); return saveResults.shift(); },
-    approveLetter: async (version) => { calls.push(["approveLetter", version]); return { ok: false, reason: "http", status: 409, code: "SELF_SEND_MODE", message: null }; },
+    approveLetter: async (version) => { calls.push(["approveLetter", version]); return { ok: false, reason: "http", status: 409, code: "SELF_SEND_MODE", message: approveMessage }; },
     confirmApprover: async (proposalId) => { calls.push(["confirmApprover", proposalId]); return respond(); },
     declineApprover: async (proposalId) => { calls.push(["declineApprover", proposalId]); return respond(); },
   };
@@ -817,6 +820,27 @@ test("with the switch off the letter sheet receives exactly what it did before s
   assert.equal(props.notice, LETTER_STATE_COPY.approvedNotSent);
   assert.equal(props.approver.type, "InvitationApproverPicker");
   assert.deepEqual(screen.calls.map(([name]) => name), ["letter", "approver"], "더 부르는 것이 없다");
+});
+
+test("a letter opened before self-send was switched on reloads into self-send when approval is refused, with no failure line", RACE, async () => {
+  // 스위치가 꺼져 있을 때 연 편지(selfSend 칸이 없다)와, 다시 읽었을 때 켜진 서버가 주는 편지.
+  const off = { letter: letterModel, state: letterState, missing: [] };
+  const on = { ...off, selfSend };
+  const screen = letterScreen({ letters: [off, on], approveMessage: SELF_SEND_COPY.approveRefused });
+  await screen.open();
+  let props = screen.sheet();
+  assert.deepEqual(Object.keys(props).sort(), TODAY_SHEET_PROPS, "꺼진 서버의 편지는 승인 흐름으로 그린다");
+  props.onSend();
+  await flush();
+  // 이 시험 그리개는 다시 그릴 때 효과를 돌린다: 한 번 그려 다시 읽게 하고, 읽은 뒤 다시 그린다.
+  screen.sheet();
+  await flush();
+  props = screen.sheet();
+  assert.equal(screen.calls.filter(([name]) => name === "approveLetter").length, 1);
+  assert.equal(screen.calls.filter(([name]) => name === "letter").length, 2, "승인을 받지 않으면 편지를 다시 읽는다");
+  assert.equal(props.selfSend.type, "SelfSendPanel", "다시 읽은 편지로 보낼 글을 그린다");
+  assert.deepEqual(props.selfSend.props.view.messages, selfSend);
+  assert.equal(props.notice, null, "실패라고 하지 않고, 옛 앱에게 하는 말(앱을 업데이트)도 남기지 않는다");
 });
 
 test("with the switch on the sheet saves without approving and shows the texts of the saved version", RACE, async () => {

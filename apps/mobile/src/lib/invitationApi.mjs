@@ -420,6 +420,14 @@ export function isLetterVersionChanged(result) {
   return !result.ok && result.status === 409 && result.code === "LETTER_VERSION_CHANGED";
 }
 
+/**
+ * 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜져 서버가 승인을 받지 않았다. 실패한 것은 없다: 이 앱은 편지를 다시 읽어
+ * 보낼 글을 그린다(서버의 문장은 그 화면이 없는 옛 앱에게 하는 말이다).
+ */
+export function isSelfSendRefusal(result) {
+  return !result.ok && result.status === 409 && result.code === "SELF_SEND_MODE";
+}
+
 /** 준비 순서에서 단계를 빼거나 다시 넣고, 갈래를 넣거나 뺀 다음 계획. 원래 계획은 바꾸지 않는다. */
 export function toggledJourneyPlan(plan, kind, key) {
   const flip = (list) => (list.includes(key) ? list.filter((item) => item !== key) : [...list, key]);

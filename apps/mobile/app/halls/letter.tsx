@@ -41,6 +41,7 @@ import SelfSendPanel from "@/components/invitationLive/SelfSendPanel";
 import {
   isLetterDirty,
   isLetterVersionChanged,
+  isSelfSendRefusal,
   letterApprovalNotice,
   letterSaveBody,
   letterSelfSendView,
@@ -188,6 +189,10 @@ export default function HallsLetterScreen() {
         if (isLetterVersionChanged(approved)) {
           reload();
           setActionNotice(LETTER_STATE_COPY.versionChanged);
+        } else if (isSelfSendRefusal(approved)) {
+          // 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜졌다. 실패한 것은 없으니 아무 말도 남기지 않고 다시 읽는다:
+          // 이 앱은 보낼 글을 그릴 줄 안다. 서버의 문장(앱을 업데이트하라는 말)은 옛 앱에게 하는 말이다.
+          reload();
         } else {
           if (approved.status === 409) reload();
           setActionNotice(approved.message ?? LETTER_STATE_COPY.saveFailed);
@@ -242,6 +247,11 @@ export default function HallsLetterScreen() {
         choice.mode === "designated" ? { mode: "designated", designatedUserId: choice.userId } : { mode: "both" },
       );
       if (!result.ok) {
+        // 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜졌다(보내기와 같다). 실패한 것은 없으니 아무 말도 남기지 않고 다시 읽는다.
+        if (isSelfSendRefusal(result)) {
+          reload();
+          return;
+        }
         setActionNotice(result.message ?? COMMON_STATE_COPY.saveFailed);
         return;
       }

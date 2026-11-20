@@ -28,6 +28,7 @@ import {
   firstChatConditionsPatch,
   isLetterDirty,
   isLetterVersionChanged,
+  isSelfSendRefusal,
   journeyWithPlan,
   letterApprovalNotice,
   letterSaveBody,
@@ -814,6 +815,7 @@ function letterHarness({ body = letterModel.body, flags = { name: true, phone: f
     letterSaveBody,
     sameVisibleLetter,
     isLetterVersionChanged,
+    isSelfSendRefusal,
     letterApprovalNotice,
     noticeText,
     LETTER_STATE_COPY: LETTER_COPY_FAKE,
@@ -873,6 +875,48 @@ test("a version changed under the couple is never approved; the sheet reloads an
   await locked.run();
   assert.equal(locked.calls.reload, 1);
   assert.equal(locked.cells.notice.value, "saveFailed");
+});
+
+test("a self-send refusal reloads in silence, while any other refused approval or approver change is said as the server says it", async () => {
+  // 화면을 연 뒤 직접 보내기가 켜졌다: 다시 읽고 아무 말도 남기지 않는다(옛 앱에게 하는 말을 쓰지 않는다).
+  const selfSend = letterHarness({ approveResult: { ok: false, reason: "http", status: 409, code: "SELF_SEND_MODE", message: "지금은 두 분이 편지를 직접 보내요." } });
+  await selfSend.run();
+  assert.equal(selfSend.calls.reload, 1);
+  assert.equal(selfSend.cells.notice.value, null);
+  // 다른 409(예: 탈퇴를 정리하는 중)는 다시 읽고 서버 문장을 그대로 말한다.
+  const other = letterHarness({ approveResult: { ok: false, reason: "http", status: 409, code: "ACCOUNT_UNAVAILABLE", message: "지금은 상담 문의를 다룰 수 없어요." } });
+  await other.run();
+  assert.equal(other.calls.reload, 1);
+  assert.equal(other.cells.notice.value, "지금은 상담 문의를 다룰 수 없어요.");
+
+  // 승인 방식 바꾸기도 같다.
+  const approverRun = (result) => {
+    const calls = { reload: 0 };
+    const notice = stateCell(null);
+    const state = stateCell({ status: "ready", letter: {}, approver: null });
+    const run = extractCallback("app/halls/letter.tsx", "chooseApprover", {
+      liveOwner: { status: "ready", api: { saveApprover: async () => result } },
+      state: state.value,
+      approverSavingRef: { current: false },
+      sendingRef: { current: false },
+      setApproverSaving: () => {},
+      setActionNotice: notice.set,
+      setState: state.set,
+      reload: () => { calls.reload += 1; },
+      isSelfSendRefusal,
+      LETTER_STATE_COPY: LETTER_COPY_FAKE,
+      COMMON_STATE_COPY: { saveFailed: "common:saveFailed" },
+    });
+    return { run, calls, notice };
+  };
+  const refusedChoice = approverRun({ ok: false, reason: "http", status: 409, code: "SELF_SEND_MODE", message: "지금은 두 분이 편지를 직접 보내요." });
+  await refusedChoice.run({ mode: "both" });
+  assert.equal(refusedChoice.calls.reload, 1);
+  assert.equal(refusedChoice.notice.value, null);
+  const otherChoice = approverRun({ ok: false, reason: "http", status: 409, code: "APPROVER_PARTNER_REQUIRED", message: "상대가 합류한 뒤에 고를 수 있어요." });
+  await otherChoice.run({ mode: "both" });
+  assert.equal(otherChoice.calls.reload, 0);
+  assert.equal(otherChoice.notice.value, "상대가 합류한 뒤에 고를 수 있어요.");
 });
 
 test("two quick taps on send save and approve once", RACE, async () => {

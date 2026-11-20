@@ -1,6 +1,6 @@
 import { VENDOR_REPLY_COPY, type ConsultationScheduleResult } from "@hanbang/shared/invitation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findPastedInCalendar, pastedConsultationEventDraft } from "@/lib/invitation/consultation";
+import { findPastedInCalendar, pastedConsultationEventDraft, type PastedConsultationSlot } from "@/lib/invitation/consultation";
 import { apiError, privateJson, readJsonBody } from "@/lib/invitation/http";
 import { applyProgressChange, type ProgressPatchPlan } from "@/lib/invitation/planChange";
 import { parsePastedScheduleInput, readReplyPasteHalls, type PastedScheduleInputResult } from "@/lib/invitation/replyPaste";
@@ -20,7 +20,8 @@ import { log } from "@/utils/log";
  * 받는 것은 `{ hallId, date, time? }` 세 칸뿐이다. 붙여 넣은 글은 이 요청에 없다(기기 안에서만 읽는다).
  * 직접 보내기 스위치가 꺼져 있으면 이 길은 없다: 로그인·요청 제한·DB 보다 먼저 404 다.
  * 홀은 담은 홀이나 열린 편지의 받는 곳이어야 한다. W5 일정 넣기와 같은 길(공동 계획 쓰기로 `progress.__events` 에
- * 한 줄 덧붙이기)을 쓰고, 같은 홀·날짜·시간은 한 번만 들어간다(`sourceKey`).
+ * 한 줄 덧붙이기)을 쓰고, 같은 홀·날짜·시간에는 한 번만 들어간다. 그 자리는 일정의 지금 날짜·시간으로 본다
+ * (일정 화면에서 옮긴 상담은 옮긴 자리에 있다).
  */
 
 export const dynamic = "force-dynamic";
@@ -43,9 +44,13 @@ const INPUT_MESSAGES: Record<Extract<PastedScheduleInputResult, { ok: false }>["
   time: VENDOR_REPLY_COPY.failed,
 };
 
-/** 이미 같은 일정이 있으면 그대로 두고, 없으면 한 줄 덧붙인다. 바꾸는 칸은 `__events` 하나다. */
-function planPastedEvent(progress: Record<string, unknown>, draft: ScheduleEventDraft & { sourceKey: string }): ProgressPatchPlan {
-  if (findPastedInCalendar(getEvents(progress), draft.sourceKey)) return { kind: "unchanged" };
+/** 그 자리에 그 홀의 상담이 이미 있으면 그대로 두고, 없으면 한 줄 덧붙인다. 바꾸는 칸은 `__events` 하나다. */
+function planPastedEvent(
+  progress: Record<string, unknown>,
+  slot: PastedConsultationSlot,
+  draft: ScheduleEventDraft & { sourceKey: string },
+): ProgressPatchPlan {
+  if (findPastedInCalendar(getEvents(progress), slot)) return { kind: "unchanged" };
   try {
     const { newProgress } = addEvent(progress, draft);
     return { kind: "patch", patch: { __events: newProgress.__events }, summary: `일정: ${draft.title}` };
@@ -76,18 +81,19 @@ export async function POST(request: Request) {
     const hall = halls.value.find((item) => item.hallId === input.value.hallId);
     if (!hall) return apiError(404, "HALL_NOT_FOUND", VENDOR_REPLY_COPY.pickHall);
 
-    const draft = pastedConsultationEventDraft({ hallId: hall.hallId, hallName: hall.name, date: input.value.date, time: input.value.time });
+    const slot: PastedConsultationSlot = { hallId: hall.hallId, date: input.value.date, time: input.value.time };
+    const draft = pastedConsultationEventDraft({ ...slot, hallName: hall.name });
     const outcome = await applyProgressChange({
       supabase,
       admin: createAdminClient(),
       coupleId: context.coupleId,
       actorUserId: context.userId,
       surface: "/schedule",
-      build: (progress) => planPastedEvent(progress, draft),
+      build: (progress) => planPastedEvent(progress, slot, draft),
     });
     if (outcome.kind === "failed") return apiError(outcome.status, outcome.code, outcome.error);
 
-    const event = findPastedInCalendar(getEvents(outcome.progress), draft.sourceKey);
+    const event = findPastedInCalendar(getEvents(outcome.progress), slot);
     if (!event) return apiError(503, "SCHEDULE_UNCONFIRMED", SERVER_MESSAGES.unconfirmed);
     const response: ConsultationScheduleResult = {
       added: outcome.kind === "applied",

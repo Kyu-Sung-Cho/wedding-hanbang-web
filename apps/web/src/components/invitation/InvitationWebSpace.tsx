@@ -80,6 +80,19 @@ function activityActor(item: ActivityItem): ActivityActor | null {
   return typeof actor === "string" && actor in ACTIVITY_COPY.actorLabel ? (actor as ActivityActor) : null;
 }
 
+/**
+ * 오늘 한 일 줄의 열쇠. 같은 분에 같은 홀 상담을 둘 넣으면(받은 답 하나에 날짜가 둘) 시각과 글이 같은 줄이 둘 생긴다.
+ * 열쇠가 겹치면 새로 받은 목록을 맞출 때 React 가 줄을 겹쳐 그리거나 빠뜨리므로, 같은 줄이 몇 번째인지 붙인다
+ * (앞에 새 줄이 와도 열쇠는 그대로다).
+ */
+function activityKeys(items: readonly ActivityItem[]): string[] {
+  const base = (item: ActivityItem) => `${item.timeLabel}-${item.text}`;
+  return items.map((item, index) => {
+    const earlier = items.slice(0, index).filter((other) => base(other) === base(item)).length;
+    return earlier === 0 ? base(item) : `${base(item)}-${earlier}`;
+  });
+}
+
 const CARD = "rounded-[26px] bg-inv-white p-[22px] shadow-[0_0_0_1px_#EEEAE6]";
 
 function ExampleChatLines({
@@ -214,6 +227,7 @@ export default function InvitationWebSpace({
 }: InvitationWebSpaceProps) {
   const [tab, setTab] = useState<WebSpaceTabId>(initialTab);
   const decisions = withLeadDecision(model.decisions, leadDecision);
+  const activityKeyList = activityKeys(model.activity);
   const baseId = useId();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const tabId = (id: WebSpaceTabId) => `${baseId}-tab-${id}`;
@@ -335,10 +349,10 @@ export default function InvitationWebSpace({
               <h2 className="font-inv-serif text-[18px] font-bold">{WEB_COPY.activityHeading}</h2>
               {model.activity.length > 0 ? (
                 <ol className="flex flex-col gap-3 text-[14px] leading-[1.55]">
-                  {model.activity.map((item) => {
+                  {model.activity.map((item, index) => {
                     const actor = activityActor(item);
                     return (
-                      <li key={`${item.timeLabel}-${item.text}`} className="flex gap-3.5" data-actor={actor ?? undefined}>
+                      <li key={activityKeyList[index]} className="flex gap-3.5" data-actor={actor ?? undefined}>
                         <span className="w-11 flex-none font-inv-numeral text-[16px] text-inv-gold-ink">{item.timeLabel}</span>
                         {actor ? (
                           <span>

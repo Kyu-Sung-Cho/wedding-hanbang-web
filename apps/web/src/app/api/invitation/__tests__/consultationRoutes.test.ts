@@ -276,6 +276,7 @@ describe("halls for a pasted reply (D-83 stage 1)", () => {
 
 describe("activity", () => {
   it("adds today's consultation from a pasted reply as the couple's entry, reading hall names only then", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-16T05:00:00Z"));
     try {
@@ -294,6 +295,60 @@ describe("activity", () => {
       const quiet = useClient(tables());
       expect((await getActivity(jsonRequest(`${URL_BASE}/activity`, "GET"))).status).toBe(200);
       expect(quiet.calls.some((call) => call.table === "hall_listings")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves pasted consultations out and reads no halls while self-send is off, as before the switch", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-16T05:00:00Z"));
+    try {
+      const at = "2026-11-16T04:50:00.000Z";
+      const pasted = {
+        id: "evt_paste", date: "2026-11-30", title: "가온 웨딩홀 상담", categoryKey: "venue", status: "planned",
+        assignee: { kind: "couple" }, createdAt: at, updatedAt: at, sourceKey: `hall-consultation-pasted:${IDS.hallB}:2026-11-30`,
+      };
+      const pastedLine = { timeLabel: "13:50", actor: "couple", text: "가온 웨딩홀 상담이 일정에 들어갔어요" };
+      const readsHalls = (client: FakeClient) => client.calls.some((call) => call.table === "hall_listings");
+
+      // 스위치를 끈 뒤(같은 날 되돌린 때).
+      const off = useClient(tables({ __events: [pasted] }));
+      const offResponse = await getActivity(jsonRequest(`${URL_BASE}/activity`, "GET"));
+      expect(offResponse.status).toBe(200);
+      const offBody = await offResponse.json();
+      expect(offBody.activity).toHaveLength(3);
+      expect(offBody.activity).not.toContainEqual(pastedLine);
+      expect(readsHalls(off)).toBe(false);
+
+      // 운영자 대기열이 켜져 직접 보내기가 꺼진 것으로 보는 때.
+      process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+      process.env.HALL_INQUIRY_SENDING_ENABLED = "true";
+      const queue = useClient(tables({ __events: [pasted] }));
+      const queueBody = await (await getActivity(jsonRequest(`${URL_BASE}/activity`, "GET"))).json();
+      expect(queueBody.activity).toHaveLength(3);
+      expect(queueBody.activity).not.toContainEqual(pastedLine);
+      expect(readsHalls(queue)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops a hand-written pasted key instead of sending it to the hall read", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-16T05:00:00Z"));
+    try {
+      const at = "2026-11-16T04:50:00.000Z";
+      const handWritten = {
+        id: "evt_hand", date: "2026-11-30", title: "상담", categoryKey: "venue", status: "planned",
+        assignee: { kind: "couple" }, createdAt: at, updatedAt: at, sourceKey: "hall-consultation-pasted:abc:2026-11-30",
+      };
+      const client = useClient(tables({ __events: [handWritten] }));
+      const response = await getActivity(jsonRequest(`${URL_BASE}/activity`, "GET"));
+      expect(response.status).toBe(200);
+      expect((await response.json()).activity).toHaveLength(3);
+      expect(client.calls.some((call) => call.table === "hall_listings")).toBe(false);
     } finally {
       vi.useRealTimers();
     }
