@@ -28,10 +28,12 @@ function fakeStore(options: { modelDenied?: string; saveFails?: boolean } = {}) 
   const reservations: { usage: string }[] = [];
   const steps: (string | null)[] = [];
   const notifications: { taskId: string; state: string; reason: string }[] = [];
+  const savedProgress: Record<string, unknown>[] = [];
   const store: AmoraTaskStore = {
     offer: vi.fn(), start: vi.fn(), cancel: vi.fn(), resume: vi.fn(), claim: vi.fn(),
     async saveProgress(input) {
       steps.push(input.stepLabel);
+      savedProgress.push(input.progress);
       return !options.saveFails;
     },
     async reserveUsage(input): Promise<AmoraTaskUsageReservation> {
@@ -44,8 +46,11 @@ function fakeStore(options: { modelDenied?: string; saveFails?: boolean } = {}) 
     async claimNotifications() { return [{ taskId: TASK, coupleId: COUPLE, requestedBy: USER, kind: "todo_deadlines", attempts: 1 }]; },
     async finishNotification(taskId, state, reason) { notifications.push({ taskId, state, reason }); return true; },
   };
-  return { store, finishes, reservations, steps, notifications };
+  return { store, finishes, reservations, steps, notifications, savedProgress };
 }
+
+/** 커플 두 사람 이름. 찾기 거르개(갈래 3 blockedTerms)에만 가야 한다. */
+const COUPLE_NAMES = ["김민준", "이지연"];
 
 /** 정해진 답을 돌려주는 모델. 진짜 호출기처럼 답하기 전에 걸음 예약부터 한다. */
 function scriptedModel(responses: Record<string, unknown[]>) {
@@ -75,6 +80,7 @@ function deps(overrides: Partial<AmoraTaskWorkerDeps> & { store: AmoraTaskStore 
     callModel: scriptedModel({}).callModel,
     readTool: vi.fn(),
     loadWeddingContext: async () => ({ weddingDate: "2027-05-08", budget: 30_000_000, venue: null, progress: {} }),
+    loadCoupleNames: async () => [...COUPLE_NAMES],
     reserveGlobalWallet: async () => true,
     todayYmd: () => TODAY,
     nowMs: () => 0,
@@ -232,7 +238,10 @@ describe("찾기가 드는 일", () => {
     const task = row("hall_candidates", { region: "강남", guest_count: 200, request_text: "강남 웨딩홀 찾아 줘" });
     const outcome = await run(task);
     expect(outcome).toEqual({ kind: "done" });
-    expect(search.search).toHaveBeenCalledWith({ query: "강남 웨딩홀", coupleId: COUPLE, userTexts: ["강남 웨딩홀 찾아 줘"] });
+    // 커플 이름은 거르개로 넘긴다: 이름이 든 낱말은 사용자가 쳤어도 네이버로 가지 않는다(갈래 3, 약관 일반조건 7.4 ⑦).
+    expect(search.search).toHaveBeenCalledWith({
+      query: "강남 웨딩홀", coupleId: COUPLE, userTexts: ["강남 웨딩홀 찾아 줘"], blockedTerms: COUPLE_NAMES,
+    });
     expect(search.readPage).toHaveBeenCalledWith({
       url: "https://chapel.example/hall",
       coupleId: COUPLE,
@@ -252,8 +261,30 @@ describe("찾기가 드는 일", () => {
         expect(sent.includes(leaked), leaked).toBe(false);
       }
     }
+    // 커플 이름은 거르개에만 쓰고, 모델 입력·진행 기록·결과에는 남기지 않는다.
+    const kept = JSON.stringify([fake.savedProgress, fake.finishes]);
+    for (const name of COUPLE_NAMES) {
+      expect(model.inputs.some((sent) => sent.includes(name)), name).toBe(false);
+      expect(kept.includes(name), name).toBe(false);
+    }
     expect(fake.reservations.filter((r) => r.usage === "web_search")).toHaveLength(2);
     expect(fake.reservations.filter((r) => r.usage === "model_step")).toHaveLength(4);
+  });
+
+  it("커플 이름을 못 읽으면 찾지 않고 이번 차례를 쉰다", async () => {
+    const fake = fakeStore();
+    const search = fakeSearch();
+    const model = scriptedModel({ amora_task_plan_v1: [{ action: "search", query: "강남 웨딩홀", source_id: "" }] });
+    const base = deps({ store: fake.store, callModel: model.callModel });
+    const outcome = await runAmoraTaskSlice(
+      row("hall_candidates", { region: "강남", request_text: "강남 웨딩홀 찾아 줘" }),
+      { ...base, adapters: { ...base.adapters, webSearch: search }, loadCoupleNames: async () => { throw new Error("profiles down"); } },
+      1,
+    );
+    expect(outcome).toEqual({ kind: "paused" });
+    expect(search.search).not.toHaveBeenCalled();
+    // 이름을 먼저 읽고 나서 찾기 횟수를 잡는다. 못 읽으면 하루 찾기 몫도 쓰지 않는다.
+    expect(fake.reservations.filter((r) => r.usage === "web_search")).toHaveLength(0);
   });
 
   it("숫자나 조건에 없는 낱말이 든 검색어는 보내지 않는다", async () => {

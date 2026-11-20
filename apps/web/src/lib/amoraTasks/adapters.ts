@@ -59,7 +59,8 @@ export type AmoraTaskPageReadResult =
   | { ok: false; reason: string };
 
 export interface AmoraTaskWebSearchAdapter {
-  search(input: { query: string; coupleId: string; userTexts: string[] }): Promise<AmoraTaskWebSearchResult>;
+  /** `blockedTerms`: 커플 두 사람 이름. 갈래 3 이 그 이름이 든 낱말을 네이버로 보내지 않는다(약관 일반조건 7.4 ⑦). */
+  search(input: { query: string; coupleId: string; userTexts: string[]; blockedTerms: readonly string[] }): Promise<AmoraTaskWebSearchResult>;
   readPage(input: { url: string; coupleId: string; sourceUrls: string[] }): Promise<AmoraTaskPageReadResult>;
 }
 

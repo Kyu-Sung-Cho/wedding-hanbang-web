@@ -7,7 +7,7 @@ import { isAmoraTasksEnabled } from "./config";
 import { amoraTaskFailure } from "./report";
 import { createOpenAITaskModelCaller } from "./taskModel";
 import { createSupabaseAmoraTaskStore } from "./taskStore";
-import { executeAmoraTaskReadTool, loadAmoraTaskWeddingContext } from "./taskTools";
+import { executeAmoraTaskReadTool, loadAmoraTaskCoupleNames, loadAmoraTaskWeddingContext } from "./taskTools";
 import { runAmoraTaskWorker, type AmoraTaskWorkerDeps, type AmoraTaskWorkerStats } from "./taskWorker";
 
 /** 운영의 일꾼 부품. 시험은 `AmoraTaskWorkerDeps` 를 직접 만들어 넘긴다. */
@@ -18,6 +18,7 @@ export function createAmoraTaskWorkerDeps(admin = createAdminClient()): AmoraTas
     callModel: createOpenAITaskModelCaller(),
     readTool: executeAmoraTaskReadTool,
     loadWeddingContext: (coupleId) => loadAmoraTaskWeddingContext(admin, coupleId),
+    loadCoupleNames: (coupleId) => loadAmoraTaskCoupleNames(admin, coupleId),
     // 전역 지갑. 기억 크론과 같은 background 몫으로 서비스 전체 하루 금액 상한을 원자적으로 깎는다.
     reserveGlobalWallet: async (coupleId, costMicrousd) => {
       const reservation = await reserveAmoraTurn(admin, {

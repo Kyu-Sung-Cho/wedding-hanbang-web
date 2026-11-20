@@ -69,6 +69,8 @@ export type AmoraTaskWorkerDeps = {
   callModel: TaskModelCall;
   readTool: (name: string, input: Record<string, unknown>, context: AmoraTaskToolContext) => Promise<ToolExecutionResult>;
   loadWeddingContext: (coupleId: string) => Promise<ToolExecutionContext["weddingContext"]>;
+  /** 커플 회원 이름. 찾기 거르개(갈래 3 `blockedTerms`)에만 쓰고 진행 기록·모델 입력에는 넣지 않는다. */
+  loadCoupleNames: (coupleId: string) => Promise<string[]>;
   reserveGlobalWallet: (coupleId: string, costMicrousd: number) => Promise<boolean>;
   todayYmd: () => string;
   nowMs: () => number;
@@ -430,6 +432,9 @@ async function searchStep(state: SliceState): Promise<{ label: string } | { outc
       state.progress = { ...progress, invalidSteps: progress.invalidSteps + 1 };
       return { label: "검색어를 다시 고르고 있어요" };
     }
+    // 커플 이름이 든 낱말은 네이버로 보내지 않는다(갈래 3 blockedTerms). 이름을 못 읽으면 던져서 이번 차례를 쉬고,
+    // 찾기 몫도 잡지 않는다. 이름은 이 호출에만 쓰고 진행 기록에 남기지 않는다.
+    const blockedTerms = await deps.loadCoupleNames(task.couple_id);
     const denied = await reserveWebSearch(state);
     if (denied) {
       if (progress.evidence.length > 0) {
@@ -439,7 +444,7 @@ async function searchStep(state: SliceState): Promise<{ label: string } | { outc
       return { outcome: await review(state, denied === "task_step_limit" ? "task_step_limit" : "daily_search_limit") };
     }
     const userTexts = typeof task.input.request_text === "string" ? [task.input.request_text] : [];
-    const found = await search.search({ query, coupleId: task.couple_id, userTexts });
+    const found = await search.search({ query, coupleId: task.couple_id, userTexts, blockedTerms });
     if (!found.ok) {
       if (found.reason === "daily_limit") return { outcome: await review(state, "daily_search_limit") };
       if (found.reason === "unavailable") return { outcome: await review(state, "source_unavailable") };

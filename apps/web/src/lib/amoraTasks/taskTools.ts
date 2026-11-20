@@ -73,6 +73,23 @@ export async function executeAmoraTaskReadTool(
 }
 
 /** 커플이 함께 쓰는 계획을 읽는다. 없으면 빈 계획. */
+/**
+ * 커플 회원의 이름(역할·멤버 모델과 상관없이). 찾기에서 네이버로 보내지 않을 낱말(갈래 3 `blockedTerms`)로만 쓴다.
+ * 대화 경로의 `couple_profile_directory` 와 같은 출처(profiles)다. 그 뷰는 로그인한 회원 기준이라 service_role 일꾼은 표를 직접 읽는다.
+ * 못 읽으면 던진다: 이름 없이 찾기를 보내지 않는다.
+ */
+export async function loadAmoraTaskCoupleNames(admin: SupabaseClient, coupleId: string): Promise<string[]> {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("name")
+    .eq("couple_id", coupleId)
+    .limit(4);
+  if (error) throw new Error("AMORA_TASK_NAMES_READ_FAILED");
+  return (data ?? [])
+    .map((row) => (typeof row.name === "string" ? row.name.trim() : ""))
+    .filter((name) => name.length > 0);
+}
+
 export async function loadAmoraTaskWeddingContext(
   admin: SupabaseClient,
   coupleId: string,
