@@ -1,29 +1,36 @@
 /**
  * 아모라 문지기(D-89)의 계약: 스위치, 고정 문장, 응답 행 표식.
  *
- * 판정 자체(OpenAI 안전 판정과 결혼 범위 판정)는 `amoraGatekeeper.ts` 에 있다. 이 파일은
+ * 판정 자체(결혼 범위·위험 판정 모델)는 `amoraGatekeeper.ts` 에 있다. 이 파일은
  * 의존이 없다. 이력·연결 문맥·갈등 확인처럼 "지난 턴을 모델에게 다시 보여 줘도 되는가"를
  * 정하는 곳들이 OpenAI 클라이언트를 끌어오지 않고 표식만 읽을 수 있게 따로 두었다.
  *
  * 정한 것(2026-11-20 파운더, 설계 25장 D-89):
  * - 결혼 준비와 상관없는 말은 정해진 한 줄로 끝내고 모델에게 보내지 않는다.
- * - 폭력·자살·자해는 결혼 이야기여도, 가정이어도 막는다. 막는 말에는 번호를 쓰지 않는다
- *   (11-18 "막기만"). 지금 위기 안내(109 포함)가 나가는 말은 그 안내를 그대로 둔다.
+ * - 폭력·자살·자해는 결혼 이야기여도, 가정이어도 막는다. 지금 위기 안내(109 포함)가 나가는
+ *   말은 그 안내를 그대로 둔다.
  * - 낱말 목록을 넓히지 않는다. 낱말 판정은 위기 안내와 오늘의 안전 갈래로만 남는다.
+ *
+ * 바꾼 것(2026-11-21 파운더, PR #537 의 결정 1·4):
+ * - 막는 문장에 112·1366·109 를 적는다(원문 "번호 붙이기"). 11-18 의 "막기만"은 번호 없는
+ *   한 줄이었는데, 오늘 W2 안전 갈래는 모델이 112·119·1366·109 를 고르게 한다. 문지기를 켜면
+ *   그 말들이 번호를 잃게 되어 다시 정했다. 결혼 밖 거절 문장에는 번호를 쓰지 않는다.
+ * - 두 문장 다 파운더가 고른 글자 그대로다(D-12). 고치려면 다시 승인을 받는다.
  */
 
 /** 판정 규칙이나 문장이 바뀌면 올린다. 저장된 응답 행에 남아 어느 판으로 막았는지 보인다. */
-export const AMORA_GATEKEEPER_VERSION = "2026-11-20.v1";
+export const AMORA_GATEKEEPER_VERSION = "2026-11-21.v2";
 
 /** 서버가 쓴 문지기 응답 행의 `metadata.response_origin`. */
 export const AMORA_GATEKEEPER_RESPONSE_ORIGIN = "deterministic_amora_gatekeeper";
 
 /**
- * 화면 문장. 파운더 승인 전 초안이다(D-12). 바꾸면 웹·앱이 같은 문장을 받는지 보는
- * 시험이 함께 바뀌어야 한다.
+ * 화면 문장. 2026-11-21 파운더가 승인한 글자 그대로다(D-12). 바꾸면 웹·앱이 같은 문장을
+ * 받는지 보는 시험이 함께 바뀌어야 한다.
  */
 export const AMORA_GATE_OUT_OF_SCOPE_REPLY = "결혼 준비 이야기만 도와드릴 수 있어요.";
-export const AMORA_GATE_BLOCKED_RISK_REPLY = "이 이야기는 아모라가 도와드릴 수 없어요.";
+export const AMORA_GATE_BLOCKED_RISK_REPLY =
+  "이 이야기는 아모라가 도와드릴 수 없어요. 위험하다면 112(경찰), 1366(여성긴급전화), 109(자살예방상담)에 바로 연락해 주세요.";
 
 export type AmoraGateVerdict = "allow" | "out_of_scope" | "blocked_risk" | "crisis";
 export type AmoraGateBlockingVerdict = Extract<AmoraGateVerdict, "out_of_scope" | "blocked_risk">;

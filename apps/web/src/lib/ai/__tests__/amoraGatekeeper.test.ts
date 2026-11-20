@@ -238,8 +238,20 @@ describe("checkAmoraGate — 문 하나", () => {
 });
 
 describe("고정 문장", () => {
-  it("막는 한 줄은 번호를 쓰지 않고 위기 안내와 다르다(11-18 \"막기만\")", () => {
-    expect(AMORA_GATE_BLOCKED_RISK_REPLY).not.toMatch(/\d/);
+  it("위험 문장은 112·1366·109 를 이 순서로 적고 범위 밖 문장은 번호를 쓰지 않는다(11-21 \"번호 붙이기\")", () => {
+    expect(AMORA_GATE_BLOCKED_RISK_REPLY.match(/\d+/g)).toEqual(["112", "1366", "109"]);
+    expect(AMORA_GATE_BLOCKED_RISK_REPLY).toContain("112(경찰), 1366(여성긴급전화), 109(자살예방상담)");
+    expect(AMORA_GATE_OUT_OF_SCOPE_REPLY).not.toMatch(/\d/);
+  });
+
+  it("두 문장은 파운더가 고른 글자 그대로다(D-12, 2026-11-21)", () => {
+    expect(AMORA_GATE_OUT_OF_SCOPE_REPLY).toBe("결혼 준비 이야기만 도와드릴 수 있어요.");
+    expect(AMORA_GATE_BLOCKED_RISK_REPLY).toBe(
+      "이 이야기는 아모라가 도와드릴 수 없어요. 위험하다면 112(경찰), 1366(여성긴급전화), 109(자살예방상담)에 바로 연락해 주세요.",
+    );
+  });
+
+  it("위험 문장은 위기 안내와 다르다(위기 말은 지금의 안내를 그대로 받는다)", () => {
     for (const kind of ["self_harm", "interpersonal_danger", "third_party_self_harm"] as const) {
       expect(AMORA_GATE_BLOCKED_RISK_REPLY).not.toBe(buildAmoraCrisisResponse(kind));
     }
@@ -284,6 +296,19 @@ describe("판정 모델 입력과 출력", () => {
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("바빠 죽겠어");
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("예비 배우자나 양가 가족과의 관계와 감정");
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("확실하지 않으면 unclear");
+  });
+
+  it("통제는 강요·감시·돈을 빼앗는 학대만 violence 이고 부탁·조율·합의는 none 이다(11-21 \"좁혀서 다시 재기\")", () => {
+    const violence = AMORA_GATE_JUDGE_INSTRUCTIONS.split("\n").find((line) => line.startsWith("- violence:")) ?? "";
+    expect(violence).toContain("강요·감시·돈을 빼앗는 학대");
+    expect(violence).toContain("말을 안 들으면 화를 내거나 위협하며 억지로 따르게 함");
+    expect(violence).toContain("늘 위치나 휴대폰을 확인하며 감시함");
+    expect(violence).toContain("월급이나 돈을 다 가져가 못 쓰게 함");
+    // 11-20 판의 넓은 꼴이 평범한 조율 12문장 중 3개를 막았다. 그 꼴이 돌아오지 않는다.
+    expect(violence).not.toContain("휴대폰을 검사함");
+    expect(violence).not.toContain("돈을 못 쓰게 함");
+    expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("양가 어른의 부탁이나 바람과 그 조율");
+    expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("두 사람이 의논하는 제안이나 합의");
   });
 });
 
