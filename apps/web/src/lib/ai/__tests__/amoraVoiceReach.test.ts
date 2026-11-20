@@ -102,24 +102,31 @@ describe("아모라 정체성이 프롬프트와 사용자 표면에서 같은 �
     //
     // 옛 이름은 원문에서 본다. 주석에 남은 이름도 다음 사람이 되살릴 재료가 된다.
     // 새 이름은 주석을 벗기고 본다. 그래야 주석이 화면 글자 대신 대답하지 못한다.
-    const surfaces = [
+    const titleSurfaces = [
       ["시스템 프롬프트", "src/lib/ai/prompts.ts"],
       ["목소리 계약", "src/lib/ai/amoraVoice.ts"],
       ["프로필 편집기 프롬프트", "src/lib/ai/amora-profile.ts"],
       ["커뮤니티 댓글 프롬프트", "src/app/api/community/ai-comment/route.ts"],
       ["AI 기본법 고지", "src/components/common/AiNoticeFooter.tsx"],
       ["아모라 옆 패널", "src/components/app/chat/ChatSidePanel.tsx"],
-      ["랜딩 카피", "src/components/landing/redesign/landingContent.ts"],
-      ["공유 카드", "src/app/landing/opengraph-image.tsx"],
       ["소개 화면 푸터", "src/components/landing/Footer.tsx"],
     ] as const;
-    for (const [label, path] of surfaces) {
+    // 옛 이름이 있던 자리 가운데 2026-11-18 디자인 시안 이식(#531)으로 문장째 없어진 곳이다.
+    // 랜딩 첫 화면 본문과 공유 카드는 앱과 같은 시작 화면 문구(START_COPY)를 읽고 호칭을
+    // 쓰지 않는다. 새 이름을 요구하지 않고, 옛 이름이 돌아오지 않는지만 본다.
+    const formerTitleSurfaces = [
+      ["랜딩 카피", "src/components/landing/redesign/landingContent.ts"],
+      ["공유 카드", "src/app/landing/opengraph-image.tsx"],
+    ] as const;
+    for (const [label, path] of [...titleSurfaces, ...formerTitleSurfaces]) {
       const raw = source(path);
       for (const oldTitle of ["AI 동반자", "결혼 준비 동반자", "동반자로서"]) {
         expect(raw, `${label}(${path})에 옛 호칭 "${oldTitle}"이 남아 있다`)
           .not.toContain(oldTitle);
       }
-      expect(stripComments(raw), `${label}(${path})가 아모라를 "AI 웨딩 비서"라고 부르지 않는다`)
+    }
+    for (const [label, path] of titleSurfaces) {
+      expect(stripComments(source(path)), `${label}(${path})가 아모라를 "AI 웨딩 비서"라고 부르지 않는다`)
         .toContain("AI 웨딩 비서");
     }
   });

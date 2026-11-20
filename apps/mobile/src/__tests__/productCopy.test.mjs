@@ -254,10 +254,13 @@ test("amora is never introduced as a planner on any active mobile screen", () =>
   }
 });
 
-test("amora is called by the 2026-11-16 title on active mobile screens", () => {
+test("amora's pre-2026-11-16 title does not come back on active mobile screens", () => {
   // 2026-11-16 파운더 결정: 정본 호칭은 "AI 웨딩 비서"다(그 전 "결혼 준비 동반자").
   // 웹의 같은 금지는 apps/web/src/lib/ai/__tests__/amoraVoiceReach.test.ts 가 진다.
   // 옛 이름은 원문에서 본다. 주석에 남은 이름도 다음 사람이 되살릴 재료가 된다.
+  //
+  // 앱에서 호칭을 쓰던 자리는 대화 머리줄 부제 하나였는데, 2026-11-18 디자인 시안 이식(#531)으로
+  // 부제가 없어졌다. 그래서 새 이름이 어디 있는지는 묻지 않고 옛 이름이 돌아오지 않는지만 본다.
   const published = ACTIVE_PRODUCT_SOURCES.join("\n");
   for (const oldTitle of ["결혼 준비 동반자", "AI 동반자"]) {
     assert.ok(
@@ -265,12 +268,4 @@ test("amora is called by the 2026-11-16 title on active mobile screens", () => {
       `아모라를 옛 호칭 "${oldTitle}"로 부르는 문구가 남아 있습니다`,
     );
   }
-  // 대화 머리줄에 그리는 글자와 머리줄 폭을 어림할 때 쓰는 글자가 같아야 한다. 하나만
-  // 바뀌면 320pt 화면에서 머리줄이 넘치는지 재는 숫자가 실제 글자와 어긋난다.
-  const header = readFileSync(
-    fileURLToPath(new URL("../lib/amoraChatHeader.ts", import.meta.url)),
-    "utf8",
-  );
-  assert.match(header, /const HEADER_SUBTITLE = "AI 웨딩 비서";/);
-  assert.match(published, /numberOfLines=\{1\}>AI 웨딩 비서<\/Text>/);
 });
