@@ -271,6 +271,7 @@ vi.mock("@/lib/ai/modelConfig", () => ({
 }));
 
 import { POST } from "@/app/api/chat/check-couple-conflict/route";
+import { buildAmoraGatekeeperReplyMetadata } from "@/lib/ai/amoraGatekeeperContract";
 
 function request() {
   return new NextRequest("http://localhost/api/chat/check-couple-conflict", {
@@ -1060,6 +1061,52 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     expect(mocks.providerLedger).not.toHaveBeenCalled();
     expect(mocks.structuredResponse).not.toHaveBeenCalled();
     expect(mocks.auditedResponse).not.toHaveBeenCalled();
+  });
+
+  it("문지기(D-89)가 막은 턴이 창에 있으면 요청 제한·어느 모델보다 먼저 건너뛴다", async () => {
+    mocks.rawMessages.splice(1, 0, {
+      id: "30000000-0000-4000-8000-000000000009",
+      content: "결혼 준비 이야기만 도와드릴 수 있어요.",
+      sender_type: "ai",
+      sender_id: null,
+      created_at: new Date(Date.now() - 15_000).toISOString(),
+      visibility: "shared",
+      metadata: buildAmoraGatekeeperReplyMetadata({
+        verdict: "out_of_scope",
+        userMessageId: "30000000-0000-4000-8000-000000000001",
+      }),
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "gatekeeper_turn_delegated",
+    });
+    expect(mocks.persistentLimit).not.toHaveBeenCalled();
+    expect(mocks.reserveTurn).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.structuredResponse).not.toHaveBeenCalled();
+    expect(mocks.auditedResponse).not.toHaveBeenCalled();
+  });
+
+  it("문지기 표식이 없는 아모라 답은 창을 막지 않는다(기준선)", async () => {
+    mocks.rawMessages.splice(1, 0, {
+      id: "30000000-0000-4000-8000-000000000009",
+      content: "결혼 준비 이야기만 도와드릴 수 있어요.",
+      sender_type: "ai",
+      sender_id: null,
+      created_at: new Date(Date.now() - 15_000).toISOString(),
+      visibility: "shared",
+      metadata: { in_reply_to_user_message_id: "30000000-0000-4000-8000-000000000001", question_scope: "W4_out_of_scope" },
+    });
+
+    const response = await POST(request());
+    const body = await response.json() as { reason?: string };
+
+    expect(body.reason).not.toBe("gatekeeper_turn_delegated");
+    expect(mocks.persistentLimit).toHaveBeenCalled();
   });
 
   it("returns a persistent limiter outage after the deterministic crisis boundary", async () => {
