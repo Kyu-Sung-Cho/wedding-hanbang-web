@@ -71,6 +71,33 @@ describe("TodayOneCare shared response contract", () => {
     });
   });
 
+  it("accepts the 25장 2절 kinds only with their fixed next actions", () => {
+    const withKind = (kind: string, label: string, href: string) => {
+      const value = response();
+      value.card.kind = kind;
+      value.card.nextAction = { label, href };
+      value.card.choices[0] = { action: "open_source", label };
+      return value;
+    };
+    for (const [kind, label, href] of [
+      ["task_deadline", "할 일 보기", "/lounge"],
+      ["couple_decision", "정할 것 보기", "/halls/consultation"],
+      ["couple_decision", "정할 것 보기", "/halls/letter"],
+      ["inquiry_waiting", "문의 보기", "/halls/consultation"],
+    ] as const) {
+      expect(validateTodayOneCareResponse(withKind(kind, label, href), USER_ID).ok, `${kind} ${href}`).toBe(true);
+    }
+    for (const [kind, label, href] of [
+      ["task_deadline", "할 일 보기", "/schedule"],
+      ["task_deadline", "일정 열기", "/lounge"],
+      ["couple_decision", "정할 것 보기", "/lounge"],
+      ["inquiry_waiting", "문의 보기", "/halls/letter"],
+      ["task_completed", "결과 보기", "/lounge"],
+    ] as const) {
+      expect(validateTodayOneCareResponse(withKind(kind, label, href), USER_ID).ok, `${kind} ${href}`).toBe(false);
+    }
+  });
+
   it("rejects owner mismatch, unknown versions, and cards on non-ready states", () => {
     expect(validateTodayOneCareResponse(response(), "30000000-0000-4000-8000-000000000001"))
       .toEqual({ ok: false, reason: "owner" });

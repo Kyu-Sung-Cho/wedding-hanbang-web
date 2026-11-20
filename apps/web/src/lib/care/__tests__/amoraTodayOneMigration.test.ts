@@ -5,6 +5,12 @@ import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
 
+import {
+  buildTodayOneDecisionCandidates,
+  buildTodayOneInquiryWaitingCandidates,
+  buildTodayOneTaskDeadlineCandidates,
+} from "../todayOneMore";
+
 const migrationSql = readFileSync(
   resolve(
     process.cwd(),
@@ -16,6 +22,13 @@ const budgetGuardrailMigrationSql = readFileSync(
   resolve(
     process.cwd(),
     "../../supabase/migrations/20260802150000_amora_today_one_budget_guardrails.sql",
+  ),
+  "utf8",
+);
+const moreKindsMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20261120120000_amora_today_one_more_kinds.sql",
   ),
   "utf8",
 );
@@ -296,6 +309,117 @@ describe("in-app TodayOne storage migration", () => {
         SET kind = 'unknown_kind'
         WHERE source_key = 'budget:recorded-total-over-total'
       `)).rejects.toMatchObject({ code: "23514" });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("25장 2절의 새 종류 셋을 정해진 다음 행동과 짝일 때만 받고, 서버 코드가 만든 카드를 그대로 받는다", async () => {
+    const db = await createDatabase();
+    try {
+      await resetPersona(db);
+      await db.exec(budgetGuardrailMigrationSql);
+      await db.exec(moreKindsMigrationSql);
+      // 다시 돌려도 같은 결과(배포 길이 같은 파일을 두 번 적용해도 깨지지 않는다).
+      await db.exec(moreKindsMigrationSql);
+
+      const now = new Date("2099-01-14T03:00:00.000Z");
+      const [task] = buildTodayOneTaskDeadlineCandidates({
+        actions: [{
+          id: "act-1",
+          title: "청첩장 문구 정하기",
+          dueDate: "2099-01-15",
+          priority: "normal",
+          status: "open",
+          source: "amora",
+          createdAt: "2099-01-01T00:00:00.000Z",
+          updatedAt: "2099-01-01T00:00:00.000Z",
+        } as never],
+        stateRevision: 7,
+        now,
+      });
+      const [decision] = buildTodayOneDecisionCandidates({
+        decisions: [{
+          id: "proposal-1",
+          title: "라온홀 대체 시간",
+          sub: "토요일 오후 4시 제안",
+          owner: { kind: "together" },
+          target: "status",
+        }],
+        stateRevision: 7,
+      });
+      const [waiting] = buildTodayOneInquiryWaitingCandidates({
+        timeline: {
+          dispatches: [{
+            id: "dispatch-1",
+            letterId: "letter-1",
+            versionId: "version-1",
+            hallId: "hall-1",
+            recipientName: "라온홀",
+            status: "sent",
+            queuedAt: "2099-01-10T00:00:00.000Z",
+            sentAt: "2099-01-10T01:00:00.000Z",
+            redacted: false,
+          }],
+          replies: [],
+          versions: [],
+        },
+        stateRevision: 7,
+        now,
+      });
+      const presentation = (candidate: typeof task) => ({
+        kind: candidate.kind,
+        whyNow: candidate.whyNow,
+        confirmed: candidate.confirmed,
+        unknown: candidate.unknown,
+        nextAction: candidate.nextAction,
+        impact: candidate.impact,
+        choices: candidate.choices,
+      });
+      const valid = async (value: unknown) => (await db.query<{ valid: boolean }>(
+        `SELECT public.amora_today_one_presentation_is_valid($1::jsonb) AS valid`,
+        [JSON.stringify(value)],
+      )).rows[0].valid;
+
+      expect(await valid(PRESENTATION)).toBe(true);
+      expect(await valid(BUDGET_PRESENTATION)).toBe(true);
+      expect(await valid(presentation(task))).toBe(true);
+      expect(await valid(presentation(decision))).toBe(true);
+      expect(await valid({
+        ...presentation(decision),
+        nextAction: { label: "정할 것 보기", href: "/halls/letter" },
+      })).toBe(true);
+      expect(await valid(presentation(waiting))).toBe(true);
+      // 종류와 다음 행동이 짝이 아니면 받지 않는다.
+      expect(await valid({ ...presentation(task), nextAction: { label: "할 일 보기", href: "/schedule" } })).toBe(false);
+      expect(await valid({ ...presentation(task), nextAction: { label: "일정 열기", href: "/lounge" } })).toBe(false);
+      expect(await valid({ ...presentation(decision), nextAction: { label: "정할 것 보기", href: "/lounge" } })).toBe(false);
+      expect(await valid({ ...presentation(waiting), nextAction: { label: "정할 것 보기", href: "/halls/consultation" } })).toBe(false);
+      expect(await valid({ ...presentation(task), kind: "task_completed" })).toBe(false);
+
+      const constraint = await db.query<{ definition: string }>(`
+        SELECT pg_get_constraintdef(constraint_row.oid) AS definition
+        FROM pg_constraint AS constraint_row
+        WHERE constraint_row.conrelid = 'public.amora_today_one_signals'::regclass
+          AND constraint_row.conname = 'amora_today_one_signals_kind_check'
+      `);
+      for (const kind of ["schedule_moment", "budget_guardrail", "task_deadline", "couple_decision", "inquiry_waiting"]) {
+        expect(constraint.rows[0].definition).toContain(kind);
+      }
+
+      await setPreference(db, BRIDE_ID, true);
+      await setPersona(db, "service_role");
+      const result = await compileCard(db, {
+        sourceKey: task.sourceKey,
+        stateDigest: task.sourceStateDigest,
+        priority: task.priority,
+        presentation: presentation(task),
+      });
+      expect(result).toMatchObject({
+        state: "ready",
+        card: { kind: "task_deadline", sourceKey: task.sourceKey },
+      });
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();

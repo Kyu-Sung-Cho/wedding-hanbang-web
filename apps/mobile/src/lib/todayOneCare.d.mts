@@ -33,7 +33,7 @@ export declare function parseTodayOnePreferenceEnvelope(
 
 export declare function getTodayOneNativeRoute(
   href: unknown,
-): "/schedule" | "/budget" | null;
+): "/schedule" | "/budget" | "/(tabs)/lounge" | "/halls/letter" | "/(tabs)/schedule" | null;
 
 export declare function buildTodayOneActionBody(
   card: Pick<TodayOneCareResponse["card"] extends infer T ? NonNullable<T> : never,

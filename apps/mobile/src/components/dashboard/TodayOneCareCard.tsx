@@ -12,9 +12,11 @@ import {
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 import {
+  TODAY_ONE_CARE_KINDS_PARAM,
   validateTodayOneCareResponse,
   type TodayOneCareAction,
   type TodayOneCareCard as TodayOneCareCardData,
+  type TodayOneCareKind,
   type TodayOneCareResponse,
 } from "@hanbang/shared";
 
@@ -29,6 +31,18 @@ import { PrimaryButton, appShadow } from "@/components/ui/AppUI";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 type ReadyResult = TodayOneCareResponse & { card: TodayOneCareCardData };
+
+const TODAY_ONE_SURFACE_PATH =
+  `/api/amora/today-one?${TODAY_ONE_CARE_KINDS_PARAM.name}=${TODAY_ONE_CARE_KINDS_PARAM.value}`;
+
+/** "현재 저장된 ○○에서 확인됨"과 "현재 ○○ 기록 N"에 쓰는 말(웹 `TodayOneCard` 와 같다). */
+const TODAY_ONE_KIND_LABELS: Record<TodayOneCareKind, { record: string; revision: string }> = {
+  schedule_moment: { record: "일정", revision: "일정" },
+  budget_guardrail: { record: "예산", revision: "예산" },
+  task_deadline: { record: "할 일", revision: "준비" },
+  couple_decision: { record: "문의 기록", revision: "준비" },
+  inquiry_waiting: { record: "문의 기록", revision: "준비" },
+};
 type ViewState =
   | { kind: "loading" }
   | { kind: "unavailable" }
@@ -155,7 +169,9 @@ export default function TodayOneCareCard({
         if (operation === loadGeneration.current) setView({ kind: "unavailable" });
         return;
       }
-      const raw = await readRawResponse(userId, "/api/amora/today-one", {
+      // 25장 2절의 새 종류(할 일 마감, 두 분이 정할 것, 답 없는 문의)를 그릴 수 있다고 서버에 알린다.
+      // 표시를 붙이지 않은 옛 앱에는 서버가 새 종류를 고르지 않는다.
+      const raw = await readRawResponse(userId, TODAY_ONE_SURFACE_PATH, {
         method: "GET",
         signal,
       });
@@ -341,9 +357,11 @@ export default function TodayOneCareCard({
   }
 
   const card = view.result.card;
-  const isBudget = card.kind === "budget_guardrail";
-  const ConfirmedIcon = isBudget ? WalletCards : CalendarClock;
-  const recordLabel = isBudget ? "예산" : "일정";
+  const ConfirmedIcon = card.kind === "budget_guardrail"
+    ? WalletCards
+    : card.kind === "schedule_moment" ? CalendarClock : CheckCircle2;
+  const recordLabel = TODAY_ONE_KIND_LABELS[card.kind].record;
+  const revisionLabel = TODAY_ONE_KIND_LABELS[card.kind].revision;
   const actions = new Set(card.choices.map((choice) => choice.action));
 
   return (
@@ -365,7 +383,7 @@ export default function TodayOneCareCard({
 
       <View style={styles.body}>
         <Text style={styles.versionText}>
-          {formatClaimedDate(view.result.claimedForDate)} 기준 · 현재 {recordLabel} 기록 {card.sourceRevision} · 확인 전
+          {formatClaimedDate(view.result.claimedForDate)} 기준 · 현재 {revisionLabel} 기록 {card.sourceRevision} · 확인 전
         </Text>
 
         <View style={styles.block}>

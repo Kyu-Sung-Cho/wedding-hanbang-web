@@ -23,9 +23,36 @@ export type TodayOneCareAction = (typeof TODAY_ONE_CARE_ACTIONS)[number];
 export const TODAY_ONE_CARE_KINDS = [
   "schedule_moment",
   "budget_guardrail",
+  "task_deadline",
+  "couple_decision",
+  "inquiry_waiting",
 ] as const;
 
 export type TodayOneCareKind = (typeof TODAY_ONE_CARE_KINDS)[number];
+
+/**
+ * 2026-11-20(25장 2절) 이전 화면이 아는 종류. 이미 설치된 앱은 이 둘 밖의 카드를 "형식을 확인하지 못했어요"로
+ * 그리므로, 서버는 `?kinds=2` 를 보낸 화면에만 새 종류를 고른다(`TODAY_ONE_CARE_KINDS_PARAM`).
+ */
+export const TODAY_ONE_CARE_KINDS_V1 = ["schedule_moment", "budget_guardrail"] as const;
+
+/** 새 종류를 그릴 수 있는 화면이 `GET /api/amora/today-one` 에 붙이는 표시. */
+export const TODAY_ONE_CARE_KINDS_PARAM = { name: "kinds", value: "2" } as const;
+
+/**
+ * 종류마다 정해진 다음 행동. 문장은 정해진 틀이고(파운더 승인, 18장 D-12) DB 검사
+ * (`amora_today_one_presentation_is_valid`)가 같은 짝을 다시 지킨다.
+ */
+export const TODAY_ONE_CARE_NEXT_ACTIONS: Readonly<Record<
+  TodayOneCareKind,
+  { label: string; hrefs: readonly string[] }
+>> = {
+  schedule_moment: { label: "일정 열기", hrefs: ["/schedule"] },
+  budget_guardrail: { label: "예산 열기", hrefs: ["/budget"] },
+  task_deadline: { label: "할 일 보기", hrefs: ["/lounge"] },
+  couple_decision: { label: "정할 것 보기", hrefs: ["/halls/consultation", "/halls/letter"] },
+  inquiry_waiting: { label: "문의 보기", hrefs: ["/halls/consultation"] },
+};
 
 export interface TodayOneCareChoice {
   action: TodayOneCareAction;
@@ -186,11 +213,9 @@ function isCard(value: unknown): value is TodayOneCareCard {
   }
   if (!isSafeTodayOneHref(value.nextAction.href)) return false;
 
-  const expectedAction = value.kind === "budget_guardrail"
-    ? { label: "예산 열기", href: "/budget" }
-    : { label: "일정 열기", href: "/schedule" };
+  const expectedAction = TODAY_ONE_CARE_NEXT_ACTIONS[value.kind as TodayOneCareKind];
   return value.nextAction.label === expectedAction.label
-    && value.nextAction.href === expectedAction.href;
+    && expectedAction.hrefs.includes(value.nextAction.href as string);
 }
 
 export function validateTodayOneCareResponse(

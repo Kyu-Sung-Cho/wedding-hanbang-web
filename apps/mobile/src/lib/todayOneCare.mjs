@@ -86,8 +86,20 @@ export function parseTodayOnePreferenceEnvelope(value) {
   return preference ? { available: true, preference } : null;
 }
 
+// 카드의 다음 행동 주소(웹 기준) → 앱 주소. 서버가 정한 짝(`TODAY_ONE_CARE_NEXT_ACTIONS`) 밖은 열지 않는다.
+// 상담 상태는 앱에서 일정 탭이 보인다(`invitationRoutes.mjs` 의 status 와 같다).
+const TODAY_ONE_NATIVE_ROUTES = Object.freeze({
+  "/schedule": "/schedule",
+  "/budget": "/budget",
+  "/lounge": "/(tabs)/lounge",
+  "/halls/letter": "/halls/letter",
+  "/halls/consultation": "/(tabs)/schedule",
+});
+
 export function getTodayOneNativeRoute(href) {
-  return href === "/schedule" || href === "/budget" ? href : null;
+  return typeof href === "string" && Object.hasOwn(TODAY_ONE_NATIVE_ROUTES, href)
+    ? TODAY_ONE_NATIVE_ROUTES[href]
+    : null;
 }
 
 function isSafeRevision(value, minimum) {
