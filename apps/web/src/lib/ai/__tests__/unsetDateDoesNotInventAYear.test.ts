@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
 
 type Context = Parameters<typeof buildAmoraSystemPrompt>[0];
 type Options = Parameters<typeof buildAmoraSystemPrompt>[1];
@@ -16,7 +17,7 @@ const CONTEXT: Context = {
 };
 const HEAVY: Context = {
   ...CONTEXT,
-  chatSummaries: Array.from({ length: 30 }, (_, index) => `합성 준비 요약 ${index}. `.repeat(100)),
+  pastDecisions: saturatingDecisionHistory("합성 준비 기록"),
 };
 const build = (context: Context = CONTEXT, overrides: Partial<Options> = {}) =>
   buildAmoraSystemPrompt(context, {

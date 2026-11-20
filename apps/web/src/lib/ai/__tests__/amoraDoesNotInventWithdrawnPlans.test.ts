@@ -23,6 +23,8 @@ import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
+
 const PRODUCTION_ENABLED_TOOL_NAMES = BETA_SAFE_TOOLS
   .filter((tool) => !isMutatingTool(tool.name))
   .map((tool) => tool.name);
@@ -51,12 +53,9 @@ const HEAVY = {
     date: "2026-09-01",
     type: "couple_promise",
   })),
-  // `chatSummaries` 는 `string[]` 이다. 객체를 넣으면 "[object Object]" 로 렌더돼
-  // 길이가 거의 안 늘고, 그러면 절단이 일어나지 않은 채 초록불이 난다.
-  chatSummaries: Array.from(
-    { length: 30 },
-    (_, index) => `요약 ${index}. 예식장 후보와 스드메 견적을 비교한 대화. `.repeat(30),
-  ),
+  // 2026-11-20 D-87 부터 대화 요약은 지시문에 실리지 않아 채움 재료가 되지 못한다.
+  // 요약이 있던 자리 바로 뒤에 실리는 지난 결정 기록으로 채운다.
+  pastDecisions: saturatingDecisionHistory("예식장 후보와 스드메 견적을 비교한 기록."),
 };
 
 function compose(

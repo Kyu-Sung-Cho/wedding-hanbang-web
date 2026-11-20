@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAmoraSystemPrompt, AMORA_SYSTEM_PROMPT_MAX_CHARS } from "@/lib/ai/amoraPromptComposer";
 import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { saturatingDecisionHistory } from "./fixtures/saturatingDecisionHistory";
 type Context = Parameters<typeof buildAmoraSystemPrompt>[0];
 type Options = Parameters<typeof buildAmoraSystemPrompt>[1];
 const context: Context = {
@@ -23,7 +24,7 @@ describe("검증된 방향 변경 후속에만 이번 답변 계약을 선택한
   it.each([false, true])("포화=%s에도 유지와 재검토, 현재 선호 우선과 미확정 경계를 함께 전달한다", saturated => {
     const prompt = buildAmoraSystemPrompt(saturated ? {
       ...context,
-      chatSummaries: Array.from({ length: 30 }, () => "합성 과거 문맥 ".repeat(1000)),
+      pastDecisions: saturatingDecisionHistory("합성 과거 문맥"),
     } : context, options);
     expect(prompt.split(marker)).toHaveLength(2);
     expect(prompt).toContain("이유를 다시 묻거나 새 취향 질문으로 넘기지");

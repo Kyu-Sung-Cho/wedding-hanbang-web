@@ -42,7 +42,7 @@ export default function AmoraPermissionsPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="min-w-0">
-          <h1 className="text-[22px] font-semibold text-[var(--hb-text-strong)]">{copy.title}</h1>
+          <h1 className="text-[var(--hb-text-strong)]">{copy.title}</h1>
           <p className="mt-1 text-sm leading-6 text-[var(--hb-text-muted)]">{copy.intro}</p>
         </div>
       </div>
@@ -57,7 +57,7 @@ export default function AmoraPermissionsPage() {
               className="rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-5"
               data-permission-section={section}
             >
-              <h2 id={`amora-permission-${section}`} className="flex items-center gap-2 text-[15px] font-semibold text-[var(--hb-text-strong)]">
+              <h2 id={`amora-permission-${section}`} className="flex items-center gap-2 text-[var(--hb-text-strong)]">
                 <Icon className="h-4 w-4 text-[#8F6662]" aria-hidden="true" />
                 {copy.sections[section]}
               </h2>
@@ -75,7 +75,7 @@ export default function AmoraPermissionsPage() {
 
       {!isDemo ? (
         <section aria-labelledby="amora-permission-controls" className="mt-8 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-2">
-          <h2 id="amora-permission-controls" className="pt-4 text-[15px] font-semibold text-[var(--hb-text-strong)]">
+          <h2 id="amora-permission-controls" className="pt-4 text-[var(--hb-text-strong)]">
             {copy.controlsTitle}
           </h2>
           <AmoraPushPreferenceRow />
