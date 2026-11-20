@@ -17,6 +17,7 @@ import {
   type IngestManifest,
   type ManifestUnit,
   type ParsedUnitName,
+  type SkippedSourceFile,
   type SourceExtension,
   type SourceFile,
 } from "./types.js";
@@ -26,6 +27,19 @@ const DEFAULT_HALL_DIRECTORY = "예식장";
 const supportedExtensions = new Set<string>(SUPPORTED_SOURCE_EXTENSIONS);
 export const SCANNER_PARSER_VERSION = "v4-convertible-content-duplicates";
 export const DUPLICATE_SOURCE_NOTICE_PREFIX = "duplicate_source_content:";
+export const SKIPPED_SOURCE_NOTICE_PREFIX = "unsupported_source_file:";
+
+/**
+ * Files the operating system writes next to real sources. They carry no
+ * disclosure content, so counting them would bury the CSV and JPEG price
+ * sheets that actually do.
+ */
+const IGNORED_SOURCE_FILENAMES = new Set([".ds_store", "thumbs.db", "desktop.ini"]);
+
+function isOperatingSystemMetadataFile(fileName: string): boolean {
+  const normalized = fileName.normalize("NFKC").toLocaleLowerCase("en-US");
+  return IGNORED_SOURCE_FILENAMES.has(normalized) || normalized.startsWith("._");
+}
 
 function deterministicTextCompare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -221,23 +235,52 @@ export function parseUnitName(
   };
 }
 
-async function collectSupportedFiles(targetPath: string): Promise<string[]> {
+/**
+ * The extension is captured from the real file name, never re-derived from a
+ * portable path later. Windows and POSIX disagree about path separators, and
+ * this record has to read the same on both.
+ */
+interface UnsupportedFile {
+  absolutePath: string;
+  ext: string;
+}
+
+interface CollectedFiles {
+  supported: string[];
+  unsupported: UnsupportedFile[];
+}
+
+function sourceExtensionOf(fileName: string): string {
+  return path.extname(fileName).slice(1).toLocaleLowerCase("en-US");
+}
+
+async function collectSupportedFiles(targetPath: string): Promise<CollectedFiles> {
   const entries = await readdir(targetPath, { withFileTypes: true });
-  const files: string[] = [];
+  const supported: string[] = [];
+  const unsupported: UnsupportedFile[] = [];
   for (const entry of entries) {
     const entryPath = path.join(targetPath, entry.name);
     if (entry.isDirectory()) {
-      files.push(...(await collectSupportedFiles(entryPath)));
+      const nested = await collectSupportedFiles(entryPath);
+      supported.push(...nested.supported);
+      unsupported.push(...nested.unsupported);
       continue;
     }
     if (!entry.isFile()) continue;
-    const extension = path.extname(entry.name).slice(1).toLocaleLowerCase("en-US");
-    if (supportedExtensions.has(extension)) files.push(entryPath);
+    const extension = sourceExtensionOf(entry.name);
+    if (supportedExtensions.has(extension)) supported.push(entryPath);
+    else if (!isOperatingSystemMetadataFile(entry.name)) {
+      unsupported.push({ absolutePath: entryPath, ext: extension });
+    }
   }
-  return files.sort((left, right) => deterministicTextCompare(
+  const byPortablePath = (left: string, right: string): number => deterministicTextCompare(
     toPortableRelativePath(targetPath, left),
     toPortableRelativePath(targetPath, right),
-  ));
+  );
+  return {
+    supported: supported.sort(byPortablePath),
+    unsupported: unsupported.sort((left, right) => byPortablePath(left.absolutePath, right.absolutePath)),
+  };
 }
 
 async function toSourceFile(rootDir: string, filePath: string): Promise<SourceFile> {
@@ -266,20 +309,22 @@ async function scanKindRoot(
   rootDir: string,
   kindRoot: string,
   kindHint: DocumentKindHint,
-): Promise<ManifestUnit[]> {
+): Promise<{ units: ManifestUnit[]; skipped: SkippedSourceFile[] }> {
   let regions;
   try {
     regions = await readdir(kindRoot, { withFileTypes: true });
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) return [];
+    if (hasErrorCode(error, "ENOENT")) return { units: [], skipped: [] };
     throw error;
   }
 
   const units: ManifestUnit[] = [];
+  const skipped: SkippedSourceFile[] = [];
   for (const regionEntry of regions.filter((entry) => entry.isDirectory())) {
     const regionPath = path.join(kindRoot, regionEntry.name);
     const entries = await readdir(regionPath, { withFileTypes: true });
     const groupedFilePaths = new Map<string, string[]>();
+    const unsupportedFilePaths = new Map<string, UnsupportedFile[]>();
     const candidates: Array<{ name: string; isDirectory(): boolean }> = [];
     for (const entry of entries) {
       if (entry.isDirectory()) {
@@ -287,8 +332,24 @@ async function scanKindRoot(
         continue;
       }
       if (!entry.isFile()) continue;
-      const extension = path.extname(entry.name).slice(1).toLocaleLowerCase("en-US");
-      if (!supportedExtensions.has(extension)) continue;
+      const extension = sourceExtensionOf(entry.name);
+      if (!supportedExtensions.has(extension)) {
+        // Group by stem like convertible files do: `업체.csv` next to
+        // `업체.xlsx` belongs to that vendor, while a lone `업체.csv` is an
+        // entire 대행사 that never reaches convert. Both must stay visible.
+        if (!isOperatingSystemMetadataFile(entry.name)) {
+          const unsupportedStem = path.basename(entry.name, path.extname(entry.name));
+          const unsupportedKey = unsupportedStem.normalize("NFKC").toLocaleLowerCase("ko-KR");
+          const existingUnsupported = unsupportedFilePaths.get(unsupportedKey);
+          const unsupportedFile = {
+            absolutePath: path.join(regionPath, entry.name),
+            ext: extension,
+          };
+          if (existingUnsupported) existingUnsupported.push(unsupportedFile);
+          else unsupportedFilePaths.set(unsupportedKey, [unsupportedFile]);
+        }
+        continue;
+      }
       const stem = path.basename(entry.name, path.extname(entry.name));
       const groupKey = stem.normalize("NFKC").toLocaleLowerCase("ko-KR");
       const sourcePath = path.join(regionPath, entry.name);
@@ -303,10 +364,26 @@ async function scanKindRoot(
       const candidatePath = path.join(regionPath, candidate.name);
       const candidateStem = path.basename(candidate.name, path.extname(candidate.name));
       const groupKey = candidateStem.normalize("NFKC").toLocaleLowerCase("ko-KR");
-      const sourcePaths = candidate.isDirectory()
+      const collected = candidate.isDirectory()
         ? await collectSupportedFiles(candidatePath)
-        : groupedFilePaths.get(groupKey) ?? [];
-      if (sourcePaths.length === 0) continue;
+        : {
+          supported: groupedFilePaths.get(groupKey) ?? [],
+          unsupported: unsupportedFilePaths.get(groupKey) ?? [],
+        };
+      if (!candidate.isDirectory()) unsupportedFilePaths.delete(groupKey);
+      const sourcePaths = collected.supported;
+      const unsupportedFiles = collected.unsupported.map((unsupported) => ({
+        path: toPortableRelativePath(rootDir, unsupported.absolutePath),
+        ext: unsupported.ext,
+      }));
+      if (sourcePaths.length === 0) {
+        // The whole vendor folder is unreadable. It still has to stay on the
+        // record; otherwise it exists only in the download folder.
+        for (const unsupported of unsupportedFiles) {
+          skipped.push({ ...unsupported, unit_id: null });
+        }
+        continue;
+      }
 
       const sourceFiles = (await Promise.all(sourcePaths.map((sourcePath) => toSourceFile(rootDir, sourcePath))))
         .sort((left, right) => deterministicTextCompare(left.path, right.path));
@@ -325,8 +402,13 @@ async function scanKindRoot(
       if (parsed.region_code === "unknown") {
         notices.push("unknown_region: unsupported first-level region directory; manual mapping is required before conversion.");
       }
+      const unitId = sha256Text(unitRelativePath);
+      for (const unsupported of unsupportedFiles) {
+        skipped.push({ ...unsupported, unit_id: unitId });
+        notices.push(`${SKIPPED_SOURCE_NOTICE_PREFIX} ${unsupported.path}`);
+      }
       units.push({
-        unit_id: sha256Text(unitRelativePath),
+        unit_id: unitId,
         display_name: candidate.name,
         parsed,
         source_files: sourceFiles,
@@ -335,8 +417,19 @@ async function scanKindRoot(
         notices,
       });
     }
+    // Whatever no unit claimed is a vendor that exists only in the download
+    // folder. It gets no unit, so the manifest entry is its only record.
+    for (const unclaimedFiles of unsupportedFilePaths.values()) {
+      for (const unclaimed of unclaimedFiles) {
+        skipped.push({
+          path: toPortableRelativePath(rootDir, unclaimed.absolutePath),
+          ext: unclaimed.ext,
+          unit_id: null,
+        });
+      }
+    }
   }
-  return units;
+  return { units, skipped };
 }
 
 function markDuplicateCompleteSourceSets(units: ManifestUnit[]): void {
@@ -395,13 +488,34 @@ export async function scanSources(options: ScanOptions): Promise<IngestManifest>
   if (agencyRealRoot && hallRealRoot && agencyRealRoot === hallRealRoot) {
     throw new Error("agency and hall directories must resolve to different real paths inside the raw root.");
   }
-  const scannedUnits = [
-    ...(await scanKindRoot(rootDir, agencyRoot, "agency")),
-    ...(await scanKindRoot(rootDir, hallRoot, "hall")),
-  ].sort((left, right) => left.display_name.localeCompare(right.display_name, "ko"));
+  const [agencyScan, hallScan] = [
+    await scanKindRoot(rootDir, agencyRoot, "agency"),
+    await scanKindRoot(rootDir, hallRoot, "hall"),
+  ];
+  const scannedUnits = [...agencyScan.units, ...hallScan.units]
+    .sort((left, right) => left.display_name.localeCompare(right.display_name, "ko"));
+  const skippedSources = [...agencyScan.skipped, ...hallScan.skipped]
+    .sort((left, right) => deterministicTextCompare(left.path, right.path));
   markDuplicateCompleteSourceSets(scannedUnits);
   if (scannedUnits.length === 0) {
-    throw new Error("No supported source files were found. Check the raw root and its agency/hall directories.");
+    // This is the one path that never reaches the manifest, so the message has
+    // to carry the evidence itself. "폴더가 비었나?" and "형식이 전부 CSV인가?"
+    // are different problems and the operator cannot tell them apart otherwise.
+    const seen = skippedSources.reduce<Record<string, number>>((counts, source) => {
+      counts[source.ext || "(확장자 없음)"] = (counts[source.ext || "(확장자 없음)"] ?? 0) + 1;
+      return counts;
+    }, {});
+    const breakdown = Object.entries(seen)
+      .sort(([left], [right]) => deterministicTextCompare(left, right))
+      .map(([extension, count]) => `${extension}=${count}`)
+      .join(", ");
+    throw new Error(
+      skippedSources.length === 0
+        ? "No supported source files were found. Check the raw root and its agency/hall directories."
+        : `No supported source files were found, but ${skippedSources.length} unsupported file(s) were seen (${breakdown}). `
+          + `지원 형식은 ${SUPPORTED_SOURCE_EXTENSIONS.join(", ")}입니다. `
+          + "해당 파일을 XLSX 또는 PDF로 저장한 뒤 scan을 다시 실행하세요.",
+    );
   }
 
   let existingManifest: IngestManifest | null = null;
@@ -433,12 +547,22 @@ export async function scanSources(options: ScanOptions): Promise<IngestManifest>
       || !previous
       || previous.source_fingerprint !== unit.source_fingerprint
     ) return unit;
+    // An unsupported sibling never entered conversion, so it cannot invalidate
+    // it. Re-apply the current notice anyway: reusing the previous notice list
+    // verbatim is what made the dropped file invisible on every later scan.
+    const carriedNotices = previous.notices.filter(
+      (notice) => !notice.startsWith(SKIPPED_SOURCE_NOTICE_PREFIX),
+    );
+    const freshSkippedNotices = unit.notices.filter(
+      (notice) => notice.startsWith(SKIPPED_SOURCE_NOTICE_PREFIX),
+    );
     return {
       ...previous,
       display_name: unit.display_name,
       parsed: unit.parsed,
       source_files: unit.source_files,
       source_fingerprint: unit.source_fingerprint,
+      notices: [...carriedNotices, ...freshSkippedNotices],
     };
   });
 
@@ -449,6 +573,7 @@ export async function scanSources(options: ScanOptions): Promise<IngestManifest>
     state_dir: stateDir,
     scanned_at: new Date().toISOString(),
     units,
+    skipped_sources: skippedSources,
   };
   await writeJsonFile(path.join(stateDir, "manifest.json"), manifest);
   return manifest;

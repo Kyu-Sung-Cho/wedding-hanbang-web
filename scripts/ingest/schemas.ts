@@ -144,6 +144,12 @@ export const ManifestUnitSchema = z.object({
   }).optional(),
 }).passthrough();
 
+export const SkippedSourceFileSchema = z.object({
+  path: z.string().min(1),
+  ext: z.string().max(100),
+  unit_id: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+});
+
 export const IngestManifestSchema = z.object({
   schema_version: z.literal(1),
   // Legacy v1 manifests had no parser identity. Parsing them remains possible,
@@ -153,6 +159,9 @@ export const IngestManifestSchema = z.object({
   state_dir: z.string().min(1),
   scanned_at: z.string().datetime(),
   units: z.array(ManifestUnitSchema),
+  // Manifests written before unsupported-source reporting stay readable; the
+  // next scan fills the real list rather than forcing a downstream reset.
+  skipped_sources: z.array(SkippedSourceFileSchema).default([]),
 });
 
 const NullableMoneySchema = z.number().int().nonnegative().nullable();

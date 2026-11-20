@@ -72,6 +72,7 @@ async function syntheticFixture(t: test.TestContext) {
     root_dir: rootDir,
     state_dir: stateDir,
     scanned_at: "2026-01-01T00:00:00.000Z",
+    skipped_sources: [],
     units: [{
       unit_id: unitId,
       display_name: "synthetic.pdf",

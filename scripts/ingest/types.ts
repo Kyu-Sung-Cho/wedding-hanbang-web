@@ -45,6 +45,20 @@ export interface SourceFile {
   bytes: number;
 }
 
+/**
+ * A raw file the scanner could not turn into a convertible source.
+ *
+ * Dropping these silently is how a 대행사 disappears between the download
+ * folder and the manifest: a CSV price sheet or a photographed price table
+ * leaves no unit, no notice, and no count. `unit_id === null` means no unit
+ * covers this path at all, so the vendor is invisible downstream.
+ */
+export interface SkippedSourceFile {
+  path: string;
+  ext: string;
+  unit_id: string | null;
+}
+
 export interface ManifestUnit {
   unit_id: string;
   display_name: string;
@@ -150,4 +164,5 @@ export interface IngestManifest {
   state_dir: string;
   scanned_at: string;
   units: ManifestUnit[];
+  skipped_sources: SkippedSourceFile[];
 }
