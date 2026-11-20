@@ -397,6 +397,11 @@ describe("in-app TodayOne storage migration", () => {
       expect(await valid({ ...presentation(decision), nextAction: { label: "정할 것 보기", href: "/lounge" } })).toBe(false);
       expect(await valid({ ...presentation(waiting), nextAction: { label: "정할 것 보기", href: "/halls/consultation" } })).toBe(false);
       expect(await valid({ ...presentation(task), kind: "task_completed" })).toBe(false);
+      // 끝난 맡은 일(갈래 4)은 고르는 코드 없이 종류와 다음 행동 짝만 미리 받는다.
+      const taskDone = { ...presentation(task), kind: "task_done", nextAction: { label: "맡은 일 보기", href: "/lounge" } };
+      expect(await valid(taskDone)).toBe(true);
+      expect(await valid({ ...taskDone, nextAction: { label: "맡은 일 보기", href: "/schedule" } })).toBe(false);
+      expect(await valid({ ...taskDone, nextAction: { label: "할 일 보기", href: "/lounge" } })).toBe(false);
 
       const constraint = await db.query<{ definition: string }>(`
         SELECT pg_get_constraintdef(constraint_row.oid) AS definition
@@ -404,7 +409,7 @@ describe("in-app TodayOne storage migration", () => {
         WHERE constraint_row.conrelid = 'public.amora_today_one_signals'::regclass
           AND constraint_row.conname = 'amora_today_one_signals_kind_check'
       `);
-      for (const kind of ["schedule_moment", "budget_guardrail", "task_deadline", "couple_decision", "inquiry_waiting"]) {
+      for (const kind of ["schedule_moment", "budget_guardrail", "task_deadline", "couple_decision", "inquiry_waiting", "task_done"]) {
         expect(constraint.rows[0].definition).toContain(kind);
       }
 

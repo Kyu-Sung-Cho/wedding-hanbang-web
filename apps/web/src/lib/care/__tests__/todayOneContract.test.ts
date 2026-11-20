@@ -84,6 +84,7 @@ describe("TodayOneCare shared response contract", () => {
       ["couple_decision", "정할 것 보기", "/halls/consultation"],
       ["couple_decision", "정할 것 보기", "/halls/letter"],
       ["inquiry_waiting", "문의 보기", "/halls/consultation"],
+      ["task_done", "맡은 일 보기", "/lounge"],
     ] as const) {
       expect(validateTodayOneCareResponse(withKind(kind, label, href), USER_ID).ok, `${kind} ${href}`).toBe(true);
     }
@@ -92,6 +93,8 @@ describe("TodayOneCare shared response contract", () => {
       ["task_deadline", "일정 열기", "/lounge"],
       ["couple_decision", "정할 것 보기", "/lounge"],
       ["inquiry_waiting", "문의 보기", "/halls/letter"],
+      ["task_done", "맡은 일 보기", "/schedule"],
+      ["task_done", "할 일 보기", "/lounge"],
       ["task_completed", "결과 보기", "/lounge"],
     ] as const) {
       expect(validateTodayOneCareResponse(withKind(kind, label, href), USER_ID).ok, `${kind} ${href}`).toBe(false);

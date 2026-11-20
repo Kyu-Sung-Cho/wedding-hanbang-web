@@ -34,17 +34,17 @@ test('explicit-budget mode validates only its exact historical checkout without 
   assert.match(output(currentResult), /NEW_MIGRATION_NOT_REVIEWED/);
 });
 
-test('the actual CI local-fence command selects the pinned non-deploy hall-inquiry contract', () => {
+test('the actual CI local-fence command selects the pinned non-deploy amora-proactive contract', () => {
   const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
-  const commands = [...workflow.matchAll(/^\s+run: node scripts\/hall-inquiry-release\.mjs([^\r\n]*)$/gm)];
+  const commands = [...workflow.matchAll(/^\s+run: node scripts\/amora-proactive-release\.mjs([^\r\n]*)$/gm)];
   assert.equal(commands.length, 1);
   const args = commands[0][1].trim().split(/\s+/).filter(Boolean);
   assert.deepEqual(args, ['--check-only', '--expected-commit=${{', 'github.sha', '}}']);
-  const result = spawnSync(process.execPath, ['scripts/hall-inquiry-release.mjs', '--check-only'], {
+  const result = spawnSync(process.execPath, ['scripts/amora-proactive-release.mjs', '--check-only'], {
     cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30000,
   });
   assert.equal(result.status, 0, output(result));
-  assert.match(output(result), /HALL_INQUIRY_LOCAL_VERIFIED: migrations=244; predecessor_files=\d+; remote_writes=false; deployment_authorized=false/);
+  assert.match(output(result), /AMORA_PROACTIVE_LOCAL_VERIFIED: migrations=248; predecessor_files=\d+; remote_writes=false; deployment_authorized=false/);
 });
 
 test('explicit static mode rejects remote, duplicate and unknown arguments before any legacy flow', async t => {

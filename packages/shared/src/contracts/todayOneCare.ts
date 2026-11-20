@@ -26,6 +26,11 @@ export const TODAY_ONE_CARE_KINDS = [
   "task_deadline",
   "couple_decision",
   "inquiry_waiting",
+  /**
+   * 끝난 맡은 일(25장 갈래 4). 종류와 다음 행동 짝만 여기와 DB 검사에 미리 둔다. 고르는 코드는 갈래 4가
+   * `TODAY_ONE_EXTRA_SOURCES` 에 더하고, 그 전에는 이 종류의 카드가 만들어지지 않는다.
+   */
+  "task_done",
 ] as const;
 
 export type TodayOneCareKind = (typeof TODAY_ONE_CARE_KINDS)[number];
@@ -52,6 +57,7 @@ export const TODAY_ONE_CARE_NEXT_ACTIONS: Readonly<Record<
   task_deadline: { label: "할 일 보기", hrefs: ["/lounge"] },
   couple_decision: { label: "정할 것 보기", hrefs: ["/halls/consultation", "/halls/letter"] },
   inquiry_waiting: { label: "문의 보기", hrefs: ["/halls/consultation"] },
+  task_done: { label: "맡은 일 보기", hrefs: ["/lounge"] },
 };
 
 export interface TodayOneCareChoice {

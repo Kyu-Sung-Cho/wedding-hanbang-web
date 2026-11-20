@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "kind": "amora-proactive-scoped-release",
+  "release": "amora-proactive-20261120",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "baseCommit": "98c3e1184ad6999e3aec179329bf9809ec53d5b6",
+  "migrations": [
+    {
+      "version": "20261120100000",
+      "name": "amora_care_email_consent",
+      "file": "supabase/migrations/20261120100000_amora_care_email_consent.sql"
+    },
+    {
+      "version": "20261120110000",
+      "name": "amora_care_cadence",
+      "file": "supabase/migrations/20261120110000_amora_care_cadence.sql"
+    },
+    {
+      "version": "20261120120000",
+      "name": "amora_today_one_more_kinds",
+      "file": "supabase/migrations/20261120120000_amora_today_one_more_kinds.sql"
+    },
+    {
+      "version": "20261120130000",
+      "name": "amora_app_push",
+      "file": "supabase/migrations/20261120130000_amora_app_push.sql"
+    }
+  ],
+  "existingData": "profiles-default-columns-and-care-email-consent-backfill-only",
+  "newRows": "none",
+  "scope": {
+    "newTables": [
+      "public.amora_push_preferences",
+      "public.amora_push_deliveries"
+    ],
+    "functions": [
+      "public.normalize_amora_care_email_consent",
+      "public.prevent_direct_amora_care_consent_change",
+      "public.patch_profile_atomic",
+      "public.claim_amora_care_email_delivery",
+      "public.amora_care_couple_cadence",
+      "public.amora_care_is_imminent",
+      "public.amora_care_posts_on_kst_day",
+      "public.amora_care_post_allowance",
+      "public.insert_amora_care_message",
+      "public.insert_amora_moment_care_message",
+      "public.amora_care_cancel_job_internal",
+      "public.amora_care_release_job_internal",
+      "public.cancel_amora_care_job_source_changed",
+      "public.prepare_amora_care_job",
+      "public.set_amora_care_cadence",
+      "public.amora_today_one_presentation_is_valid",
+      "public.amora_push_clock",
+      "public.amora_push_window_open",
+      "public.get_amora_push_preference",
+      "public.set_amora_push_preference",
+      "public.claim_amora_push_delivery",
+      "public.record_amora_push_result",
+      "public.list_amora_today_one_push_recipients",
+      "public.patch_profile_atomic_pre_email_consent",
+      "public.claim_amora_care_email_delivery_pre_email_consent",
+      "public.insert_amora_care_message_pre_cadence",
+      "public.prepare_amora_care_job_pre_cadence"
+    ],
+    "preExistingFunctions": [
+      "public.amora_today_one_presentation_is_valid",
+      "public.claim_amora_care_email_delivery",
+      "public.insert_amora_care_message",
+      "public.insert_amora_moment_care_message",
+      "public.patch_profile_atomic",
+      "public.prepare_amora_care_job",
+      "public.prevent_direct_amora_care_consent_change"
+    ],
+    "renamedFunctions": [
+      "public.patch_profile_atomic(uuid, text, text, boolean, boolean, boolean, text, boolean, boolean) -> public.patch_profile_atomic_pre_email_consent",
+      "public.claim_amora_care_email_delivery(uuid, uuid) -> public.claim_amora_care_email_delivery_pre_email_consent",
+      "public.insert_amora_care_message(uuid, text, jsonb) -> public.insert_amora_care_message_pre_cadence",
+      "public.prepare_amora_care_job(uuid, uuid, boolean) -> public.prepare_amora_care_job_pre_cadence"
+    ],
+    "existingTableChanges": [
+      {
+        "table": "public.profiles",
+        "columns": [
+          "care_email_enabled",
+          "care_email_consented_at",
+          "care_prompt_answered_at",
+          "care_intensity",
+          "care_window_start_hour",
+          "care_window_end_hour"
+        ],
+        "constraints": [
+          "profiles_care_email_consent_state_valid",
+          "profiles_care_email_requires_shared_consent",
+          "profiles_care_cadence_valid"
+        ],
+        "triggers": [
+          "trg_normalize_amora_care_email_consent",
+          "trg_prevent_direct_amora_care_consent_change"
+        ],
+        "columnComments": [
+          "care_notifications_enabled",
+          "care_notifications_consented_at",
+          "care_email_enabled",
+          "care_email_consented_at",
+          "care_prompt_answered_at",
+          "care_intensity",
+          "care_window_start_hour",
+          "care_window_end_hour"
+        ],
+        "tableComment": false
+      },
+      {
+        "table": "public.amora_today_one_signals",
+        "columns": [],
+        "constraints": [
+          "amora_today_one_signals_kind_check"
+        ],
+        "triggers": [],
+        "columnComments": [],
+        "tableComment": true
+      }
+    ],
+    "existingFunctions": "unchanged-except-listed",
+    "existingTables": "unchanged-except-listed-parts",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "cron": "unchanged"
+  },
+  "backup": "fresh-remote-pinned-before-catalog-and-preserved-catalog-ledger-digests-no-customer-data-export",
+  "rollback": "previous-web-deployment-preserve-new-objects-and-existing-customer-data",
+  "sending": "AMORA_APP_PUSH_ENABLED stays unset until the owner decides; care email stays behind the existing care switches",
+  "artifacts": [
+    {
+      "file": "supabase/migrations/20261120100000_amora_care_email_consent.sql",
+      "sha256": "3257cb29b451fcbd64377229f377e4a8f2b4fa50587fb638b6799273d7295d0c"
+    },
+    {
+      "file": "supabase/migrations/20261120110000_amora_care_cadence.sql",
+      "sha256": "c3189e7609bf20e6e6eb55a37343dd791f22cf980fda1e381dc58a3768c310e0"
+    },
+    {
+      "file": "supabase/migrations/20261120120000_amora_today_one_more_kinds.sql",
+      "sha256": "bceee237d22dde37e6d01c96bd1639f1c89ce80fe3c3321b30a506dc94e8eddd"
+    },
+    {
+      "file": "supabase/migrations/20261120130000_amora_app_push.sql",
+      "sha256": "c98fd7a1e366cc14d8a97579ff325b8fadd0bdc411fd05335be49789fcf3c8f0"
+    },
+    {
+      "file": "supabase/release-contracts/amora-proactive-pg-catalog-v1.json",
+      "sha256": "5100b8955d241abb3e0494f13621a5e6d474590b56c546c5c34c5a98d45e8e9b"
+    },
+    {
+      "file": "scripts/amora-proactive-release.mjs",
+      "sha256": "3b6603fc08710a6975d4eef7f24bcc66b59018a234adb723af1d9b138b0b5c8d"
+    },
+    {
+      "file": "scripts/amora-proactive-release-catalog.mjs",
+      "sha256": "c8282c3651b3e264474b7a9c60f2d1395c68922818cb8d75cb37452204d39e8a"
+    },
+    {
+      "file": "scripts/amora-proactive-release-prepare.mjs",
+      "sha256": "bd0d925175f4536e6e7e8395640c509dd1f84cbd153e0b1774ea6eb712f95405"
+    },
+    {
+      "file": "scripts/amora-proactive-release-fixture.mjs",
+      "sha256": "5b2b63f29a66e97761a7caa9db92a42f48b4a3cb490543cef89720fd1bedd732"
+    },
+    {
+      "file": "scripts/amora-proactive-release-build-contract.mjs",
+      "sha256": "bc2e664eaf29e647e31ab4e1dbe49cfd24563148e0d04743bf5736728b303d7d"
+    },
+    {
+      "file": "supabase/release-contracts/amora-proactive-predecessor-build-inputs-v1.json",
+      "sha256": "54673cf893e87bde78b55329ffbbbd3135c8757d519f31a78fd6c5fe1223b8a7"
+    }
+  ]
+}

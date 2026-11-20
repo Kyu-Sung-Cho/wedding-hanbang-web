@@ -11,6 +11,7 @@ import {AMORA_WRITER_RETIREMENT_FILE,AMORA_WRITER_RETIREMENT_SHA,buildAmoraWrite
 import {loadAmoraWriterRetirementPlan,AMORA_WRITER_RETIREMENT_MODE} from '../lib/amora-action-writer-retirement-release-contract.mjs';
 import {checkLocalOnly as checkWeddingCode36LocalOnly} from '../wedding-code36-release.mjs';
 import {checkLocalOnly as checkHallInquiryLocalOnly} from '../hall-inquiry-release.mjs';
+import {checkLocalOnly as checkAmoraProactiveLocalOnly} from '../amora-proactive-release.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const commit='dfdd87eaf724baa938a1c0bd459afe0d022c1c4b';
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -21,8 +22,8 @@ const unchanged={
  'scripts/lib/amora-action-view-v2-release.mjs':'83bea3ff6576085a3d99341ddc7abcd87b9b3e322faeecf56613c90610458d73',
 };
 
-test('actual source244 preserves historical B1 and B2 pins while only the newest hall-inquiry lane accepts its extra migration',()=>{
- assert.equal(readdirSync(join(root,'supabase/migrations')).filter(file=>/\.sql$/i.test(file)).length,244);
+test('actual source248 preserves historical B1 and B2 pins while only the newest amora-proactive lane accepts its extra migrations',()=>{
+ assert.equal(readdirSync(join(root,'supabase/migrations')).filter(file=>/\.sql$/i.test(file)).length,248);
  for(const [file,pin] of Object.entries(unchanged))assert.equal(sha(readFileSync(join(root,file))),pin);
  const formal=readFileSync(join(root,'supabase/migrations',AMORA_WRITER_RETIREMENT_FILE));
  assert.equal(sha(formal),AMORA_WRITER_RETIREMENT_SHA);
@@ -31,8 +32,10 @@ test('actual source244 preserves historical B1 and B2 pins while only the newest
  assert.throws(()=>loadAmoraWriterRetirementPlan({repoRoot:root,mode:AMORA_WRITER_RETIREMENT_MODE}),/AMORA_WRITER_RETIREMENT_NEW_MIGRATION_NOT_REVIEWED/);
  // 36문항 길은 자기 SQL 하나만 검토했다. 웨딩홀 문의 SQL 이 더해진 지금은 그 길이 받지 않는다.
  assert.throws(()=>checkWeddingCode36LocalOnly(root),error=>error.code==='WC36_UNREVIEWED_MIGRATION');
- const current=checkHallInquiryLocalOnly(root);
- assert.equal(current.migrationCount,244);
+ // 웨딩홀 문의 길도 자기 SQL 하나만 검토했다. 아모라 먼저 챙기기 SQL 넷이 더해진 지금은 그 길이 받지 않는다.
+ assert.throws(()=>checkHallInquiryLocalOnly(root),error=>error.code==='HIQ_UNREVIEWED_MIGRATION');
+ const current=checkAmoraProactiveLocalOnly(root);
+ assert.equal(current.migrationCount,248);
  assert.equal(current.remoteWritesPerformed,false);assert.equal(current.deploymentAuthorized,false);
  assert.ok(current.preservedPredecessorFiles>100);
 });
