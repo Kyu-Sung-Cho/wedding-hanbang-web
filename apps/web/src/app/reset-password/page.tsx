@@ -205,7 +205,7 @@ export default function ResetPasswordPage() {
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     placeholder="새 비밀번호"
-                    className="h-[52px] w-full rounded-[18px] border border-inv-chip-line bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-faint focus:border-inv-ink"
+                    className="h-[52px] w-full rounded-[18px] border border-inv-chip-line bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted focus:border-inv-ink"
                   />
                   <button
                     type="button"
@@ -264,7 +264,7 @@ export default function ResetPasswordPage() {
                       value={passwordConfirm}
                       onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
                       placeholder="비밀번호 확인"
-                      className={`h-[52px] w-full rounded-[18px] border bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-faint ${
+                      className={`h-[52px] w-full rounded-[18px] border bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted ${
                         passwordConfirm && password !== passwordConfirm
                           ? "border-inv-warn"
                           : "border-inv-chip-line focus:border-inv-ink"

@@ -57,7 +57,7 @@ export function InvitationAuthCard({ children, style }: { children: ReactNode; s
 export const authText = StyleSheet.create({
   heading: { ...typo.serif, fontSize: 24, lineHeight: lineHeight(24, 1.45) },
   body: { ...typo.sans, fontSize: 15, lineHeight: lineHeight(15, 1.7), color: palette.body },
-  hint: { ...typo.sans, fontSize: 12, lineHeight: 18, color: palette.faint, marginTop: 6, marginLeft: 6 },
+  hint: { ...typo.sans, fontSize: 12, lineHeight: 18, color: palette.muted, marginTop: 6, marginLeft: 6 },
   error: { ...typo.sans, fontSize: 12, lineHeight: 18, color: palette.warn, marginTop: 6, marginLeft: 6 },
   alert: { ...typo.sansMedium, fontSize: 13, lineHeight: 20, color: palette.warn },
   link: { ...typo.sans, fontSize: 14, lineHeight: 20, color: palette.body },
@@ -123,9 +123,13 @@ export const authAgreement = StyleSheet.create({
   divider: { height: 1, backgroundColor: palette.divider },
 });
 
-/** 입력칸 안 흐린 글자와 아이콘 색, 동의 칸의 체크 색. */
+/**
+ * 입력칸 안 흐린 글자와 아이콘 색, 동의 칸의 체크 색.
+ * 흐린 글자는 `muted`(흰 바탕 5.64:1)다. 입력칸 이름을 겸하는 글자라 4.5:1 을 넘어야 하고, 옛 화면도
+ * 그 이상이었다(#6E5A54 6.28:1). 더 옅은 `faint`(3.77:1)는 동의 빈 칸 테두리처럼 글자가 아닌 곳에만 쓴다.
+ */
 export const authColors = {
-  placeholder: palette.faint,
+  placeholder: palette.muted,
   icon: palette.muted,
   ink: palette.ink,
   white: palette.white,

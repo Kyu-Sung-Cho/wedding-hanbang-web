@@ -457,7 +457,7 @@ export default function LoginPage() {
                       onChange={(e) => { setName(e.target.value); setError(""); }}
                       onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                       placeholder="이름 *"
-                      className={`h-[52px] w-full rounded-[18px] border bg-inv-white px-5 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-faint ${
+                      className={`h-[52px] w-full rounded-[18px] border bg-inv-white px-5 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted ${
                         touched.name && !name.trim() ? "border-inv-warn" : "border-inv-chip-line focus:border-inv-ink"
                       }`}
                     />
@@ -473,7 +473,7 @@ export default function LoginPage() {
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
                   onBlur={() => setTouched((t) => ({ ...t, email: true }))}
                   placeholder={mode === "signup" ? "이메일 *" : "이메일"}
-                  className="h-[52px] w-full rounded-[18px] border border-inv-chip-line bg-inv-white px-5 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-faint focus:border-inv-ink"
+                  className="h-[52px] w-full rounded-[18px] border border-inv-chip-line bg-inv-white px-5 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted focus:border-inv-ink"
                 />
 
                 {/* 비밀번호 (forgot 모드에서는 숨김) */}
@@ -485,7 +485,7 @@ export default function LoginPage() {
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     onBlur={() => setTouched((t) => ({ ...t, password: true }))}
                     placeholder={mode === "signup" ? "비밀번호 *" : "비밀번호"}
-                    className="h-[52px] w-full rounded-[18px] border border-inv-chip-line bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-faint focus:border-inv-ink"
+                    className="h-[52px] w-full rounded-[18px] border border-inv-chip-line bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted focus:border-inv-ink"
                   />
                   <button
                     type="button"
@@ -538,7 +538,7 @@ export default function LoginPage() {
                         onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
                         onBlur={() => setTouched((t) => ({ ...t, passwordConfirm: true }))}
                         placeholder="비밀번호 확인 *"
-                        className={`h-[52px] w-full rounded-[18px] border bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-faint ${
+                        className={`h-[52px] w-full rounded-[18px] border bg-inv-white px-5 pr-12 text-[15px] text-inv-ink outline-none transition-colors placeholder:text-inv-muted ${
                           touched.passwordConfirm && passwordConfirm && password !== passwordConfirm
                             ? "border-inv-warn"
                             : "border-inv-chip-line focus:border-inv-ink"
