@@ -112,7 +112,11 @@ import { describe, expect, it } from "vitest";
 //   - 이 칸들을 위한 변형(고른 상태를 가진 칸)을 Button 에 올리는 것은 디자인 결정이라 이 브랜치에서 하지 않는다. 이 파일이 세운 원칙과
 //     같은 이유로 PreparationStageSelect(선택 카드) 예외가 이미 위에 있다. 선택 상태 변형이 생기면 이 셋도 함께 옮기고 숫자는 705 로 돌아간다.
 // 이 값은 합친 트리를 실제로 세어 넣었다(main 705 + 이 3개).
-const BASELINE = 708;
+//
+// 2026-11-20 (로그인 화면 청첩장 디자인): 708 -> 703. 같은 방식으로 세면 main(98c3e1184)이 이미 705 였다(위 3칸이 들어온 뒤
+// 다른 곳에서 줄어든 만큼 상한을 내리지 않았다). 로그인과 새 비밀번호 화면의 제출 단추 둘을 공용 Button(ink, pill-56)으로
+// 옮겨 703 이 됐다. 합친 트리를 실제로 세어 넣었다.
+const BASELINE = 703;
 
 const SOURCE_ROOT = path.join(process.cwd(), "src");
 
