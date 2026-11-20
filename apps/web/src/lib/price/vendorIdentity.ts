@@ -26,13 +26,63 @@ export function normalizeVendorName(value: string): string {
  * 합치면 다른 가게의 가격을 한 카드에 섞게 되므로 반드시 분리한다.
  *   랑게        전라 @langhe_gj(광주)     ↔ 서울 @langhe_official
  *   메이든스튜디오 서울 @maiden_studio       ↔ 경상 @maiden_daegu(대구)
- *   라망        한쪽만 공식 사이트 보유 — 동일 업체 근거 없음
+ *   라망        전주 @lamantstudio_jeonju  ↔ 서울 @lamantstudio_official
+ *
+ * **중요**: 이 집합에 있는 이름이라도 `VERIFIED_VENDOR_IDENTITY_BY_SLUG`에 slug가
+ * 등록된 행은 그 그룹으로 묶인다. 이름 전체를 분리하되 확인된 서울 행끼리는
+ * 합치는 것이 가능해진다.
  */
 export const SAME_NAME_DIFFERENT_BUSINESS: ReadonlySet<string> = new Set<string>([
   "studio|랑게",
   "studio|메이든스튜디오",
   "studio|라망",
 ]);
+
+/**
+ * **행 단위 검증 병합** — 이름 규칙으로 분리된 행 중 공식 채널로 같은 업체임이
+ * 확인된 slug들을 묶는다. 이름 규칙보다 먼저 적용된다.
+ *
+ * 등재 기준:
+ *   1. 양쪽 slug가 **각각 독립적으로** 같은 공식 채널(사이트·인스타)을 가리킨다.
+ *   2. 같은 지역의 같은 업체임이 확인됐다.
+ *   3. 다른 지역/지점 slug는 이 그룹에 넣지 않는다.
+ *
+ * 판정 근거: `docs/operations/evidence/vendor-merge-evidence-2026-07-28.json`
+ * 원본 확인: `docs/operations/VENDOR_MERGE_REVIEW_2026-07-27.md` (2026-07-30 행 단위 검증 병합)
+ */
+export const VERIFIED_VENDOR_IDENTITY_BY_SLUG: ReadonlyMap<string, string> = new Map<string, string>([
+  // 랑게 서울 — 둘 다 @langhe_official
+  ["studio-ingest-8b66b01259700071", "studio|verified-row|랑게서울"],
+  ["studio-ingest-712748b50059a490", "studio|verified-row|랑게서울"],
+  // 전라 slug(studio-ingest-ad55657917fc0fc8)는 @langhe_gj로 다른 업체이므로 여기 안 넣음
+
+  // 라망 서울 — 둘 다 lamantstudio.co.kr, @lamantstudio_official
+  ["studio-ingest-ee80fe60805b12d1", "studio|verified-row|라망서울"],
+  ["studio-ingest-d0d04f7ed9330369", "studio|verified-row|라망서울"],
+  // 전주 slug(studio-ingest-59a8e3a6c75781c0)는 @lamantstudio_jeonju로 다른 업체이므로 여기 안 넣음
+]);
+
+/**
+ * slug로 행 단위 검증 그룹을 조회한다.
+ * 등록된 slug면 그룹 ID를 반환하고, 아니면 null을 반환한다.
+ */
+export function verifiedVendorIdentityGroup(slug: string): string | null {
+  return VERIFIED_VENDOR_IDENTITY_BY_SLUG.get(slug) ?? null;
+}
+
+/**
+ * 같은 행 단위 검증 그룹에 속하는 slug 집합을 반환한다.
+ * 상세 조회에서 형제 행을 찾을 때 사용한다.
+ */
+export function verifiedVendorIdentitySlugs(slug: string): ReadonlySet<string> | null {
+  const groupId = VERIFIED_VENDOR_IDENTITY_BY_SLUG.get(slug);
+  if (!groupId) return null;
+  const slugs = new Set<string>();
+  for (const [s, g] of VERIFIED_VENDOR_IDENTITY_BY_SLUG) {
+    if (g === groupId) slugs.add(s);
+  }
+  return slugs;
+}
 
 export function isSameNameDifferentBusiness(
   category: string,
@@ -71,7 +121,8 @@ export const SAME_BUSINESS_DIFFERENT_NAME: ReadonlyMap<string, string> = new Map
   ["studio|클레브스튜디오", "클레브"],
   ["studio|타임포유스튜디오", "타임포유"],
   ["studio|탱자스튜디오", "탱자"],
-  ["studio|테레지아스튜디오", "테레지아"],
+  // 테레지아: 2026-07-30 재감사에서 제거됨. 강남 논현 @teresia_studio ↔ 천안 불당
+  // @teresia_cheonan으로 서로 다른 지점이다.
   ["dress|루비나엘웨딩", "루비나엘"],
   ["dress|르블랑웨딩", "르블랑"],
   ["dress|마이도터스웨딩", "마이도터스"],
@@ -84,9 +135,17 @@ export const SAME_BUSINESS_DIFFERENT_NAME: ReadonlyMap<string, string> = new Map
   ["studio|구호스튜디오", "구호"], // 성동구 성수동2가 280-18
   ["studio|더청담스튜디오", "더청담"], // 청담동 49-5 · 02-3444-4155
   ["studio|바시움스튜디오", "바시움"], // 강남구 봉은사로51길 26
-  ["studio|버드투블룸스튜디오", "버드투블룸"], // 청담동 본점(양쪽 근거 모두 청담)
+  // 버드투블룸: 2026-07-30 재감사에서 제거됨. 근거 자체가 청담 본점과 인천 남동 지점을
+  // 함께 인정하여 공시 행별 지점 귀속 확인 전 병합 불가.
   ["studio|헤이스스튜디오", "헤이스"], // 서초 내곡동
   ["studio|st정우스튜디오", "st정우"], // (주)에스티정우 청담 — region 충청은 대행사 지역
+  // ── 4차 (2026-08-18): 공식 채널 독립 확인 병합 ────────────────────────────
+  // 2026-07-27에 "지역 태그"로 잘못 분류된 쌍. 실제로는 패키지/결제 표기였고,
+  // 공식 사이트에서 같은 업체임이 확인됐다.
+  ["studio|st정우러블리슈가제이", "st정우"], // stjungwoo.co.kr에 LOVELY·SUGA J 둘 다 있음.
+  // (주)에스티정우, 서울 강남구 청담동 22-9 / 선릉로148길 16-1, 02-511-0901
+  ["dress|엔조최재훈샵결재", "엔조최재훈"], // choijaehoon.co.kr ENZO CHOIJAEHOON
+  // [샵결재]는 요즘웨딩 결제 경로 표기. 서울 강남구 선릉로158길 14-3, 02-544-1272
   ["dress|메라키웨딩", "메라키"], // 강남 학동로 137-7
   ["dress|장다인웨딩", "장다인"], // 강남 선릉로135길 6 · 02-547-5568
   ["dress|폴라리스웨딩", "폴라리스"], // 강남 선릉로 731
@@ -248,11 +307,18 @@ export function vendorIdentityKey(
   vendorName: string,
   vendorSlug: string,
 ): string {
+  // 1. 행 단위 검증 그룹이 있으면 그것을 우선 사용한다.
+  //    이름 규칙으로 분리된 행도 공식 채널로 같은 업체임이 확인된 slug끼리는 묶인다.
+  const verifiedGroup = verifiedVendorIdentityGroup(vendorSlug);
+  if (verifiedGroup) return verifiedGroup;
+
+  // 2. 이름만 같고 실제로는 다른 업체 — 슬러그를 그대로 써서 분리를 유지한다.
   const canonical = canonicalVendorName(category, vendorName);
   if (!canonical || isSameNameDifferentBusiness(category, canonical)) {
-    // 이름만 같고 실제로는 다른 업체 — 슬러그를 그대로 써서 분리를 유지한다.
     return `slug:${vendorSlug}`;
   }
+
+  // 3. 일반적인 이름 기반 그룹
   return `${category}|${vendorIdentityGroup(category, vendorName)}`;
 }
 

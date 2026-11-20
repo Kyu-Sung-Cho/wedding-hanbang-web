@@ -228,3 +228,96 @@ host·path를 정규화했다.
 
 어느 쪽도 하기 전까지는 **분리 상태를 유지한다.** 근거 없이 합치는 것보다
 갈려 있는 편이 낫다 — 갈려 있으면 정보가 얇을 뿐이지만, 잘못 합치면 틀린 정보다.
+
+---
+
+## 2026-08-18 Addendum — 사람 검토 반영
+
+### 이 문서 이후 발견된 오류 수정
+
+1. **`VERIFIED_VENDOR_IDENTITY_BY_SLUG` 미구현 버그 수정**
+
+   2026-07-30 섹션에서 라망/랑게 서울 slugs를 한 카드로 묶는 "행 단위 검증 병합"을
+   설계했으나 실제 `vendorIdentity.ts`에 구현되지 않았다. 라망은
+   `SAME_NAME_DIFFERENT_BUSINESS`에 있어 이름 규칙으로 모든 slug가 분리되고,
+   서울의 두 slug가 두 장의 카드로 표시되는 버그가 있었다.
+
+   수정: `VERIFIED_VENDOR_IDENTITY_BY_SLUG` 맵을 구현하고 `vendorIdentityKey`가
+   이름 규칙보다 slug 규칙을 먼저 확인하도록 변경했다.
+
+   | 그룹 | 한 카드로 모으는 slug | 분리 유지 |
+   |---|---|---|
+   | 라망 서울 | `studio-ingest-ee80fe60805b12d1`, `studio-ingest-d0d04f7ed9330369` | `studio-ingest-59a8e3a6c75781c0` (전주) |
+   | 랑게 서울 | `studio-ingest-8b66b01259700071`, `studio-ingest-712748b50059a490` | `studio-ingest-ad55657917fc0fc8` (전라) |
+
+2. **`SAME_BUSINESS_DIFFERENT_NAME`에서 잘못 남아있던 쌍 제거**
+
+   2026-07-30 재감사에서 `removedFromMerge`로 기록된 두 쌍이 코드에 여전히
+   남아있었다.
+
+   - `테레지아 ↔ 테레지아 스튜디오`: 강남 논현 @teresia_studio ↔ 천안 불당 @teresia_cheonan (다른 지점)
+   - `버드투블룸 ↔ 버드투블룸스튜디오`: 청담 본점 ↔ 인천 남동 지점 (행별 귀속 미확인)
+
+   수정: 두 쌍을 `SAME_BUSINESS_DIFFERENT_NAME`에서 제거했다.
+
+### 2026-08-18 사람 검토 결과
+
+live audit (`pnpm audit:vendor-merge`)이 53쌍을 보고했다. 사람 검토 결과:
+
+**병합 3쌍**:
+
+| 카테고리 | 쌍 | 근거 |
+|---|---|---|
+| studio | 라망 ↔ 라망스튜디오 | slug 단위 구현 완료 (서울만 병합, 전주 별도 유지) |
+| studio | ST정우 ↔ ST정우 [러블리, 슈가제이] | 4차 병합 — 공식 채널 확인 (아래 참조) |
+| dress | 엔조최재훈 ↔ 엔조최재훈[샵결재] | 4차 병합 — 공식 채널 확인 (아래 참조) |
+
+**분리 유지 11쌍** — 다른 지역/업체로 확인됨:
+
+| 카테고리 | 쌍 | 사유 |
+|---|---|---|
+| studio | 아우라 ↔ [천안] 아우라 | 다른 지역 지점 |
+| studio | 페레 ↔ [천안] 페레 | 다른 지역 지점 |
+| studio | 비마이 ↔ [청주] 비마이 | 다른 지역 지점 |
+| makeup | 꼼나나 ↔ [수원] 꼼나나 | 다른 지역 지점 |
+| makeup | 더페트라 ↔ [강릉] 더페트라 | 다른 지역 지점 |
+| studio | 고유 ↔ 고유 스튜디오 | 여수 호텔 공시 vs 광주 — 대행사 지역 전혀 안 겹침 |
+| studio | 라크마 ↔ 라크마 스튜디오 | 여수 vs 서울 @lacmastudio |
+| studio | 메이 ↔ 메이 스튜디오 | 강남 vs 강원 |
+| studio | 루미에 ↔ 루미에스튜디오 | 서울 테헤란로 vs 안산 — 두 업체가 실재 |
+| studio | 소나르 ↔ 소나르스튜디오 | 울산/전라 vs 안동 |
+| studio | 줄리의정원 ↔ 줄리의정원스튜디오 | 청담 vs 광주 |
+
+(지니어스·헤이허니는 이미 테스트에서 분리 잠금)
+
+**미결 39쌍** — 증거 없이 병합하지 않음. `work/logo-hunt` 원본 없이 추가 확인 불가.
+
+### 4차 병합 (2026-08-18): 공식 채널 독립 확인
+
+이 문서의 "분리 유지 (13쌍)" 표에서 다음 두 쌍을 "(주)레브웨딩만 쓰는 지역 표기 —
+지역 지점"으로 기술했으나, 이는 **오류**였다. 대괄호 안의 내용이 지역이 아니다.
+
+#### ST정우 ↔ ST정우 [러블리, 슈가제이]
+
+- **대괄호 안은 패키지/컨셉 태그**이고 대행사는 요즘웨딩이다 ((주)레브웨딩 아님).
+- 공식 사이트 https://stjungwoo.co.kr/ ST BRAND GALLERY에 **LOVELY**와 **SUGA J** 둘 다 있음.
+- 회사: (주)에스티정우
+- 주소: 서울 강남구 청담동 22-9 / 선릉로148길 16-1
+- 전화: 02-511-0901
+- Direct Wedding 확인:
+  - https://www.directwedding.co.kr/studio/stjungwoo (러블리)
+  - https://www.directwedding.co.kr/studio/sugaj (슈가제이)
+- Slugs: `studio-ingest-02e1fd3ca05ec9e2`, `studio-ingest-7401ab1f7970ee81`
+- **→ SAME_BUSINESS_DIFFERENT_NAME에 추가 완료. 대표 이름: ST정우**
+
+#### 엔조최재훈 ↔ 엔조최재훈[샵결재]
+
+- **[샵결재]는 요즘웨딩 결제 경로 표기**이지 지역이나 다른 업체가 아니다.
+- 공식 사이트: http://choijaehoon.co.kr/ ENZO CHOIJAEHOON
+- 주소: 서울 강남구 선릉로158길 14-3
+- 전화: 02-544-1272
+- 요즘웨딩 확인: https://yozmwedding.co.kr/dress/?bmode=view&idx=153036355
+- 두 catalog 카드 모두 seoul_gangnam3.
+- 공식 사이트의 대전·부산 파트너샵은 **다른 이름**이므로 이 병합에 포함되지 않음.
+- Slugs: `dress-ingest-b51a6e6bee6ce26e`, `dress-ingest-cbd3af2852af3317`
+- **→ SAME_BUSINESS_DIFFERENT_NAME에 추가 완료. 대표 이름: 엔조최재훈**
