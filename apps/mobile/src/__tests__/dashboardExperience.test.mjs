@@ -259,8 +259,9 @@ test("login returns through the shared onboarding gate before opening home", () 
     source.includes('router.replace("/(tabs)/lounge")'),
     false,
   );
+  // 2026-11-20 decision 7: both return by dismissTo("/") so a start screen stacked below is reused, not duplicated.
   assert.ok(
-    source.match(/router\.replace\("\/"\)/g)?.length >= 2,
+    source.match(/router\.dismissTo\("\/"\)/g)?.length >= 2,
     "email and social login should both return through app/index.tsx",
   );
 });

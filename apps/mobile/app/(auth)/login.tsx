@@ -124,7 +124,9 @@ export default function LoginScreen() {
         return;
       }
       // 루트가 onboarding_completed를 다시 확인한 뒤 올바른 화면으로 보낸다.
-      router.replace("/");
+      // 시작 화면에서 쌓아 열었으면 그 자리까지 내려가 새 루트를 쌓지 않는다. 아래에 없으면 이 자리를 루트로 바꾼다
+      // (예전 replace 와 같다). 그래서 홈에서 뒤로 가기를 눌러도 로그인·시작 화면으로 가지 않는다(2026-11-20 결정 7).
+      router.dismissTo("/");
     } catch {
       showLoginError("오류", "로그인에 실패했어요. 다시 시도해주세요.");
     } finally {
@@ -143,8 +145,8 @@ export default function LoginScreen() {
         setLoading(null);
         return;
       }
-      // OAuth 신규 가입자도 온보딩을 건너뛰지 않게 공통 gate로 돌아간다.
-      router.replace("/");
+      // OAuth 신규 가입자도 온보딩을 건너뛰지 않게 공통 gate로 돌아간다(이메일 로그인과 같은 dismissTo).
+      router.dismissTo("/");
     } catch (err) {
       // 앱이 쓴 안내만 그대로 보여준다. Supabase가 던진 원문은 사람이 읽을 수 없고
       // 내부 상태를 드러내므로, 무엇이 안 됐는지만 우리 말로 알린다.
