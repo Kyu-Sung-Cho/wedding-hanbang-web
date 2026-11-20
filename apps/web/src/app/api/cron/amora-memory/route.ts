@@ -276,7 +276,8 @@ async function processJob(
       category: memory.category,
       title: memory.title,
       value: memory.value,
-      reasoning: memory.reasoning,
+      // 2026-11-20 D-87·09장 M5-3: 모델이 쓴 "이유"는 인용에 묶이지 않은 추정이라 저장하지 않는다(I11).
+      reasoning: null,
       confidence: memory.confidence,
       // An AI extraction from a shared chat is never mutual confirmation.
       // Only the explicit two-person mediation flow may create a shared

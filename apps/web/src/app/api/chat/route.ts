@@ -2716,7 +2716,9 @@ export async function POST(request: Request) {
     decisionType: d.decision_type,
     title: d.title,
     value: typeof d.chosen_value?.value === "string" ? d.chosen_value.value : null,
-    reasoning: d.reasoning,
+    // 2026-11-20 D-87·09장 M5-3: 자동 기억의 "이유"는 모델이 쓴 추정이라 지시문에 싣지 않는다(I11).
+    // 서버가 쓴 영수증의 배경은 그대로 둔다.
+    reasoning: isAutomaticMemory(d) ? null : d.reasoning,
     confidence: d.confidence ?? 0.5,
     source: d.source,
     createdAt: d.created_at,
@@ -2762,7 +2764,7 @@ export async function POST(request: Request) {
     .map((c) => ({
     title: c.title,
     resolution: typeof c.chosen_value?.value === "string" ? c.chosen_value.value : null,
-    reasoning: c.reasoning,
+    reasoning: isAutomaticMemory(c) ? null : c.reasoning,
     stageTag: c.stage_tag,
     createdAt: c.created_at,
     }));
