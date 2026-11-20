@@ -9,6 +9,7 @@ import { buildTodayOneBudgetGuardrailCandidates } from "@/lib/care/todayOneBudge
 import { buildTodayOneTaskDeadlineCandidates } from "@/lib/care/todayOneMore";
 import { isAmoraTodayOneEnabled } from "@/lib/features/amoraCareFlags";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 
 /**
  * 아침 "오늘의 한 가지" 앱 알림(결정 D-86, 25장 2절 "아침마다 먼저 챙긴다").
@@ -87,7 +88,8 @@ export async function GET(request: Request) {
     const { data, error } = await admin.rpc("list_amora_today_one_push_recipients", { p_limit: MAX_RECIPIENTS });
     const recipients = error ? null : parseRecipients(data);
     if (!recipients) {
-      console.error("[cron/amora-today-one-push] recipients unavailable");
+      // 내용 없는 코드만 보낸다(받는 사람·커플 id 를 싣지 않음).
+      log.error("cron/amora-today-one-push", new Error("AMORA_TODAY_ONE_PUSH_RECIPIENTS_UNAVAILABLE"));
       return NextResponse.json({ error: "recipients unavailable" }, { status: 503, headers: NO_STORE });
     }
 
@@ -100,7 +102,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ ok: true, recipients: recipients.length, counts }, { headers: NO_STORE });
   } catch {
-    console.error("[cron/amora-today-one-push] run failed");
+    log.error("cron/amora-today-one-push", new Error("AMORA_TODAY_ONE_PUSH_RUN_FAILED"));
     return NextResponse.json({ error: "run failed" }, { status: 500, headers: NO_STORE });
   }
 }
