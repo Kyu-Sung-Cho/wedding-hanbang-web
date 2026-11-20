@@ -30,12 +30,16 @@ export interface AmoraPushMessage {
 
 export declare function kstHour(date?: Date): number;
 export declare function isWithinAmoraPushWindow(date?: Date): boolean;
+export declare const AMORA_PUSH_MAX_TTL_SECONDS: number;
+export declare function amoraPushTtlSeconds(input?: { now?: Date; windowEndsAt?: string | null }): number;
 export declare function isAmoraPushKind(value: unknown): value is AmoraPushKind;
 export declare function isAmoraPushRoute(value: unknown): value is AmoraPushRoute;
 export declare function buildAmoraPushMessage(input: {
   to: string;
   deliveryId: string;
   route: AmoraPushRoute;
+  /** 1 이상 `AMORA_PUSH_MAX_TTL_SECONDS` 이하. `amoraPushTtlSeconds` 로 받는 시간 끝까지로 줄인 값. */
+  ttlSeconds: number;
 }): AmoraPushMessage;
 export declare function parseAmoraPushData(
   value: unknown,

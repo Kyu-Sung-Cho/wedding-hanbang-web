@@ -176,6 +176,33 @@ describe("아모라 앱 알림 마이그레이션(D-86)", () => {
     expect(await deliveryCount(db)).toBe(1);
   }, 30_000);
 
+  it("프로필 줄이 없으면 받는 시간을 모르는 것으로 보고 보내지 않고, 보낼 때는 그 사람의 받는 시간이 끝나는 시각을 준다", async () => {
+    db = await createDatabase();
+    // 동의와 기기는 auth.users 에 걸려 있어 프로필 줄이 없어도 남을 수 있다(가입 중이거나 프로필만 지워진 계정).
+    const noProfile = "10000000-0000-4000-8000-000000000003";
+    await db.exec(`INSERT INTO auth.users VALUES ('${noProfile}')`);
+    await addDevice(db, DEVICE_B, noProfile);
+    await consent(db, noProfile, true);
+    expect(await claim(db, "today_one:2026-11-20", noProfile)).toEqual({ claimed: false, reason: "quiet_hours" });
+    expect(await deliveryCount(db)).toBe(0);
+    // 창 함수 자체도 NULL 이 아니라 false 다(아침 대상 목록도 같은 함수를 쓴다).
+    const open = await db.query<{ open: boolean | null }>("SELECT public.amora_push_window_open($1) AS open", [noProfile]);
+    expect(open.rows[0].open).toBe(false);
+
+    // 보내는 쪽은 이 시각까지로 알림의 유효 시간을 줄인다(꺼진 폰이 오후 6시 뒤에 받지 않게).
+    await addDevice(db, DEVICE_A);
+    await consent(db, USER, true);
+    await db.exec(`UPDATE public.profiles SET care_window_end_hour = 18 WHERE id = '${USER}'`);
+    const claimed = await claim(db, "today_one:2026-11-20");
+    expect(claimed).toMatchObject({ claimed: true });
+    expect(Date.parse(String(claimed.windowEndsAt))).toBe(Date.parse("2026-11-20T18:00:00+09:00"));
+    // 좁히지 않은 사람은 오후 8시.
+    await addDevice(db, "30000000-0000-4000-8000-00000000000c", PARTNER);
+    await consent(db, PARTNER, true);
+    const partner = await claim(db, "today_one:2026-11-20", PARTNER);
+    expect(Date.parse(String(partner.windowEndsAt))).toBe(Date.parse("2026-11-20T20:00:00+09:00"));
+  }, 30_000);
+
   it("같은 일은 한 번만, 하루 2건까지 보내고 공급자가 거절한 건은 상한에 세지 않는다", async () => {
     db = await createDatabase();
     await addDevice(db, DEVICE_A);

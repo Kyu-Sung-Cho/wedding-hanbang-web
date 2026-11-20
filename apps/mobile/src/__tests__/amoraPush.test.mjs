@@ -6,6 +6,8 @@ import { URL } from "node:url";
 import {
   AMORA_PUSH_COPY,
   AMORA_PUSH_DAILY_CAP,
+  AMORA_PUSH_MAX_TTL_SECONDS,
+  amoraPushTtlSeconds,
   buildAmoraPushMessage,
   isWithinAmoraPushWindow,
   parseAmoraPushData,
@@ -33,13 +35,35 @@ test("알림 자료는 type·deliveryId·route 세 칸만 받는다", () => {
 });
 
 test("보내는 알림에는 고정 문장 하나와 열 화면 이름만 든다", () => {
-  const message = buildAmoraPushMessage({ to: "ExponentPushToken[abc]", deliveryId: DELIVERY, route: "chat" });
+  const message = buildAmoraPushMessage({ to: "ExponentPushToken[abc]", deliveryId: DELIVERY, route: "chat", ttlSeconds: 600 });
+  assert.equal(message.ttl, 600);
   assert.equal(message.title, "웨딩한방");
   assert.equal(message.body, "아모라가 정리한 게 있어요.");
   assert.deepEqual(message.data, { type: "amora", deliveryId: DELIVERY, route: "chat" });
   assert.deepEqual(Object.keys(message).sort(), ["body", "collapseId", "data", "priority", "sound", "tag", "title", "to", "ttl"]);
   assert.equal(AMORA_PUSH_DAILY_CAP, 2);
   for (const sentence of Object.values(AMORA_PUSH_COPY)) assert.doesNotMatch(sentence, /—|–|플래너|파트너/);
+});
+
+test("꺼져 있던 기기도 받는 시간이 끝난 뒤에는 받지 않게 유효 시간을 줄인다", () => {
+  // 19:55 에 보내면 오후 8시까지 5분만 남긴다(예전에는 4시간이라 23시에 켠 폰이 받았다).
+  assert.equal(amoraPushTtlSeconds({ now: new Date("2026-11-20T10:55:00Z") }), 300);
+  // 오전에는 4시간이 상한이다.
+  assert.equal(amoraPushTtlSeconds({ now: new Date("2026-11-20T01:00:00Z") }), AMORA_PUSH_MAX_TTL_SECONDS);
+  // 그 사람이 받는 시간을 18시까지로 좁혔으면 18시까지만.
+  assert.equal(amoraPushTtlSeconds({ now: new Date("2026-11-20T08:30:00Z"), windowEndsAt: "2026-11-20T18:00:00+09:00" }), 1800);
+  // DB 가 준 끝 시각이 오후 8시보다 늦어도 오후 8시를 넘기지 않는다. 잘못된 값이면 오후 8시로 본다.
+  assert.equal(amoraPushTtlSeconds({ now: new Date("2026-11-20T10:30:00Z"), windowEndsAt: "2026-11-20T23:00:00+09:00" }), 1800);
+  assert.equal(amoraPushTtlSeconds({ now: new Date("2026-11-20T10:30:00Z"), windowEndsAt: "언젠가" }), 1800);
+  // 끝났으면 0 — 보내지 않는다.
+  assert.equal(amoraPushTtlSeconds({ now: new Date("2026-11-20T11:00:00Z") }), 0);
+  for (const ttlSeconds of [0, -1, 1.5, AMORA_PUSH_MAX_TTL_SECONDS + 1, undefined]) {
+    assert.throws(
+      () => buildAmoraPushMessage({ to: "ExponentPushToken[abc]", deliveryId: DELIVERY, route: "home", ttlSeconds }),
+      /AMORA_PUSH_MESSAGE_INVALID/,
+      String(ttlSeconds),
+    );
+  }
 });
 
 test("보내는 시간은 한국 시각 09:00 이상 20:00 미만이다", () => {
