@@ -383,7 +383,7 @@ test("the home keeps the product and safety slots, quietly, and opens 내 정보
   for (const slot of [
     /partnerChanges=\{<PartnerChangeNotice refreshVersion=\{careRefreshVersion\}\s*\/>\}/u,
     /<JoinedPlanHandoff\s+view=\{joinedPlanHandoffView\}/u,
-    /todayOneCare=\{<TodayOneCareCard refreshVersion=\{careRefreshVersion\}\s*\/>\}/u,
+    /todayOneCare=\{<AmoraTodayOneSlot refreshVersion=\{careRefreshVersion\} progress=\{data\.progress\}\s*\/>\}/u,
     /<LoungeFirstArrival view=\{firstArrivalView\}\s*\/>/u,
     /records=\{data\.hasBookingRecords \? <LoungeRecordsEntry\s*\/> : null\}/u,
     /<FirstRunCoachMarks onClose=\{handleFirstRunTutorialClose\}\s*\/>/u,

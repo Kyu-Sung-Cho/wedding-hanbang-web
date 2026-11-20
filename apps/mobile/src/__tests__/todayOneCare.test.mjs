@@ -170,7 +170,12 @@ test("mobile surfaces use authenticated API, owner validation, in-app-only copy,
   assert.match(preferenceSource, /ownerUserId/);
   assert.match(cardSource, /supabase\.auth\.onAuthStateChange/);
   assert.match(preferenceSource, /supabase\.auth\.onAuthStateChange/);
-  assert.match(dashboardSource, /<TodayOneCareCard/);
+  // 홈은 먼저 챙기기 한 칸(`AmoraTodayOneSlot`)을 그리고, 그 칸이 오늘의 한 가지 카드를 그린다.
+  assert.match(dashboardSource, /<AmoraTodayOneSlot /);
+  assert.match(
+    await readFile(resolve(HERE, "../components/dashboard/AmoraTodayOneSlot.tsx"), "utf8"),
+    /<TodayOneCareCard refreshVersion=\{refreshVersion\} \/>/,
+  );
   assert.match(settingsSource, /<TodayOnePreferenceControl/);
   assert.match(experienceSource, /label: "준비 포커스"/);
   assert.doesNotMatch(experienceSource, /label: "오늘의 한 가지"/);

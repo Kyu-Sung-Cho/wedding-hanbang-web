@@ -60,6 +60,7 @@ import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/co
 import AppGuide from "@/components/AppGuide";
 import InviteCodeCard from "@/components/invite/InviteCodeCard";
 import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceControl";
+import AmoraCarePreferenceControl from "@/components/settings/AmoraCarePreferenceControl";
 import CommunityReplyPushPreferenceControl from "@/components/settings/CommunityReplyPushPreferenceControl";
 
 type SettingsData = WeddingSettingsData;
@@ -82,6 +83,8 @@ export default function SettingsScreen() {
   const [settingsSnapshot, setSettingsSnapshot] =
     useState<WeddingSettingsSnapshot | null>(null);
   const [legacyCareConsentActive, setLegacyCareConsentActive] = useState(false);
+  // 켤 수 있는 경로가 있으면 새 칸이 켜기와 끄기를 함께 맡는다. 그때는 예전 해제 줄을 숨긴다.
+  const [careControlAvailable, setCareControlAvailable] = useState(false);
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -954,7 +957,8 @@ export default function SettingsScreen() {
           />
           <CommunityReplyPushPreferenceControl />
           <TodayOnePreferenceControl />
-          {legacyCareConsentActive ? (
+          <AmoraCarePreferenceControl onAvailabilityChange={setCareControlAvailable} />
+          {legacyCareConsentActive && !careControlAvailable ? (
             <>
               <View style={styles.divider} />
               <ActionRow

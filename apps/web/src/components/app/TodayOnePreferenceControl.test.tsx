@@ -67,7 +67,8 @@ describe("TodayOnePreferenceControl", () => {
 
     expect(container.textContent).toContain("아모라 오늘의 한 가지(인앱)");
     expect(container.textContent).toContain("일정·예산에서 지금 확인할 한 가지");
-    expect(container.textContent).toContain("대시보드 안에서만");
+    // 2026-11-13 P2: /dashboard 는 라운지로 넘겨져서 웹에서 카드가 보이는 곳은 라운지다.
+    expect(container.textContent).toContain("웨딩 라운지에서만");
     expect(container.textContent).toContain("푸시·문자·이메일을 보내지 않아요");
     expect(container.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("false");
   });
