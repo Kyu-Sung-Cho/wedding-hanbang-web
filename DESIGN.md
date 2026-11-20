@@ -45,6 +45,13 @@
     (아티팩트 메모: "업체명과 가격도 예시입니다").
   - 업체 문의 보내기는 화면과 흐름을 실제로 만들되, 운영에서 켜는 것은 따로 정한다
     (설계도 18장 D-19·D-75·D-77·D-78). 켜기 전에는 승인까지만 저장하고 밖으로 나가지 않는다.
+  - **로그인·가입·비밀번호·동의 화면은 시작 화면을 잇는다 (2026-11-20, 파운더 요청).** 원문: "근데
+    로그인 페이지도  다 바궈야할듯해". 아티팩트에 로그인 화면이 없어서 시작 화면의 모양(보케 사진 바탕,
+    amora 와 한 줄, 오브, 흰색 86% 유리 카드, 먹색 알약)을 그대로 쓴다. 틀은 웹
+    `components/auth/InvitationAuthShell.tsx`, 앱 `components/invitation/InvitationAuthFrame.tsx` 이고,
+    화면 파일은 그 안에 원래 입력칸과 버튼만 둔다. 로그인 방법·이동·동의 문장은 그대로다. 카카오(노랑)와
+    Apple(검정) 단추는 각 회사 로그인 단추 규정의 색을 그대로 쓴다. 동의 빈 칸 테두리는 흰 바탕에서
+    3:1 이 넘는 `faint`(3.77:1)다.
 
 - **Feature summary hierarchy (2026-09-12):** Budget, checklist, schedule,
   lounge, guide introductions and the existing board overview use a grouped
