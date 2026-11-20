@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { URL } from "node:url";
 
 // 허락 규칙 화면(25장 3절)의 앱 쪽 배선. 표는 웹과 같은 공용 함수가 만든다(packages/shared 시험이 내용을 잰다).
 
