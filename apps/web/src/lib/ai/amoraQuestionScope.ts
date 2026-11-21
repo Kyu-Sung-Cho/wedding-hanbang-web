@@ -5,7 +5,7 @@ import {
 } from "@/lib/ai/amoraCrisisSafety";
 import { assessAmoraSafetyText, assessAmoraContextualSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { hasCoerciveControlSignal } from "@hanbang/shared";
-import { isClosedPartnerViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
+import { isLastResortClosedViolenceStatement } from "@hanbang/shared/partner-violence-closed-vocabulary";
 import { hasExplicitPersonalActionDraftRequest } from "./amoraPersonalActionConversation";
 import { hasExplicitAmoraSharedTaskRequest } from "./amoraSharedTaskIntent";
 
@@ -875,9 +875,12 @@ export function classifyAmoraQuestionScope({
     // 112·1366 안내)로 가고 서버 `hasAmoraSafetySignal` 도 참이 된다. W0 반환보다 앞이어야
     // `신랑이 술 먹으면 때려요` 가 결혼 핵심·기억 ON 으로 가지 않는다. `assessAmoraSafetyText`
     // 안에 넣지 않는다 — 넣으면 `classifyAmoraCrisis` 의 옛 즉시 위기 갈래가 끊긴다.
+    // 2026-11-16: 마지막 판정 전용 어휘다. `언니가 형부한테 맞았대요`(W4·공유 레인이었다)와
+    // `예비신랑이 제 휴대폰 비밀번호를 안 알려주면 소리 지르고 물건을 던져요`(`신랑` 때문에 W0·기억 ON
+    // 이었다)가 여기서 W2 safety 가 된다. 문맥 판정에는 주지 않는다(그 함수 머리말).
     || (
       structuredSafetyAssessment.resolution === "inconclusive"
-      && isClosedPartnerViolenceStatement(normalizedText)
+      && isLastResortClosedViolenceStatement(normalizedText)
     ));
   const domainHighRisk =
     HIGH_RISK_DOMAIN_PATTERN.test(normalizedText)

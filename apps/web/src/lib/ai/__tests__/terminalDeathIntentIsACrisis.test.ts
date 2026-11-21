@@ -7,8 +7,9 @@
  * `다음 할 일은 자살이야` 가 W4(범위 밖, 낮은 확신)·안전 신호 없음이었다. 다른 영역 신호가
  * 없는 W4 라 `canAttemptAmoraBoundedContinuity` 가 참이 되어, 안전 레인 대신 **직전 결혼
  * 대화가 연결 문맥으로 붙을 수 있었다.** 같은 모양의 `결혼식 전에 죽으려고` 는 W0(기억 ON·
- * 제안 도구 8개)였다. 지금은 뒤의 둘을 잡는다. **첫 문장은 아직 운영과 같다** — 앞 문장
- * (`남은 할 일은 없어`)이 닫힌 어휘 밖이다. 아래 (iii)에 그대로 적혀 있다.
+ * 제안 도구 8개)였다. 지금은 뒤의 둘을 잡는다. **첫 문장은 이 규칙이 닿지 않는다** — 앞 문장
+ * (`남은 할 일은 없어`)이 닫힌 어휘 밖이다. 2026-11-17 부터는 위기 관문의 마지막 자리에 있는 자해
+ * 계획·결심 문장 틀(`selfHarmPlanFrames.ts`)이 잡는다. 아래 (iii)에 그대로 적혀 있다.
  *
  * ## 세 번 넓혔고 세 번 양쪽으로 샜다 — 그래서 방향을 바꿨다 (2026-09-19)
  *
@@ -110,7 +111,7 @@
  * 예정이야`·`힘들다 죽을 예정이야` 처럼 `-어` 연결이 아닌 꼴은 선다.
  */
 import { isDeepStrictEqual } from "node:util";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   assessAmoraSafetyText,
   assessAmoraSafetyTextWithoutPlannedStatementRuleForTests as assessWithoutPlannedStatementRule,
@@ -2194,39 +2195,81 @@ const OLD_MUST_CATCH_NOT_REACHED = OLD_MUST_CATCH_ROWS.filter(
   (text) => !NEWLY_CAUGHT_SET.has(text),
 );
 /**
+ * 2026-11-17: 위기 관문의 **마지막 자리**에 자해 계획·결심 문장 틀(`selfHarmPlanFrames.ts`)이 들어왔다.
+ * 그 틀은 이 파일의 규칙(`assessAmoraSafetyText`)을 바꾸지 않는다 — (ii)·(iv) 가 그대로 지킨다. 다만
+ * `engages` 는 관문 전체를 보므로, 아래 수는 틀을 **끈** 관문으로 센 "운영이 이미 잡는" 행과 틀이 새로
+ * 잡는 행을 따로 센다. 틀을 끈 관문은 `selfHarmPlanIsACrisis.test.ts` 와 같은 방법으로 끼운다.
+ */
+let engagesWithoutPlanFrames: (text: string) => boolean;
+beforeAll(async () => {
+  vi.resetModules();
+  vi.doMock("@hanbang/shared/self-harm-plan-frames", () => ({
+    isLastResortSelfHarmPlanStatement: () => false,
+  }));
+  const crisis = await import("@/lib/ai/amoraCrisisSafety");
+  const scope = await import("@/lib/ai/amoraQuestionScope");
+  engagesWithoutPlanFrames = (text) =>
+    crisis.classifyAmoraCrisis(text) !== null || scope.hasAmoraSafetySignal(text);
+  vi.doUnmock("@hanbang/shared/self-harm-plan-frames");
+  vi.resetModules();
+});
+/**
  * 운영의 옛 갈래(`죽으려고 해`·느슨한 1인칭 + `자살`·다른 절의 위험)가 이미 안전 경로로 보내는 행.
  * 넓은 판본이 "origin/main 과 같은 오탐" 으로 적어 둔 행(`휴대폰 배터리가 죽으려고 해`)도
  * 여기 든다 — 이 수정은 그것도 건드리지 않는다.
  */
-const ALREADY_CAUGHT_BY_PRODUCTION = OLD_MUST_CATCH_NOT_REACHED.filter((text) => engages(text));
+const alreadyCaughtByProduction = () => OLD_MUST_CATCH_NOT_REACHED.filter(
+  (text) => engagesWithoutPlanFrames(text),
+);
+/** 이 파일의 규칙이 닿지 않고 운영도 놓치던 행 가운데, 마지막 자리의 계획·결심 문장 틀이 잡는 것. */
+const caughtByLastResortPlanFrames = () => OLD_MUST_CATCH_NOT_REACHED.filter(
+  (text) => !engagesWithoutPlanFrames(text) && engages(text),
+);
 const STILL_MISSED_SAME_AS_PRODUCTION = OLD_MUST_CATCH_NOT_REACHED.filter(
   (text) => !engages(text),
 );
+/**
+ * 2026-11-17 실측: 아직 놓치던 256행 중 31행(전부 1인칭 계획·결심·작별 — 아래 대표 다섯 포함). 마지막 셋
+ * (`남은 할 일은 없어. 오늘 죽으려고`·`할 거 다 했으니까 죽으려구`·`농담이 아니라 진짜 오늘 죽으려고`)은 맺음·다짐
+ * 표시 두 개를 5,412행 코퍼스에서 본 뒤 더해서 잡혔다.
+ */
+const LAST_RESORT_COUNT = 31;
 
 describe("(iii) STILL_MISSED_SAME_AS_PRODUCTION — 닿지 않는 옛 필수 포착 행은 운영과 같다", () => {
   // 2026-09-19 두 번째 검토 반영으로 106 에서 99 로 줄었다. 옮겨 간 7행: `지쳐 죽으려고`·`우울하다 죽으려고`·
   // `의미가 없다 죽으려고`(괴로움 서술어 바로 뒤 죽- 핵은 `-서` 꼴만) · `살기 싫다 죽으려고`(같은
   // 까닭, 운영이 이미 잡는다) · `오늘 죽으려고 ^^`·`오늘 밤에 죽으려고` + 웃는 얼굴(웃음 표시) ·
   // `죽을 준비 다 했어`(죽 쑤는 얘기로도 읽힌다).
-  it("수를 고정한다 — 옛 필수 포착 408행 중 새로 잡힌 99 · 운영이 이미 잡는 53 · 아직 놓치는 256", () => {
+  // 2026-11-17: 아직 놓치던 256 가운데 마지막 자리의 계획·결심 문장 틀이 잡는 행을 따로 센다.
+  it(`수를 고정한다 — 옛 필수 포착 408행 중 새로 잡힌 99 · 운영이 이미 잡는 53 · 계획·결심 문장 틀이 잡는 ${LAST_RESORT_COUNT} · 아직 놓치는 ${256 - LAST_RESORT_COUNT}`, () => {
     expect(OLD_MUST_CATCH_ROWS).toHaveLength(408);
     expect(OLD_MUST_CATCH_ROWS.filter((text) => NEWLY_CAUGHT_SET.has(text))).toHaveLength(99);
-    expect(ALREADY_CAUGHT_BY_PRODUCTION).toHaveLength(53);
-    expect(STILL_MISSED_SAME_AS_PRODUCTION).toHaveLength(256);
+    expect(alreadyCaughtByProduction()).toHaveLength(53);
+    expect(caughtByLastResortPlanFrames()).toHaveLength(LAST_RESORT_COUNT);
+    expect(STILL_MISSED_SAME_AS_PRODUCTION).toHaveLength(256 - LAST_RESORT_COUNT);
   });
 
   it("닿지 않는 행은 전부 옛 본문의 결과와 같다", () => {
     expect(OLD_MUST_CATCH_NOT_REACHED.filter((text) => !sameAsBase(text))).toEqual([]);
   });
 
-  // 대표 행. 이 파일의 첫 줄에 있던 문장도 여기 있다 — 앞 문장(`남은 할 일은 없어`)이 어휘 밖이다.
   it.each([
     "남은 할 일은 없어. 오늘 죽으려고",
     "빚이 너무 많아서 죽으려고",
-    "파혼당해서 죽으려고",
     "오늘 죽으려고 엄마 미안해",
     "신랑 몰래 오늘 죽으려고",
     "식장 예약 취소하고 죽으려고",
+  ])("2026-11-17 마지막 자리의 계획·결심 문장 틀이 새로 잡는다(이 파일의 규칙은 그대로): %s", (text) => {
+    expect(caughtByLastResortPlanFrames()).toContain(text);
+    expect(assess(text)).toEqual(assessBase(text));
+    expect(engagesWithoutPlanFrames(text)).toBe(false);
+    expect(classifyAmoraCrisis(text)).toEqual({ kind: "self_harm" });
+  });
+
+  // 대표 행. 이 파일의 첫 줄에 있던 문장(`남은 할 일은 없어. 오늘 죽으려고`)은 2026-11-17 마지막 자리 틀이 잡아
+  // 위 목록으로 옮겼다 — 이 파일의 규칙(`assessAmoraSafetyText`)에서는 여전히 어휘 밖이다.
+  it.each([
+    "파혼당해서 죽으려고",
     "오늘 죽으려고 ㅎㅎ",
     "다음 할 일은 자살이야 ㅋㅋ",
     "나죽으려고",

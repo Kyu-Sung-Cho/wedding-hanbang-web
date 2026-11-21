@@ -11,6 +11,7 @@ import {
   normalizeAmoraSafetyText,
   type AmoraCrisisKind,
 } from "./amoraCrisisClassifier";
+import { isLastResortSelfHarmPlanStatement } from "./selfHarmPlanFrames";
 
 export { normalizeAmoraSafetyText };
 export type { AmoraCrisisKind };
@@ -520,6 +521,17 @@ export function classifyAmoraCrisis(
   const contextual = assessAmoraContextualSafetyText(text);
   if (contextual?.resolution === "immediate_crisis" && contextual.kind) {
     return { kind: contextual.kind };
+  }
+  // 2026-11-17: 자해 계획·결심 문장 틀(`이번 주 안에 죽을 계획이야`·`금요일에 자살할 거야`·
+  // `청첩장 다 돌리고 나면 죽으려고`). 위의 판정이 **전부 아무것도 못 찾았을 때만** 본다 —
+  // 구조 판정이 `inconclusive` 이고 옛 정규식·영어·혼용·문맥 판정이 모두 비었다. 그래서 위에서
+  // 내려진 어떤 판정(무른 판정 포함)도 바뀌지 않는다. `assessAmoraSafetyText` 안에 넣지 않는다 —
+  // 넣으면 문맥 판정·이력 필터가 그 결과를 함께 쓴다(`selfHarmPlanFrames.ts` 머리말).
+  if (
+    structuredAssessment.resolution === "inconclusive"
+    && isLastResortSelfHarmPlanStatement(text)
+  ) {
+    return { kind: "self_harm" };
   }
   return null;
 }

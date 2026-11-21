@@ -62,8 +62,33 @@ import { canonicalizeClosedVocabularyMessage } from "./amoraCrisisClassifier";
  * 2026-09-27 측정)에서는 이 판정이 레인을 옮긴 행이 0 이었다. 도움을 청하는 꼬리(`어떡해요`·
  * `도와주세요`·`무서워요`)나 물음표가 붙거나 이유가 한 마디 붙으면(`남편이 때려서 무서워요`)
  * 어휘 밖이라 서지 않는다. 그 꼬리를 받을지는 오탐과 맞바꾸는 설계 결정이라 여기서 넓히지
- * 않았다. 공유 레인에 남는 위험 서술을 줄이는 큰 손잡이는 이 판정이 아니라 레인 기본값이다
+ * 않았다(2026-11-16: 마지막 판정 전용 틀의 맨 끝 칸에서만 받는다 — 아래). 공유 레인에 남는 위험 서술을
+ * 줄이는 큰 손잡이는 이 판정이 아니라 레인 기본값이다
  * (`ChatContent.tsx`·`ChatSidePanel.tsx`·앱 `chat.tsx` 의 `"shared"` 초기값 — 제품 결정).
+ *
+ * ## 2026-11-16 — 마지막 판정 전용 틀(`isLastResortClosedViolenceStatement`)
+ *
+ * U1 측정이 놓친 위험 문장 셋을 찾았다. `언니가 형부한테 맞았대요`·`언니가 형부한테 맞았는데 너무
+ * 걱정돼` 는 W4·공유 레인이었다(같은 문장을 `남편` 으로 쓰면 운영이 이미 즉시 위기로 잡는다). `예비신랑이
+ * 제 휴대폰 비밀번호를 안 알려주면 소리 지르고 물건을 던져요` 는 `신랑` 때문에 W0·장기 기억 ON 이었다.
+ * 역할이 정해진 문장 틀 셋을 더했다(파일 끝 "마지막 판정 전용 틀"). 위 판정은 한 글자도 바꾸지 않았다 —
+ * 문맥 판정이 위 판정을 부르고, 그 판정이 `classifyAmoraCrisis` 의 즉시 위기 정규식보다 먼저 돌기 때문이다
+ * (넓히면 `남편이 지금 소리 지르고 때려요` 가 즉시 위기에서 비즉시로 내려간다 — 변형으로 확인했다).
+ *
+ * 측정(2026-11-16, base c1eab3a43, `scripts/scope-delta.mjs`, 코퍼스 5,412행 = 앞선 세션 코퍼스 8묶음 +
+ * U1 202행 + 이 변경 40행 + 이 코드를 보지 않은 에이전트가 쓴 213행 + 이 코드를 읽은 백상자 검토 두 차례 298행):
+ *
+ *     평범한 문장 오탐 262 → 262 (새 오탐 0행) · 위험 미탐 1,667 → 1,597 (좋아진 70행, 나빠진 0행)
+ *     결혼 문장 도구 0개 80 → 80 · 과포획 0행 → 회귀 없음
+ *
+ * **첫 판(채움말을 넓힌 판)도 같은 도구로 "새 오탐 0" 이었다.** 백상자 검토가 평범한 문장 134개를 세우고서야
+ * 알았다 — 코퍼스에 그 모양이 한 행도 없었다. 지금 판은 두 검토의 평범한 문장 156개에서 새로 서는 행이 0이고,
+ * 2차 검토의 모호한 문장 124개 중 34개가 선다(아래 "2차 백상자 검토가 좁힌 넷" 과 시험의 `AMBIGUOUS_NOT_CAUGHT`).
+ *
+ * **넓은 재현율을 사지 않았다.** 블라인드 위험 44행에서 새로 잡은 행은 `언니 형부한테 맞음` 1행이고, 그것도
+ * 그 행을 본 뒤 틀에 더한 꼴이라 블라인드 재현율이 아니다. 같은 상황이라도 꼴이 다르면(`형부가 언니한테 죽여
+ * 버리겠다고 했대요`) 틀 밖이다. 놓친 블라인드 위험 19행 중 6행은 여전히 W0·장기 기억 ON 이다(`약혼자가 결혼
+ * 안 하면 저 죽이고 자기도 죽는대요`). 그 문제는 이 파일이 아니라 기억·레인 기본값 쪽에서 풀어야 한다.
  * ──────────────────────────────────────────────────────────────────────────── */
 const ps = String.raw;
 const pvAny = (...alternatives: readonly string[]) => `(?:${alternatives.join("|")})`;
@@ -231,9 +256,10 @@ const PARTNER_VIOLENCE_MAX_TOKENS = 16;
 /**
  * 메시지 전체가 닫힌 어휘로 된 친밀한 관계 폭력·위협·통제 서술인가.
  *
- * 호출자는 **운영 판정이 아무것도 못 찾았을 때만** 이 함수를 본다
- * (`amoraCrisisDelivery.ts`·`amoraQuestionScope.ts`). 이 함수 자신은 판정을 내리지 않고
- * 참·거짓만 낸다.
+ * 호출자는 문맥 판정(`amoraContextualSafety.ts`)이다 — 그 판정은 `classifyAmoraCrisis` 의 즉시 위기
+ * 정규식보다 먼저 돈다. 그래서 **이 함수의 어휘를 넓히지 않는다**. 넓힐 것은 아래
+ * `isLastResortClosedViolenceStatement` 의 틀에 넣는다(2026-11-16, 까닭은 그 머리말). 범위 분류와 전달
+ * 계획은 그 함수를 부르고, 그 함수가 이 판정을 먼저 본다. 이 함수 자신은 판정을 내리지 않고 참·거짓만 낸다.
  */
 export function isClosedPartnerViolenceStatement(value: string): boolean {
   const canonical = canonicalizeClosedVocabularyMessage(value);
@@ -259,4 +285,133 @@ export function isClosedPartnerViolenceStatement(value: string): boolean {
     if (licensed || THROW_WITH_THINGS_PATTERN.test(canonical)) return true;
   }
   return PASSIVE_CORE_PATTERN.test(canonical) && PARTNER_AGENT_PATTERN.test(canonical);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 마지막 판정 전용 틀 (2026-11-16)
+ *
+ * ## 왜 낱말이 아니라 틀인가 — 첫 판이 평범한 문장 134개를 세웠다
+ *
+ * 첫 판은 `언니가`·`형부가`·`걱정돼`·`소리 지르고`·`휴대폰 비밀번호를 안 알려주면` 을 위 판정의 **채움말**에
+ * 더했다. 채움말은 메시지 어디서든 아무 역할이나 한다. 이 코드를 읽은 백상자 검토가 평범한 문장 287개를 만들어
+ * 그중 134개를 세웠다 — `언니가 파혼하면 죽인대`·`언니가 날 가만 안 둔대`(과장), `언니가 술 먹으면 연락 못 하게
+ * 해`(말리는 언니), `소리 질러서 목 졸라 부었어`(`졸라` = 매우). 위 판정이 `오빠가 파혼하면 죽인대` 에 서지
+ * 않는 것은 규칙이 아니라 `오빠`·`엄마`·`친구` 가 어휘 밖이어서였고, `언니` 를 넣자 그 막이 사라졌다. 같은 판이
+ * 블라인드 평범 169행과 scope-delta 5,114행에서는 "새 오탐 0" 이었다 — 그 모양이 한 행도 없었다.
+ *
+ * 그래서 **칸마다 역할과 낱말이 정해진 문장 틀** 셋만 더한다. `^…$` 로 메시지 전체를 맞추고, 걱정·도움 꼬리는
+ * 맨 끝 칸에만 온다. 틀 밖의 모양은 위 판정 그대로다.
+ *
+ *   1. 자매가 자매의 배우자에게 맞았다 — `(우리) 언니가 (어제) 형부한테 (또) 맞았대요 (너무 걱정돼)`,
+ *      `매형한테 맞았대요 누나가`. **맞은 자매가 적혀 있어야 한다.**
+ *   2. 자매의 배우자가 그 배우자인 자매를 때렸다 — `형부가 (술만 마시면) 언니를 때렸대요`
+ *   3. 배우자가 고함 끝에, 또는 화자의 통제 거절 끝에 때리거나 던진다 — `예비신랑이 (소리 지르고) 물건을 던져요`,
+ *      `예비신랑이 제 휴대폰 비밀번호를 안 알려주면 (소리 지르고) 물건을 던져요`. 주어는 배우자 호칭만 받는다.
+ *
+ * `언니가 날 죽인대`·`형부가 파혼하면 죽인대`·`형부가 등 때렸어요`·`언니 진짜 목 졸라요 걱정돼` 는 어느 틀에도
+ * 맞지 않는다. 같은 문장을 `남편` 으로 쓴 `언니가 남편한테 맞았대요` 는 운영이 이미 즉시 위기로 잡는다
+ * (`amoraCrisisSafety.ts` 의 `(남편|아내|…)(한테|에게) 맞았`) — 틀 1 은 그 `형부` 판이다.
+ *
+ * ## 2차 백상자 검토가 좁힌 넷 (평범한 새 발화 0, 모호한 새 발화 120 중에서)
+ *
+ *  - 틀 1 은 맞은 자매를 요구한다. `형부한테 맞았어` 만으로는 신랑 다루기·함 들이(신부 쪽 형부가 신랑 발바닥을
+ *    때리는 풍습)를 신랑이 신부에게 전하는 말과 같다. 맞았다고 `해`(맨 꼴)는 뺐다 — `언니, 형부한테 맞았다고 해`
+ *    는 "형부 말이 맞았다고 전해" 다.
+ *  - 틀 2 의 주어와 목적어는 부부여야 한다(형부·매형 ↔ 언니·누나, 제부·매제 ↔ 여동생·동생) —
+ *    `형부가 맨날 동생을 때려요`·`형부가 파혼하면 동생을 때린대` 는 막내와의 장난·과장으로도 읽힌다.
+ *  - 틀 3 의 통제 거절 갈래는 거절한 사람이 화자여야 선다(`제 휴대폰…`, 또는 맞는 사람이 `날`). 한국어에서
+ *    `남친이 폰 안 보여주면 때려요` 의 `남친이` 는 가까운 동사 `보여주면` 의 주어라 "남친이 안 보여주면 **내가**
+ *    때린다" 로 읽힌다 — 위 판정이 `내가 남편 때렸어` 를 고백으로 보지 않는 것과 같은 까닭이다.
+ * ──────────────────────────────────────────────────────────────────────────── */
+const PV_SIBLING_SPOUSE_NOUN = pvAny("형부", "제부", "매형", "매제", "매부");
+const PV_SIBLING_SPOUSE_AGENT = ps`${PV_SIBLING_SPOUSE_NOUN}(?:한테|한테서|에게|에게서)`;
+/** 자매. `친구` 는 없다 — 검사가 `친구가` 를 어휘 밖 사람으로 쓴다. 남자 형제는 위 판정처럼 없다. */
+const PV_SISTER_NOUN = ps`(?:(?:우리|제|내) )?(?:친)?(?:언니|누나|여동생|동생)`;
+const PV_ADVERBS = ps`(?:${PV_ADVERB} )*`;
+/** 틀 맨 끝의 걱정·도움 꼬리. `답답해` 는 없다 — 옷이 조인다는 말과 짝을 이룬다. */
+const PV_REPORT_TAIL = ps`(?: (?:(?:(?:너무|정말|진짜) )?(?:걱정(?:돼|돼요|됩니다|이야|이에요)|무서워(?:요)?)|어떡해(?:요)?|어떡하죠|도와(?:줘|주세요)))?`;
+/** 틀 1 — 자매가 맞았다(과거·전언·진행·습관 전언). */
+const PV_SIBLING_PASSIVE = pvAny(
+  ps`맞았${PV_PAST}`, ps`맞았대(?:요)?`, ps`맞았는데(?:요)?`,
+  ps`맞았다고 (?:해요|했어|했어요|하더라|하더라고요)`,
+  ps`맞고 있(?:어|어요|대|대요)`, ps`맞는대(?:요)?`, "맞음",
+);
+const SISTER_HIT_BY_SIBLING_SPOUSE_PATTERN = new RegExp(
+  ps`^${PV_SISTER_NOUN}(?:이|가|은|는|도)? ${PV_ADVERBS}${PV_SIBLING_SPOUSE_AGENT} ${PV_ADVERBS}${PV_SIBLING_PASSIVE}${PV_REPORT_TAIL}$`
+  + ps`|^${PV_SIBLING_SPOUSE_AGENT} ${PV_ADVERBS}${PV_SIBLING_PASSIVE} ${PV_SISTER_NOUN}(?:이|가)$`,
+);
+/** 틀 2 — 자매의 배우자가 자매를 때렸다·밀쳤다. */
+const PV_SIBLING_SPOUSE_ACT = pvAny(
+  ps`때렸대(?:요)?`, ps`때렸${PV_PAST}`, ps`때린대(?:요)?`, ps`때려(?:요)?`,
+  ps`밀쳤대(?:요)?`, ps`밀쳤${PV_PAST}`, ps`밀친대(?:요)?`,
+);
+/**
+ * 틀 2 — 주어와 목적어는 부부여야 한다(형부·매형 ↔ 언니·누나, 제부·매제 ↔ 여동생·동생). 맞지 않는 짝
+ * (`형부가 동생을 때린대`)은 막내와의 장난·과장으로도 읽힌다(2차 백상자). 짝이 맞으면 조건(`말 안 들으면`·
+ * `거절하면`)이 붙어도 아내를 향한 위협 전언이다.
+ */
+const PV_OPTIONAL_KIN_DETERMINER = ps`(?:(?:우리|제|내) )?(?:친)?`;
+const SIBLING_SPOUSE_HIT_SISTER_PATTERN = new RegExp(
+  ps`^(?:형부|매형|매부)(?:이|가|은|는|도) ${PV_ADVERBS}(?:${PV_CONDITION} )?${PV_ADVERBS}${PV_OPTIONAL_KIN_DETERMINER}(?:언니|누나)(?:을|를) ${PV_ADVERBS}${PV_SIBLING_SPOUSE_ACT}${PV_REPORT_TAIL}$`
+  + ps`|^(?:제부|매제|매부)(?:이|가|은|는|도) ${PV_ADVERBS}(?:${PV_CONDITION} )?${PV_ADVERBS}${PV_OPTIONAL_KIN_DETERMINER}(?:여동생|동생)(?:을|를) ${PV_ADVERBS}${PV_SIBLING_SPOUSE_ACT}${PV_REPORT_TAIL}$`,
+);
+/**
+ * 틀 3 의 통제 거절 조건 — `휴대폰 비밀번호를 안 알려주면`. 위협 전언을 세우지 않는다
+ * (`비번 안 알려주면 죽인대` 는 `늦게 들어가면 죽인대` 같은 과장과 꼴이 같다).
+ */
+const PV_CONTROL_REFUSAL_CONDITION = pvAny(
+  ps`(?:(?:휴대폰|핸드폰|폰) ?)?(?:비밀번호|비번)(?:을|를|도)? 안 ?(?:알려 ?주면|가르쳐 ?주면)`,
+  ps`(?:휴대폰|핸드폰|폰)(?:을|를)? 안 ?보여 ?주면`,
+);
+/**
+ * 틀 3 의 고함·욕 — 같은 사람이 이어서 하는 꼴만. `질러서` 는 없다: 뒤 절의 주어가 바뀔 수 있고
+ * (`신랑이 소리 질러서 때렸어요` = 내가 때렸을 수도 있다), 첫 판에서 `소리 질러서 목 졸라 부었어` 를 세웠다.
+ */
+const PV_ANGER_ACT = pvAny(
+  ps`소리(?:를)? ?(?:지르고|지르면서|지르며)`, ps`욕(?:을)? ?(?:하고|하면서)`,
+);
+/** 틀 3 의 때리기·밀치기. `목 졸라` 는 없다(`졸라` = 매우, 옷이 조인다). */
+const PV_PARTNER_HIT = ps`(?:때려(?:요)?|때렸${PV_PAST}|때립니다|때린다|때림|밀쳐(?:요)?|밀쳤${PV_PAST}|밀칩니다|밀친다|밀침)`;
+const PV_FIRST_PERSON_VICTIM = ps`(?:저를|절|나를|날)`;
+/** 틀 3 의 핵 — 물건 던지기·때리기·밀치기. */
+const PV_PARTNER_ANGER_CORE = pvAny(
+  ps`물건(?:을|를|도)? (?:집어 ?)?(?:던져(?:요)?|던졌${PV_PAST}|던집니다|던진다|던짐)`,
+  ps`(?:${PV_FIRST_PERSON_VICTIM} )?${PV_PARTNER_HIT}`,
+);
+const PARTNER_ANGER_VIOLENCE_PATTERN = new RegExp(
+  // 고함·욕 끝에 — `예비신랑이 소리 지르고 물건을 던져요`
+  ps`^${PV_PARTNER_SUBJECT} ${PV_ADVERBS}${PV_ANGER_ACT} ${PV_ADVERBS}${PV_PARTNER_ANGER_CORE}${PV_REPORT_TAIL}$`
+  // 화자의 통제 거절 끝에 — 거절한 사람이 화자다(`제 휴대폰 비밀번호를 안 알려주면`)
+  + ps`|^${PV_PARTNER_SUBJECT} ${PV_ADVERBS}(?:제|내) ${PV_CONTROL_REFUSAL_CONDITION} ${PV_ADVERBS}(?:${PV_ANGER_ACT} )?${PV_ADVERBS}${PV_PARTNER_ANGER_CORE}${PV_REPORT_TAIL}$`
+  // 또는 맞는 사람이 화자다 — `남친이 폰 안 보여주면 날 때려요`
+  + ps`|^${PV_PARTNER_SUBJECT} ${PV_ADVERBS}${PV_CONTROL_REFUSAL_CONDITION} ${PV_ADVERBS}(?:${PV_ANGER_ACT} )?${PV_ADVERBS}${PV_FIRST_PERSON_VICTIM} ${PV_PARTNER_HIT}${PV_REPORT_TAIL}$`,
+);
+const LAST_RESORT_TEMPLATES: readonly RegExp[] = [
+  SISTER_HIT_BY_SIBLING_SPOUSE_PATTERN,
+  SIBLING_SPOUSE_HIT_SISTER_PATTERN,
+  PARTNER_ANGER_VIOLENCE_PATTERN,
+];
+
+/**
+ * 위 판정, 또는 메시지 전체가 마지막 판정 전용 틀 셋 중 하나와 맞는가(2026-11-16).
+ *
+ * **운영 판정이 아무것도 못 찾았을 때만 부른다** — 위기 분류가 null 이고 구조 판정이 `inconclusive`
+ * 일 때(`amoraCrisisDelivery.ts`·`amoraQuestionScope.ts`). 그 자리에서는 이 판정이 서도 더 비공개·더
+ * 안전한 쪽으로만 움직인다.
+ *
+ * ## 문맥 판정은 이 함수를 부르면 안 된다
+ *
+ * 문맥 판정은 `classifyAmoraCrisis` 의 옛 즉시 위기 정규식보다 **먼저** 돌고, 거기서 비즉시 안전이
+ * 나오면 `classifyAmoraCrisis` 가 즉시 위기 정규식을 보지 않고 끝난다(`amoraCrisisSafety.ts` 의
+ * `non_immediate_safety` 이른 반환). 문맥 판정은 `지금` 같은 때 낱말을 지운 뒤 닫힌 어휘에 넘기므로, 이
+ * 함수를 거기 주면 `남편이 지금 소리 지르고 때려요` 같은 즉시 위기(원문을 저장하지 않고 112·119 고정 안내)가
+ * 틀 3 에 맞아 비즉시(나만 레인)로 내려간다. `partnerViolenceStaysPrivate.test.ts` 의 즉시 위기 행이 그
+ * 내려감을 잡는다(변형으로 확인했다).
+ */
+export function isLastResortClosedViolenceStatement(value: string): boolean {
+  if (isClosedPartnerViolenceStatement(value)) return true;
+  const canonical = canonicalizeClosedVocabularyMessage(value);
+  if (!canonical) return false;
+  if (canonical.split(" ").length > PARTNER_VIOLENCE_MAX_TOKENS) return false;
+  return LAST_RESORT_TEMPLATES.some((pattern) => pattern.test(canonical));
 }
