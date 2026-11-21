@@ -26,6 +26,7 @@ import { PROFILE_WEDDING_ROLES_CONTRACT_FILE } from "../../scripts/lib/profile-w
 import { CHAT_FEEDBACK_CONTRACT_FILE } from "../../scripts/lib/chat-feedback-nullability-release-contract.mjs";
 import { WEDDING_CODE36_BUILD_MARKERS, validateWeddingCode36ProductionBuildContract } from "../../scripts/wedding-code36-release-build-contract.mjs";
 import { HALL_INQUIRY_BUILD_MARKERS, validateHallInquiryProductionBuildContract } from "../../scripts/hall-inquiry-release-build-contract.mjs";
+import { AMORA_PROACTIVE_BUILD_MARKERS, validateAmoraProactiveProductionBuildContract } from "../../scripts/amora-proactive-release-build-contract.mjs";
 
 export const VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID =
   "VENDOR_DISCLOSURE_STATIC_RELEASE_CONTRACT_INVALID";
@@ -70,8 +71,10 @@ function blocked(code: string, message: string): never {
  * Historical checkouts retain their shared successor validator. The registered
  * writer-retirement successor uses its independent strict242 static validator;
  * the registered 36-question successor verifies its exact243 source separately,
- * and the registered hall-inquiry successor (2026-11-18) verifies its exact244 source
- * on top of the unchanged 36-question pins. A failed newest contract never falls back. Static success is not DB release
+ * the registered hall-inquiry successor (2026-11-18) verifies its exact244 source
+ * on top of the unchanged 36-question pins, and the registered amora-proactive successor
+ * (2026-11-20) verifies its exact248 source on top of the unchanged hall-inquiry and
+ * 36-question pins. A failed newest contract never falls back. Static success is not DB release
  * authorization. The existing owner manifest hash and paused controller-ready
  * policy below remain unchanged.
  */
@@ -93,7 +96,10 @@ export function assertVendorDisclosureProductionBuild({
     ) || existsSync(join(repoRoot, STATIC_PREDECESSOR_PIN.file));
     const weddingCode36Registered = WEDDING_CODE36_BUILD_MARKERS.some((file: string) => existsSync(join(repoRoot, file)));
     const hallInquiryRegistered = HALL_INQUIRY_BUILD_MARKERS.some((file: string) => existsSync(join(repoRoot, file)));
-    releaseContract = hallInquiryRegistered
+    const amoraProactiveRegistered = AMORA_PROACTIVE_BUILD_MARKERS.some((file: string) => existsSync(join(repoRoot, file)));
+    releaseContract = amoraProactiveRegistered
+      ? validateAmoraProactiveProductionBuildContract({ repoRoot })
+      : hallInquiryRegistered
       ? validateHallInquiryProductionBuildContract({ repoRoot })
       : weddingCode36Registered
       ? validateWeddingCode36ProductionBuildContract({ repoRoot })

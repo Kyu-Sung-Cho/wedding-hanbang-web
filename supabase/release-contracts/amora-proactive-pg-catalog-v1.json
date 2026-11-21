@@ -1,0 +1,1664 @@
+{
+  "format": "amora-proactive-catalog-fixture-v1",
+  "migrations": [
+    {
+      "file": "supabase/migrations/20261120100000_amora_care_email_consent.sql",
+      "sha256": "3257cb29b451fcbd64377229f377e4a8f2b4fa50587fb638b6799273d7295d0c"
+    },
+    {
+      "file": "supabase/migrations/20261120110000_amora_care_cadence.sql",
+      "sha256": "c3189e7609bf20e6e6eb55a37343dd791f22cf980fda1e381dc58a3768c310e0"
+    },
+    {
+      "file": "supabase/migrations/20261120120000_amora_today_one_more_kinds.sql",
+      "sha256": "bceee237d22dde37e6d01c96bd1639f1c89ce80fe3c3321b30a506dc94e8eddd"
+    },
+    {
+      "file": "supabase/migrations/20261120130000_amora_app_push.sql",
+      "sha256": "1806e75adf2bf316ccc9fa1a6cd058773160eed84fcd283f451c8e6ac02dd6ce"
+    }
+  ],
+  "engine": "PGlite (PostgreSQL 18.3), owner postgres, search_path pg_catalog,public, Supabase public default privileges",
+  "before": {
+    "functions": [
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nBEGIN\n  IF current_user IN ('anon', 'authenticated')\n     AND (\n       NEW.care_notifications_enabled IS DISTINCT FROM OLD.care_notifications_enabled\n       OR NEW.care_notifications_consented_at IS DISTINCT FROM OLD.care_notifications_consented_at\n     ) THEN\n    RAISE EXCEPTION 'AMORA_CARE_CONSENT_DIRECT_UPDATE_FORBIDDEN'\n      USING ERRCODE = '42501';\n  END IF;\n  RETURN NEW;\nEND\n",
+        "kind": "f",
+        "name": "prevent_direct_amora_care_consent_change",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "trigger",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.prevent_direct_amora_care_consent_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  IF current_user IN ('anon', 'authenticated')\n     AND (\n       NEW.care_notifications_enabled IS DISTINCT FROM OLD.care_notifications_enabled\n       OR NEW.care_notifications_consented_at IS DISTINCT FROM OLD.care_notifications_consented_at\n     ) THEN\n    RAISE EXCEPTION 'AMORA_CARE_CONSENT_DIRECT_UPDATE_FORBIDDEN'\n      USING ERRCODE = '42501';\n  END IF;\n  RETURN NEW;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, bigint, text, jsonb",
+        "body": "\nDECLARE\n  v_current_revision bigint;\n  v_message_id uuid;\nBEGIN\n  IF p_expected_journey_revision IS NULL\n     OR p_expected_journey_revision < 0\n     OR p_expected_journey_revision > 9007199254740991 THEN\n    RAISE EXCEPTION 'AMORA_MOMENT_CARE_REVISION_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- Match the established couple -> journey lock order. The existing deep\n  -- insert module then reuses the couple lock and owns consent + insertion.\n  PERFORM 1\n  FROM public.couples AS couple\n  WHERE couple.id = p_couple_id\n  FOR SHARE;\n\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('state', 'source_stale');\n  END IF;\n\n  SELECT journey.state_revision\n  INTO v_current_revision\n  FROM public.wedding_journeys AS journey\n  WHERE journey.couple_id = p_couple_id\n  FOR SHARE;\n\n  IF NOT FOUND OR v_current_revision IS DISTINCT FROM p_expected_journey_revision THEN\n    RETURN jsonb_build_object(\n      'state', 'source_stale',\n      'current_revision', v_current_revision\n    );\n  END IF;\n\n  v_message_id := public.insert_amora_care_message(\n    p_couple_id,\n    p_content,\n    p_metadata\n  );\n\n  IF v_message_id IS NULL THEN\n    RETURN jsonb_build_object('state', 'consent_required');\n  END IF;\n\n  RETURN jsonb_build_object(\n    'state', 'inserted',\n    'message_id', v_message_id\n  );\nEND\n",
+        "kind": "f",
+        "name": "insert_amora_moment_care_message",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=30s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": "Atomically inserts shared moment care only when journey revision and unanimous explicit care consent are current.",
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.insert_amora_moment_care_message(p_couple_id uuid, p_expected_journey_revision bigint, p_content text, p_metadata jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '30s'\nAS $function$\nDECLARE\n  v_current_revision bigint;\n  v_message_id uuid;\nBEGIN\n  IF p_expected_journey_revision IS NULL\n     OR p_expected_journey_revision < 0\n     OR p_expected_journey_revision > 9007199254740991 THEN\n    RAISE EXCEPTION 'AMORA_MOMENT_CARE_REVISION_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- Match the established couple -> journey lock order. The existing deep\n  -- insert module then reuses the couple lock and owns consent + insertion.\n  PERFORM 1\n  FROM public.couples AS couple\n  WHERE couple.id = p_couple_id\n  FOR SHARE;\n\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('state', 'source_stale');\n  END IF;\n\n  SELECT journey.state_revision\n  INTO v_current_revision\n  FROM public.wedding_journeys AS journey\n  WHERE journey.couple_id = p_couple_id\n  FOR SHARE;\n\n  IF NOT FOUND OR v_current_revision IS DISTINCT FROM p_expected_journey_revision THEN\n    RETURN jsonb_build_object(\n      'state', 'source_stale',\n      'current_revision', v_current_revision\n    );\n  END IF;\n\n  v_message_id := public.insert_amora_care_message(\n    p_couple_id,\n    p_content,\n    p_metadata\n  );\n\n  IF v_message_id IS NULL THEN\n    RETURN jsonb_build_object('state', 'consent_required');\n  END IF;\n\n  RETURN jsonb_build_object(\n    'state', 'inserted',\n    'message_id', v_message_id\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, jsonb",
+        "body": "\nDECLARE\n  v_bride_id uuid;\n  v_groom_id uuid;\n  v_required integer;\n  v_consented integer;\n  v_message_id uuid;\nBEGIN\n  IF char_length(p_content) NOT BETWEEN 1 AND 2000\n     OR jsonb_typeof(COALESCE(p_metadata, '{}'::jsonb)) <> 'object' THEN\n    RAISE EXCEPTION 'AMORA_CARE_MESSAGE_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT bride_id, groom_id INTO v_bride_id, v_groom_id\n  FROM public.couples\n  WHERE id = p_couple_id\n  FOR SHARE;\n\n  SELECT count(DISTINCT member_id)::integer INTO v_required\n  FROM (VALUES (v_bride_id), (v_groom_id)) AS members(member_id)\n  WHERE member_id IS NOT NULL;\n  IF v_required = 0 THEN\n    RETURN NULL;\n  END IF;\n\n  -- Lock the current member rows so a simultaneous opt-out is serialized with\n  -- message creation. Whichever transaction commits first defines the result.\n  PERFORM 1\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n  ORDER BY id\n  FOR SHARE;\n\n  SELECT count(*)::integer INTO v_consented\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n    AND care_notifications_enabled = true\n    AND care_notifications_consented_at IS NOT NULL;\n\n  IF v_consented <> v_required THEN\n    RETURN NULL;\n  END IF;\n\n  INSERT INTO public.chat_messages(\n    couple_id, sender_id, sender_type, role, content, visibility, metadata\n  ) VALUES (\n    p_couple_id, NULL, 'ai', 'assistant', p_content, 'shared', p_metadata\n  )\n  RETURNING id INTO v_message_id;\n\n  RETURN v_message_id;\nEND\n",
+        "kind": "f",
+        "name": "insert_amora_care_message",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=30s"
+        ],
+        "result": "uuid",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.insert_amora_care_message(p_couple_id uuid, p_content text, p_metadata jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '30s'\nAS $function$\nDECLARE\n  v_bride_id uuid;\n  v_groom_id uuid;\n  v_required integer;\n  v_consented integer;\n  v_message_id uuid;\nBEGIN\n  IF char_length(p_content) NOT BETWEEN 1 AND 2000\n     OR jsonb_typeof(COALESCE(p_metadata, '{}'::jsonb)) <> 'object' THEN\n    RAISE EXCEPTION 'AMORA_CARE_MESSAGE_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT bride_id, groom_id INTO v_bride_id, v_groom_id\n  FROM public.couples\n  WHERE id = p_couple_id\n  FOR SHARE;\n\n  SELECT count(DISTINCT member_id)::integer INTO v_required\n  FROM (VALUES (v_bride_id), (v_groom_id)) AS members(member_id)\n  WHERE member_id IS NOT NULL;\n  IF v_required = 0 THEN\n    RETURN NULL;\n  END IF;\n\n  -- Lock the current member rows so a simultaneous opt-out is serialized with\n  -- message creation. Whichever transaction commits first defines the result.\n  PERFORM 1\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n  ORDER BY id\n  FOR SHARE;\n\n  SELECT count(*)::integer INTO v_consented\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n    AND care_notifications_enabled = true\n    AND care_notifications_consented_at IS NOT NULL;\n\n  IF v_consented <> v_required THEN\n    RETURN NULL;\n  END IF;\n\n  INSERT INTO public.chat_messages(\n    couple_id, sender_id, sender_type, role, content, visibility, metadata\n  ) VALUES (\n    p_couple_id, NULL, 'ai', 'assistant', p_content, 'shared', p_metadata\n  )\n  RETURNING id INTO v_message_id;\n\n  RETURN v_message_id;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, text, boolean, boolean, boolean, text, boolean, boolean",
+        "body": "\nDECLARE\n  v_couple_id uuid;\n  v_profile public.profiles%ROWTYPE;\n  v_previous_name text;\n  v_community_nickname text;\n  v_default_nickname_key text;\n  v_current_nickname_key text;\n  v_community_profile_synced boolean := false;\n  v_cancelled_jobs integer := 0;\nBEGIN\n  IF p_user_id IS NULL\n     OR p_phone_provided IS NULL\n     OR p_force_community_nickname_sync IS NULL\n     OR p_community_nickname_provided IS NULL\n     OR (NOT p_phone_provided AND p_phone IS NOT NULL)\n     OR (\n       NOT p_community_nickname_provided\n       AND p_name IS NULL\n       AND p_community_nickname IS NOT NULL\n     )\n     OR (p_community_nickname_provided AND p_community_nickname IS NULL)\n     OR (p_community_nickname_provided AND p_force_community_nickname_sync)\n     OR (\n       p_name IS NULL\n       AND NOT p_phone_provided\n       AND p_phone_care_consent IS NULL\n       AND p_care_notifications_enabled IS NULL\n       AND NOT p_community_nickname_provided\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_name IS NOT NULL\n     AND (\n       btrim(p_name) = ''\n       OR p_name IS DISTINCT FROM btrim(p_name)\n       OR char_length(p_name) > 80\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_phone_provided\n     AND p_phone IS NOT NULL\n     AND p_phone !~ '^01[016789][0-9]{7,8}$' THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_PHONE' USING ERRCODE = '22023';\n  END IF;\n  IF p_name IS NOT NULL AND p_community_nickname IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_community_nickname IS NOT NULL\n     AND (\n       btrim(p_community_nickname) = ''\n       OR p_community_nickname IS DISTINCT FROM btrim(p_community_nickname)\n       OR char_length(p_community_nickname) > 20\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_force_community_nickname_sync AND p_name IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME_SYNC' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_care_notifications_enabled = false THEN\n    SELECT id INTO v_couple_id\n    FROM public.couples\n    WHERE bride_id = p_user_id OR groom_id = p_user_id\n    ORDER BY id\n    LIMIT 1;\n\n    IF v_couple_id IS NOT NULL THEN\n      -- Keep the worker-compatible global lock order: jobs before profiles.\n      PERFORM 1\n      FROM public.amora_care_jobs\n      WHERE couple_id = v_couple_id\n        AND status IN ('pending', 'processing')\n      ORDER BY id\n      FOR UPDATE;\n    END IF;\n  END IF;\n\n  SELECT * INTO v_profile\n  FROM public.profiles\n  WHERE id = p_user_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PROFILE_NOT_FOUND' USING ERRCODE = 'P0002';\n  END IF;\n  v_previous_name := v_profile.name;\n\n  IF p_phone_care_consent = true\n     AND (CASE WHEN p_phone_provided THEN p_phone ELSE v_profile.phone END) IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PHONE_REQUIRED' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_name IS NOT NULL\n     OR p_phone_provided\n     OR p_phone_care_consent IS NOT NULL\n     OR p_care_notifications_enabled IS NOT NULL THEN\n    UPDATE public.profiles\n    SET name = CASE WHEN p_name IS NOT NULL THEN p_name ELSE v_profile.name END,\n        phone = CASE WHEN p_phone_provided THEN p_phone ELSE v_profile.phone END,\n        phone_care_consented_at = CASE\n          WHEN p_phone_provided AND p_phone IS NULL THEN NULL\n          WHEN p_phone_care_consent = true THEN now()\n          WHEN p_phone_care_consent = false THEN NULL\n          ELSE v_profile.phone_care_consented_at\n        END,\n        care_notifications_enabled = COALESCE(\n          p_care_notifications_enabled,\n          v_profile.care_notifications_enabled\n        ),\n        care_notifications_consented_at = CASE\n          WHEN p_care_notifications_enabled = true THEN now()\n          WHEN p_care_notifications_enabled = false THEN NULL\n          ELSE v_profile.care_notifications_consented_at\n        END,\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n  END IF;\n\n  IF p_community_nickname IS NOT NULL THEN\n    SELECT nickname INTO v_community_nickname\n    FROM public.community_profiles\n    WHERE user_id = p_user_id\n    FOR UPDATE;\n\n    IF FOUND THEN\n      v_default_nickname_key := lower(\n        regexp_replace(btrim(v_previous_name), '\\s+', '', 'g')\n      );\n      v_current_nickname_key := lower(\n        regexp_replace(btrim(v_community_nickname), '\\s+', '', 'g')\n      );\n\n      IF (\n        p_community_nickname_provided\n        OR p_force_community_nickname_sync\n        OR v_community_nickname = '익명'\n        OR v_community_nickname = (\n          'user-' || substr(replace(p_user_id::text, '-', ''), 1, 8)\n        )\n        OR v_current_nickname_key = v_default_nickname_key\n      ) AND v_community_nickname IS DISTINCT FROM p_community_nickname THEN\n        UPDATE public.community_profiles\n        SET nickname = p_community_nickname,\n            updated_at = now()\n        WHERE user_id = p_user_id;\n        v_community_nickname := p_community_nickname;\n        v_community_profile_synced := true;\n      END IF;\n    ELSIF p_community_nickname_provided OR p_force_community_nickname_sync THEN\n      INSERT INTO public.community_profiles (\n        user_id,\n        nickname,\n        badge,\n        post_count,\n        comment_count,\n        total_upvotes_received\n      )\n      VALUES (\n        p_user_id,\n        p_community_nickname,\n        'member',\n        (\n          SELECT count(*)::integer\n          FROM public.community_posts\n          WHERE author_id = p_user_id\n            AND visibility IN ('public', 'members')\n            AND under_review = false\n        ),\n        (\n          SELECT count(*)::integer\n          FROM public.community_comments\n          WHERE author_id = p_user_id\n            AND is_deleted = false\n        ),\n        0\n      );\n      v_community_nickname := p_community_nickname;\n      v_community_profile_synced := true;\n    END IF;\n  END IF;\n\n  IF p_care_notifications_enabled = false AND v_couple_id IS NOT NULL THEN\n    UPDATE public.amora_care_deliveries AS delivery\n    SET status = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN 'cancelled'\n          ELSE delivery.status\n        END,\n        completed_at = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN now()\n          ELSE delivery.completed_at\n        END,\n        recipient_email = NULL,\n        recipient_name = NULL,\n        last_error = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN 'consent_withdrawn'\n          ELSE delivery.last_error\n        END,\n        updated_at = now()\n    FROM public.amora_care_jobs AS job\n    WHERE delivery.job_id = job.id\n      AND job.couple_id = v_couple_id\n      AND job.status IN ('pending', 'processing');\n\n    UPDATE public.amora_care_jobs\n    SET status = 'cancelled',\n        completed_at = now(),\n        updated_at = now(),\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'consent_withdrawn',\n        content = '[redacted]',\n        email_subject = NULL,\n        email_html = NULL,\n        metadata = '{}'::jsonb\n    WHERE couple_id = v_couple_id\n      AND status IN ('pending', 'processing');\n    GET DIAGNOSTICS v_cancelled_jobs = ROW_COUNT;\n  END IF;\n\n  RETURN jsonb_build_object(\n    'profile', to_jsonb(v_profile),\n    'community_profile_synced', v_community_profile_synced,\n    'community_nickname', v_community_nickname,\n    'cancelled_jobs', v_cancelled_jobs\n  );\nEND\n",
+        "kind": "f",
+        "name": "patch_profile_atomic",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": "Service-only atomic profile, consent, and optional community nickname patch.",
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.patch_profile_atomic(p_user_id uuid, p_name text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_phone_provided boolean DEFAULT false, p_phone_care_consent boolean DEFAULT NULL::boolean, p_care_notifications_enabled boolean DEFAULT NULL::boolean, p_community_nickname text DEFAULT NULL::text, p_force_community_nickname_sync boolean DEFAULT false, p_community_nickname_provided boolean DEFAULT false)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_couple_id uuid;\n  v_profile public.profiles%ROWTYPE;\n  v_previous_name text;\n  v_community_nickname text;\n  v_default_nickname_key text;\n  v_current_nickname_key text;\n  v_community_profile_synced boolean := false;\n  v_cancelled_jobs integer := 0;\nBEGIN\n  IF p_user_id IS NULL\n     OR p_phone_provided IS NULL\n     OR p_force_community_nickname_sync IS NULL\n     OR p_community_nickname_provided IS NULL\n     OR (NOT p_phone_provided AND p_phone IS NOT NULL)\n     OR (\n       NOT p_community_nickname_provided\n       AND p_name IS NULL\n       AND p_community_nickname IS NOT NULL\n     )\n     OR (p_community_nickname_provided AND p_community_nickname IS NULL)\n     OR (p_community_nickname_provided AND p_force_community_nickname_sync)\n     OR (\n       p_name IS NULL\n       AND NOT p_phone_provided\n       AND p_phone_care_consent IS NULL\n       AND p_care_notifications_enabled IS NULL\n       AND NOT p_community_nickname_provided\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_name IS NOT NULL\n     AND (\n       btrim(p_name) = ''\n       OR p_name IS DISTINCT FROM btrim(p_name)\n       OR char_length(p_name) > 80\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_phone_provided\n     AND p_phone IS NOT NULL\n     AND p_phone !~ '^01[016789][0-9]{7,8}$' THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_PHONE' USING ERRCODE = '22023';\n  END IF;\n  IF p_name IS NOT NULL AND p_community_nickname IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_community_nickname IS NOT NULL\n     AND (\n       btrim(p_community_nickname) = ''\n       OR p_community_nickname IS DISTINCT FROM btrim(p_community_nickname)\n       OR char_length(p_community_nickname) > 20\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_force_community_nickname_sync AND p_name IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME_SYNC' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_care_notifications_enabled = false THEN\n    SELECT id INTO v_couple_id\n    FROM public.couples\n    WHERE bride_id = p_user_id OR groom_id = p_user_id\n    ORDER BY id\n    LIMIT 1;\n\n    IF v_couple_id IS NOT NULL THEN\n      -- Keep the worker-compatible global lock order: jobs before profiles.\n      PERFORM 1\n      FROM public.amora_care_jobs\n      WHERE couple_id = v_couple_id\n        AND status IN ('pending', 'processing')\n      ORDER BY id\n      FOR UPDATE;\n    END IF;\n  END IF;\n\n  SELECT * INTO v_profile\n  FROM public.profiles\n  WHERE id = p_user_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PROFILE_NOT_FOUND' USING ERRCODE = 'P0002';\n  END IF;\n  v_previous_name := v_profile.name;\n\n  IF p_phone_care_consent = true\n     AND (CASE WHEN p_phone_provided THEN p_phone ELSE v_profile.phone END) IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PHONE_REQUIRED' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_name IS NOT NULL\n     OR p_phone_provided\n     OR p_phone_care_consent IS NOT NULL\n     OR p_care_notifications_enabled IS NOT NULL THEN\n    UPDATE public.profiles\n    SET name = CASE WHEN p_name IS NOT NULL THEN p_name ELSE v_profile.name END,\n        phone = CASE WHEN p_phone_provided THEN p_phone ELSE v_profile.phone END,\n        phone_care_consented_at = CASE\n          WHEN p_phone_provided AND p_phone IS NULL THEN NULL\n          WHEN p_phone_care_consent = true THEN now()\n          WHEN p_phone_care_consent = false THEN NULL\n          ELSE v_profile.phone_care_consented_at\n        END,\n        care_notifications_enabled = COALESCE(\n          p_care_notifications_enabled,\n          v_profile.care_notifications_enabled\n        ),\n        care_notifications_consented_at = CASE\n          WHEN p_care_notifications_enabled = true THEN now()\n          WHEN p_care_notifications_enabled = false THEN NULL\n          ELSE v_profile.care_notifications_consented_at\n        END,\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n  END IF;\n\n  IF p_community_nickname IS NOT NULL THEN\n    SELECT nickname INTO v_community_nickname\n    FROM public.community_profiles\n    WHERE user_id = p_user_id\n    FOR UPDATE;\n\n    IF FOUND THEN\n      v_default_nickname_key := lower(\n        regexp_replace(btrim(v_previous_name), '\\s+', '', 'g')\n      );\n      v_current_nickname_key := lower(\n        regexp_replace(btrim(v_community_nickname), '\\s+', '', 'g')\n      );\n\n      IF (\n        p_community_nickname_provided\n        OR p_force_community_nickname_sync\n        OR v_community_nickname = '익명'\n        OR v_community_nickname = (\n          'user-' || substr(replace(p_user_id::text, '-', ''), 1, 8)\n        )\n        OR v_current_nickname_key = v_default_nickname_key\n      ) AND v_community_nickname IS DISTINCT FROM p_community_nickname THEN\n        UPDATE public.community_profiles\n        SET nickname = p_community_nickname,\n            updated_at = now()\n        WHERE user_id = p_user_id;\n        v_community_nickname := p_community_nickname;\n        v_community_profile_synced := true;\n      END IF;\n    ELSIF p_community_nickname_provided OR p_force_community_nickname_sync THEN\n      INSERT INTO public.community_profiles (\n        user_id,\n        nickname,\n        badge,\n        post_count,\n        comment_count,\n        total_upvotes_received\n      )\n      VALUES (\n        p_user_id,\n        p_community_nickname,\n        'member',\n        (\n          SELECT count(*)::integer\n          FROM public.community_posts\n          WHERE author_id = p_user_id\n            AND visibility IN ('public', 'members')\n            AND under_review = false\n        ),\n        (\n          SELECT count(*)::integer\n          FROM public.community_comments\n          WHERE author_id = p_user_id\n            AND is_deleted = false\n        ),\n        0\n      );\n      v_community_nickname := p_community_nickname;\n      v_community_profile_synced := true;\n    END IF;\n  END IF;\n\n  IF p_care_notifications_enabled = false AND v_couple_id IS NOT NULL THEN\n    UPDATE public.amora_care_deliveries AS delivery\n    SET status = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN 'cancelled'\n          ELSE delivery.status\n        END,\n        completed_at = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN now()\n          ELSE delivery.completed_at\n        END,\n        recipient_email = NULL,\n        recipient_name = NULL,\n        last_error = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN 'consent_withdrawn'\n          ELSE delivery.last_error\n        END,\n        updated_at = now()\n    FROM public.amora_care_jobs AS job\n    WHERE delivery.job_id = job.id\n      AND job.couple_id = v_couple_id\n      AND job.status IN ('pending', 'processing');\n\n    UPDATE public.amora_care_jobs\n    SET status = 'cancelled',\n        completed_at = now(),\n        updated_at = now(),\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'consent_withdrawn',\n        content = '[redacted]',\n        email_subject = NULL,\n        email_html = NULL,\n        metadata = '{}'::jsonb\n    WHERE couple_id = v_couple_id\n      AND status IN ('pending', 'processing');\n    GET DIAGNOSTICS v_cancelled_jobs = ROW_COUNT;\n  END IF;\n\n  RETURN jsonb_build_object(\n    'profile', to_jsonb(v_profile),\n    'community_profile_synced', v_community_profile_synced,\n    'community_nickname', v_community_nickname,\n    'cancelled_jobs', v_cancelled_jobs\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid",
+        "body": "\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_result jsonb;\n  v_delivery_id uuid;\n  v_user_id uuid;\n  v_policy_now timestamptz;\n  v_available_at timestamptz;\n  v_send_day date;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  IF v_job.expires_at <= v_policy_now THEN\n    UPDATE public.amora_care_deliveries\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL,\n        last_error = 'scan_day_expired'\n    WHERE job_id = v_job.id AND status IN ('pending', 'processing');\n    UPDATE public.amora_care_jobs\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        lease_token = NULL, lease_expires_at = NULL,\n        last_error = 'scan_day_expired', content = '[redacted]',\n        email_subject = NULL, email_html = NULL, metadata = '{}'::jsonb\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object('state', 'expired');\n  END IF;\n\n  IF NOT public.amora_care_is_delivery_window(v_policy_now)\n     OR v_job.scan_day IS DISTINCT FROM\n        (v_policy_now AT TIME ZONE 'Asia/Seoul')::date THEN\n    v_available_at := CASE\n      WHEN v_job.scan_day > (v_policy_now AT TIME ZONE 'Asia/Seoul')::date\n        THEN ((v_job.scan_day + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul')\n      ELSE public.amora_care_next_delivery_window(v_policy_now)\n    END;\n    UPDATE public.amora_care_deliveries\n    SET status = 'pending', updated_at = now()\n    WHERE job_id = v_job.id AND status = 'processing';\n    UPDATE public.amora_care_jobs\n    SET status = 'pending',\n        attempt_count = GREATEST(0, attempt_count - 1),\n        available_at = v_available_at,\n        claimed_at = NULL,\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'outside_delivery_window',\n        updated_at = now()\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object(\n      'state', 'deferred',\n      'reason', 'outside_delivery_window',\n      'available_at', v_available_at\n    );\n  END IF;\n\n  v_result := public.claim_amora_care_email_delivery_pre_delivery_policy(\n    p_job_id,\n    p_lease_token\n  );\n  IF v_result IS NULL OR v_result->>'state' <> 'ready' THEN\n    RETURN v_result;\n  END IF;\n\n  v_delivery_id := (v_result->>'id')::uuid;\n  v_user_id := (v_result->>'user_id')::uuid;\n  v_send_day := (v_policy_now AT TIME ZONE 'Asia/Seoul')::date;\n  BEGIN\n    UPDATE public.amora_care_deliveries\n    SET send_day = v_send_day, updated_at = now()\n    WHERE id = v_delivery_id;\n  EXCEPTION WHEN unique_violation THEN\n    IF NOT EXISTS (\n      SELECT 1\n      FROM public.amora_care_deliveries AS reserved\n      WHERE reserved.user_id = v_user_id\n        AND reserved.send_day = v_send_day\n        AND reserved.id <> v_delivery_id\n    ) THEN\n      RAISE;\n    END IF;\n    UPDATE public.amora_care_deliveries\n    SET status = 'skipped', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL, send_day = NULL,\n        last_error = 'daily_frequency_limit'\n    WHERE id = v_delivery_id;\n    RETURN jsonb_build_object(\n      'state', 'skipped',\n      'id', v_delivery_id,\n      'reason', 'daily_frequency_limit'\n    );\n  END;\n  RETURN v_result;\nEND\n",
+        "kind": "f",
+        "name": "claim_amora_care_email_delivery",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.claim_amora_care_email_delivery(p_job_id uuid, p_lease_token uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_result jsonb;\n  v_delivery_id uuid;\n  v_user_id uuid;\n  v_policy_now timestamptz;\n  v_available_at timestamptz;\n  v_send_day date;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  IF v_job.expires_at <= v_policy_now THEN\n    UPDATE public.amora_care_deliveries\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL,\n        last_error = 'scan_day_expired'\n    WHERE job_id = v_job.id AND status IN ('pending', 'processing');\n    UPDATE public.amora_care_jobs\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        lease_token = NULL, lease_expires_at = NULL,\n        last_error = 'scan_day_expired', content = '[redacted]',\n        email_subject = NULL, email_html = NULL, metadata = '{}'::jsonb\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object('state', 'expired');\n  END IF;\n\n  IF NOT public.amora_care_is_delivery_window(v_policy_now)\n     OR v_job.scan_day IS DISTINCT FROM\n        (v_policy_now AT TIME ZONE 'Asia/Seoul')::date THEN\n    v_available_at := CASE\n      WHEN v_job.scan_day > (v_policy_now AT TIME ZONE 'Asia/Seoul')::date\n        THEN ((v_job.scan_day + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul')\n      ELSE public.amora_care_next_delivery_window(v_policy_now)\n    END;\n    UPDATE public.amora_care_deliveries\n    SET status = 'pending', updated_at = now()\n    WHERE job_id = v_job.id AND status = 'processing';\n    UPDATE public.amora_care_jobs\n    SET status = 'pending',\n        attempt_count = GREATEST(0, attempt_count - 1),\n        available_at = v_available_at,\n        claimed_at = NULL,\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'outside_delivery_window',\n        updated_at = now()\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object(\n      'state', 'deferred',\n      'reason', 'outside_delivery_window',\n      'available_at', v_available_at\n    );\n  END IF;\n\n  v_result := public.claim_amora_care_email_delivery_pre_delivery_policy(\n    p_job_id,\n    p_lease_token\n  );\n  IF v_result IS NULL OR v_result->>'state' <> 'ready' THEN\n    RETURN v_result;\n  END IF;\n\n  v_delivery_id := (v_result->>'id')::uuid;\n  v_user_id := (v_result->>'user_id')::uuid;\n  v_send_day := (v_policy_now AT TIME ZONE 'Asia/Seoul')::date;\n  BEGIN\n    UPDATE public.amora_care_deliveries\n    SET send_day = v_send_day, updated_at = now()\n    WHERE id = v_delivery_id;\n  EXCEPTION WHEN unique_violation THEN\n    IF NOT EXISTS (\n      SELECT 1\n      FROM public.amora_care_deliveries AS reserved\n      WHERE reserved.user_id = v_user_id\n        AND reserved.send_day = v_send_day\n        AND reserved.id <> v_delivery_id\n    ) THEN\n      RAISE;\n    END IF;\n    UPDATE public.amora_care_deliveries\n    SET status = 'skipped', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL, send_day = NULL,\n        last_error = 'daily_frequency_limit'\n    WHERE id = v_delivery_id;\n    RETURN jsonb_build_object(\n      'state', 'skipped',\n      'id', v_delivery_id,\n      'reason', 'daily_frequency_limit'\n    );\n  END;\n  RETURN v_result;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, boolean",
+        "body": "\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_policy_now timestamptz;\n  v_available_at timestamptz;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  IF v_job.expires_at <= v_policy_now THEN\n    UPDATE public.amora_care_deliveries\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL,\n        last_error = 'scan_day_expired'\n    WHERE job_id = v_job.id AND status IN ('pending', 'processing');\n    UPDATE public.amora_care_jobs\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        lease_token = NULL, lease_expires_at = NULL,\n        last_error = 'scan_day_expired', content = '[redacted]',\n        email_subject = NULL, email_html = NULL, metadata = '{}'::jsonb\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object('state', 'expired');\n  END IF;\n\n  IF NOT public.amora_care_is_delivery_window(v_policy_now)\n     OR v_job.scan_day IS DISTINCT FROM\n        (v_policy_now AT TIME ZONE 'Asia/Seoul')::date THEN\n    v_available_at := CASE\n      WHEN v_job.scan_day > (v_policy_now AT TIME ZONE 'Asia/Seoul')::date\n        THEN ((v_job.scan_day + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul')\n      ELSE public.amora_care_next_delivery_window(v_policy_now)\n    END;\n    UPDATE public.amora_care_jobs\n    SET status = 'pending',\n        attempt_count = GREATEST(0, attempt_count - 1),\n        available_at = v_available_at,\n        claimed_at = NULL,\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'outside_delivery_window',\n        updated_at = now()\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object(\n      'state', 'deferred',\n      'reason', 'outside_delivery_window',\n      'available_at', v_available_at\n    );\n  END IF;\n\n  RETURN public.prepare_amora_care_job_pre_delivery_policy(\n    p_job_id,\n    p_lease_token,\n    p_email_enabled\n  );\nEND\n",
+        "kind": "f",
+        "name": "prepare_amora_care_job",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.prepare_amora_care_job(p_job_id uuid, p_lease_token uuid, p_email_enabled boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_policy_now timestamptz;\n  v_available_at timestamptz;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  IF v_job.expires_at <= v_policy_now THEN\n    UPDATE public.amora_care_deliveries\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL,\n        last_error = 'scan_day_expired'\n    WHERE job_id = v_job.id AND status IN ('pending', 'processing');\n    UPDATE public.amora_care_jobs\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        lease_token = NULL, lease_expires_at = NULL,\n        last_error = 'scan_day_expired', content = '[redacted]',\n        email_subject = NULL, email_html = NULL, metadata = '{}'::jsonb\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object('state', 'expired');\n  END IF;\n\n  IF NOT public.amora_care_is_delivery_window(v_policy_now)\n     OR v_job.scan_day IS DISTINCT FROM\n        (v_policy_now AT TIME ZONE 'Asia/Seoul')::date THEN\n    v_available_at := CASE\n      WHEN v_job.scan_day > (v_policy_now AT TIME ZONE 'Asia/Seoul')::date\n        THEN ((v_job.scan_day + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul')\n      ELSE public.amora_care_next_delivery_window(v_policy_now)\n    END;\n    UPDATE public.amora_care_jobs\n    SET status = 'pending',\n        attempt_count = GREATEST(0, attempt_count - 1),\n        available_at = v_available_at,\n        claimed_at = NULL,\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'outside_delivery_window',\n        updated_at = now()\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object(\n      'state', 'deferred',\n      'reason', 'outside_delivery_window',\n      'available_at', v_available_at\n    );\n  END IF;\n\n  RETURN public.prepare_amora_care_job_pre_delivery_policy(\n    p_job_id,\n    p_lease_token,\n    p_email_enabled\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb",
+        "body": "\nDECLARE\n  v_kind text;\n  v_next_action jsonb;\n  v_choices jsonb;\n  v_href text;\n  v_label text;\nBEGIN\n  IF p_value IS NULL\n     OR jsonb_typeof(p_value) <> 'object'\n     OR pg_column_size(p_value) > 8192\n     OR NOT p_value ?& ARRAY[\n       'kind', 'whyNow', 'confirmed', 'unknown', 'nextAction', 'impact', 'choices'\n     ]\n     OR (SELECT count(*) FROM jsonb_object_keys(p_value)) <> 7\n     OR p_value->>'kind' NOT IN ('schedule_moment', 'budget_guardrail')\n     OR NOT public.amora_today_one_text_is_safe(p_value->>'whyNow', 1, 240)\n     OR NOT public.amora_today_one_text_is_safe(p_value->>'impact', 1, 180)\n     OR jsonb_typeof(p_value->'confirmed') <> 'array'\n     OR jsonb_array_length(p_value->'confirmed') NOT BETWEEN 1 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(p_value->'confirmed') AS item(value)\n       WHERE jsonb_typeof(item.value) <> 'string'\n          OR NOT public.amora_today_one_text_is_safe(item.value #>> '{}', 1, 180)\n     )\n     OR jsonb_typeof(p_value->'unknown') <> 'array'\n     OR jsonb_array_length(p_value->'unknown') NOT BETWEEN 0 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(p_value->'unknown') AS item(value)\n       WHERE jsonb_typeof(item.value) <> 'string'\n          OR NOT public.amora_today_one_text_is_safe(item.value #>> '{}', 1, 180)\n     ) THEN\n    RETURN false;\n  END IF;\n\n  v_kind := p_value->>'kind';\n  v_next_action := p_value->'nextAction';\n  IF jsonb_typeof(v_next_action) <> 'object'\n     OR NOT v_next_action ?& ARRAY['label', 'href']\n     OR (SELECT count(*) FROM jsonb_object_keys(v_next_action)) <> 2\n     OR NOT public.amora_today_one_text_is_safe(v_next_action->>'label', 1, 80)\n     OR NOT public.amora_today_one_text_is_safe(v_next_action->>'href', 1, 240) THEN\n    RETURN false;\n  END IF;\n\n  v_label := v_next_action->>'label';\n  v_href := v_next_action->>'href';\n  IF left(v_href, 1) <> '/'\n     OR left(v_href, 2) = '//'\n     OR position(E'\\\\' IN v_href) > 0\n     OR (v_kind = 'schedule_moment' AND (\n       v_label <> '일정 열기' OR v_href <> '/schedule'\n     ))\n     OR (v_kind = 'budget_guardrail' AND (\n       v_label <> '예산 열기' OR v_href <> '/budget'\n     )) THEN\n    RETURN false;\n  END IF;\n\n  v_choices := p_value->'choices';\n  IF jsonb_typeof(v_choices) <> 'array'\n     OR jsonb_array_length(v_choices) NOT BETWEEN 2 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(v_choices) AS choice(value)\n       WHERE jsonb_typeof(choice.value) <> 'object'\n          OR NOT choice.value ?& ARRAY['action', 'label']\n          OR (SELECT count(*) FROM jsonb_object_keys(choice.value)) <> 2\n          OR choice.value->>'action' NOT IN (\n            'open_source', 'snooze', 'dismiss', 'mute_source'\n          )\n          OR NOT public.amora_today_one_text_is_safe(\n            choice.value->>'label', 1, 40\n          )\n     )\n     OR (\n       SELECT count(DISTINCT choice.value->>'action')\n       FROM jsonb_array_elements(v_choices) AS choice(value)\n     ) <> jsonb_array_length(v_choices) THEN\n    RETURN false;\n  END IF;\n\n  RETURN true;\nEND\n",
+        "kind": "f",
+        "name": "amora_today_one_presentation_is_valid",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "comment": "Exact TodayOne schedule_moment or recorded-spend-only budget_guardrail presentation validator.",
+        "language": "plpgsql",
+        "parallel": "s",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_today_one_presentation_is_valid(p_value jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n IMMUTABLE PARALLEL SAFE\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nDECLARE\n  v_kind text;\n  v_next_action jsonb;\n  v_choices jsonb;\n  v_href text;\n  v_label text;\nBEGIN\n  IF p_value IS NULL\n     OR jsonb_typeof(p_value) <> 'object'\n     OR pg_column_size(p_value) > 8192\n     OR NOT p_value ?& ARRAY[\n       'kind', 'whyNow', 'confirmed', 'unknown', 'nextAction', 'impact', 'choices'\n     ]\n     OR (SELECT count(*) FROM jsonb_object_keys(p_value)) <> 7\n     OR p_value->>'kind' NOT IN ('schedule_moment', 'budget_guardrail')\n     OR NOT public.amora_today_one_text_is_safe(p_value->>'whyNow', 1, 240)\n     OR NOT public.amora_today_one_text_is_safe(p_value->>'impact', 1, 180)\n     OR jsonb_typeof(p_value->'confirmed') <> 'array'\n     OR jsonb_array_length(p_value->'confirmed') NOT BETWEEN 1 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(p_value->'confirmed') AS item(value)\n       WHERE jsonb_typeof(item.value) <> 'string'\n          OR NOT public.amora_today_one_text_is_safe(item.value #>> '{}', 1, 180)\n     )\n     OR jsonb_typeof(p_value->'unknown') <> 'array'\n     OR jsonb_array_length(p_value->'unknown') NOT BETWEEN 0 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(p_value->'unknown') AS item(value)\n       WHERE jsonb_typeof(item.value) <> 'string'\n          OR NOT public.amora_today_one_text_is_safe(item.value #>> '{}', 1, 180)\n     ) THEN\n    RETURN false;\n  END IF;\n\n  v_kind := p_value->>'kind';\n  v_next_action := p_value->'nextAction';\n  IF jsonb_typeof(v_next_action) <> 'object'\n     OR NOT v_next_action ?& ARRAY['label', 'href']\n     OR (SELECT count(*) FROM jsonb_object_keys(v_next_action)) <> 2\n     OR NOT public.amora_today_one_text_is_safe(v_next_action->>'label', 1, 80)\n     OR NOT public.amora_today_one_text_is_safe(v_next_action->>'href', 1, 240) THEN\n    RETURN false;\n  END IF;\n\n  v_label := v_next_action->>'label';\n  v_href := v_next_action->>'href';\n  IF left(v_href, 1) <> '/'\n     OR left(v_href, 2) = '//'\n     OR position(E'\\\\' IN v_href) > 0\n     OR (v_kind = 'schedule_moment' AND (\n       v_label <> '일정 열기' OR v_href <> '/schedule'\n     ))\n     OR (v_kind = 'budget_guardrail' AND (\n       v_label <> '예산 열기' OR v_href <> '/budget'\n     )) THEN\n    RETURN false;\n  END IF;\n\n  v_choices := p_value->'choices';\n  IF jsonb_typeof(v_choices) <> 'array'\n     OR jsonb_array_length(v_choices) NOT BETWEEN 2 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(v_choices) AS choice(value)\n       WHERE jsonb_typeof(choice.value) <> 'object'\n          OR NOT choice.value ?& ARRAY['action', 'label']\n          OR (SELECT count(*) FROM jsonb_object_keys(choice.value)) <> 2\n          OR choice.value->>'action' NOT IN (\n            'open_source', 'snooze', 'dismiss', 'mute_source'\n          )\n          OR NOT public.amora_today_one_text_is_safe(\n            choice.value->>'label', 1, 40\n          )\n     )\n     OR (\n       SELECT count(DISTINCT choice.value->>'action')\n       FROM jsonb_array_elements(v_choices) AS choice(value)\n     ) <> jsonb_array_length(v_choices) THEN\n    RETURN false;\n  END IF;\n\n  RETURN true;\nEND\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      }
+    ],
+    "relations": [],
+    "existingRelations": [
+      {
+        "name": "public.amora_today_one_signals",
+        "columns": [],
+        "comment": "Latest recipient-scoped, source-revision-bound in-app schedule or explicit budget evidence. No outbound delivery.",
+        "triggers": [],
+        "constraints": [
+          [
+            "amora_today_one_signals_kind_check",
+            "c",
+            true,
+            "CHECK (kind = ANY (ARRAY['schedule_moment'::text, 'budget_guardrail'::text]))"
+          ]
+        ],
+        "columnComments": []
+      },
+      {
+        "name": "public.profiles",
+        "columns": [],
+        "comment": null,
+        "triggers": [
+          [
+            "trg_prevent_direct_amora_care_consent_change",
+            "O",
+            "CREATE TRIGGER trg_prevent_direct_amora_care_consent_change BEFORE UPDATE OF care_notifications_enabled, care_notifications_consented_at ON profiles FOR EACH ROW EXECUTE FUNCTION prevent_direct_amora_care_consent_change()"
+          ]
+        ],
+        "constraints": [],
+        "columnComments": [
+          [
+            "care_notifications_consented_at",
+            "Timestamp of the latest explicit Amora outbound-care opt-in; NULL when disabled."
+          ],
+          [
+            "care_notifications_enabled",
+            "True only after explicit Settings opt-in for Amora outbound care."
+          ]
+        ]
+      }
+    ]
+  },
+  "after": {
+    "functions": [
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nDECLARE\n  v_user uuid := auth.uid();\n  v_row public.amora_push_preferences%ROWTYPE;\nBEGIN\n  IF v_user IS NULL THEN\n    RAISE EXCEPTION 'AMORA_PUSH_AUTH_REQUIRED' USING ERRCODE = '42501';\n  END IF;\n  SELECT * INTO v_row FROM public.amora_push_preferences WHERE user_id = v_user;\n  RETURN jsonb_build_object(\n    'enabled', coalesce(v_row.enabled, false),\n    'consentedAt', CASE WHEN v_row.enabled THEN v_row.consented_at END\n  );\nEND\n",
+        "kind": "f",
+        "name": "get_amora_push_preference",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=10s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.get_amora_push_preference()\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '10s'\nAS $function$\nDECLARE\n  v_user uuid := auth.uid();\n  v_row public.amora_push_preferences%ROWTYPE;\nBEGIN\n  IF v_user IS NULL THEN\n    RAISE EXCEPTION 'AMORA_PUSH_AUTH_REQUIRED' USING ERRCODE = '42501';\n  END IF;\n  SELECT * INTO v_row FROM public.amora_push_preferences WHERE user_id = v_user;\n  RETURN jsonb_build_object(\n    'enabled', coalesce(v_row.enabled, false),\n    'consentedAt', CASE WHEN v_row.enabled THEN v_row.consented_at END\n  );\nEND\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "authenticated",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "boolean",
+        "body": "\nDECLARE\n  v_user uuid := auth.uid();\n  v_now timestamptz := clock_timestamp();\nBEGIN\n  IF v_user IS NULL THEN\n    RAISE EXCEPTION 'AMORA_PUSH_AUTH_REQUIRED' USING ERRCODE = '42501';\n  END IF;\n  IF p_enabled IS NULL THEN\n    RAISE EXCEPTION 'AMORA_PUSH_PREFERENCE_INVALID' USING ERRCODE = '22023';\n  END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended('amora-push:' || v_user::text, 0));\n\n  INSERT INTO public.amora_push_preferences AS preference (\n    user_id, enabled, consent_version, consented_at, disabled_at, updated_at\n  )\n  VALUES (\n    v_user,\n    p_enabled,\n    CASE WHEN p_enabled THEN 1 END,\n    CASE WHEN p_enabled THEN v_now END,\n    CASE WHEN p_enabled THEN NULL ELSE v_now END,\n    v_now\n  )\n  ON CONFLICT (user_id) DO UPDATE SET\n    enabled = excluded.enabled,\n    consent_version = excluded.consent_version,\n    -- 이미 켜져 있던 사람이 다시 켜면 처음 동의 시각을 그대로 둔다.\n    consented_at = CASE\n      WHEN excluded.enabled AND preference.enabled THEN preference.consented_at\n      ELSE excluded.consented_at\n    END,\n    disabled_at = CASE\n      WHEN NOT excluded.enabled AND NOT preference.enabled THEN preference.disabled_at\n      ELSE excluded.disabled_at\n    END,\n    updated_at = v_now;\n\n  RETURN public.get_amora_push_preference();\nEND\n",
+        "kind": "f",
+        "name": "set_amora_push_preference",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=10s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.set_amora_push_preference(p_enabled boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '10s'\nAS $function$\nDECLARE\n  v_user uuid := auth.uid();\n  v_now timestamptz := clock_timestamp();\nBEGIN\n  IF v_user IS NULL THEN\n    RAISE EXCEPTION 'AMORA_PUSH_AUTH_REQUIRED' USING ERRCODE = '42501';\n  END IF;\n  IF p_enabled IS NULL THEN\n    RAISE EXCEPTION 'AMORA_PUSH_PREFERENCE_INVALID' USING ERRCODE = '22023';\n  END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended('amora-push:' || v_user::text, 0));\n\n  INSERT INTO public.amora_push_preferences AS preference (\n    user_id, enabled, consent_version, consented_at, disabled_at, updated_at\n  )\n  VALUES (\n    v_user,\n    p_enabled,\n    CASE WHEN p_enabled THEN 1 END,\n    CASE WHEN p_enabled THEN v_now END,\n    CASE WHEN p_enabled THEN NULL ELSE v_now END,\n    v_now\n  )\n  ON CONFLICT (user_id) DO UPDATE SET\n    enabled = excluded.enabled,\n    consent_version = excluded.consent_version,\n    -- 이미 켜져 있던 사람이 다시 켜면 처음 동의 시각을 그대로 둔다.\n    consented_at = CASE\n      WHEN excluded.enabled AND preference.enabled THEN preference.consented_at\n      ELSE excluded.consented_at\n    END,\n    disabled_at = CASE\n      WHEN NOT excluded.enabled AND NOT preference.enabled THEN preference.disabled_at\n      ELSE excluded.disabled_at\n    END,\n    updated_at = v_now;\n\n  RETURN public.get_amora_push_preference();\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "integer",
+        "body": "\n  SELECT profile.id, profile.couple_id\n  FROM public.amora_push_preferences AS push\n  JOIN public.amora_today_one_preferences AS today_one ON today_one.user_id = push.user_id\n  JOIN public.profiles AS profile ON profile.id = push.user_id\n  WHERE push.enabled\n    AND today_one.enabled\n    AND (today_one.paused_until IS NULL OR today_one.paused_until <= public.amora_push_clock())\n    AND profile.couple_id IS NOT NULL\n    AND NOT EXISTS (\n      SELECT 1 FROM public.amora_today_one_recipient_states AS card\n      WHERE card.recipient_user_id = push.user_id\n        AND card.claimed_for_date = (public.amora_push_clock() AT TIME ZONE 'Asia/Seoul')::date\n    )\n    AND NOT EXISTS (\n      SELECT 1 FROM public.amora_push_deliveries AS delivery\n      WHERE delivery.recipient_id = push.user_id\n        AND delivery.dedupe_key = 'today_one:' || to_char((public.amora_push_clock() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')\n    )\n    AND public.amora_push_window_open(push.user_id)\n  ORDER BY profile.id\n  LIMIT greatest(1, least(coalesce(p_limit, 50), 200))\n",
+        "kind": "f",
+        "name": "list_amora_today_one_push_recipients",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=10s"
+        ],
+        "result": "TABLE(user_id uuid, couple_id uuid)",
+        "strict": false,
+        "comment": null,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.list_amora_today_one_push_recipients(p_limit integer DEFAULT 50)\n RETURNS TABLE(user_id uuid, couple_id uuid)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '10s'\nAS $function$\n  SELECT profile.id, profile.couple_id\n  FROM public.amora_push_preferences AS push\n  JOIN public.amora_today_one_preferences AS today_one ON today_one.user_id = push.user_id\n  JOIN public.profiles AS profile ON profile.id = push.user_id\n  WHERE push.enabled\n    AND today_one.enabled\n    AND (today_one.paused_until IS NULL OR today_one.paused_until <= public.amora_push_clock())\n    AND profile.couple_id IS NOT NULL\n    AND NOT EXISTS (\n      SELECT 1 FROM public.amora_today_one_recipient_states AS card\n      WHERE card.recipient_user_id = push.user_id\n        AND card.claimed_for_date = (public.amora_push_clock() AT TIME ZONE 'Asia/Seoul')::date\n    )\n    AND NOT EXISTS (\n      SELECT 1 FROM public.amora_push_deliveries AS delivery\n      WHERE delivery.recipient_id = push.user_id\n        AND delivery.dedupe_key = 'today_one:' || to_char((public.amora_push_clock() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')\n    )\n    AND public.amora_push_window_open(push.user_id)\n  ORDER BY profile.id\n  LIMIT greatest(1, least(coalesce(p_limit, 50), 200))\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb",
+        "body": "\n  SELECT COALESCE(p_metadata->'moment'->>'cellKind', '') = 'd1'\n      OR COALESCE(p_metadata->'lifecycle'->>'severity', '') = 'critical'\n",
+        "kind": "f",
+        "name": "amora_care_is_imminent",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "comment": null,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_care_is_imminent(p_metadata jsonb)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'pg_catalog'\nAS $function$\n  SELECT COALESCE(p_metadata->'moment'->>'cellKind', '') = 'd1'\n      OR COALESCE(p_metadata->'lifecycle'->>'severity', '') = 'critical'\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\n  WITH members AS (\n    SELECT member.care_intensity,\n           member.care_window_start_hour,\n           member.care_window_end_hour\n    FROM public.couples AS couple\n    JOIN public.profiles AS member\n      ON member.id = couple.bride_id OR member.id = couple.groom_id\n    WHERE couple.id = p_couple_id\n  ),\n  policy AS (\n    SELECT\n      CASE\n        WHEN bool_or(care_intensity = 'light') THEN 'light'\n        WHEN count(*) = 0 OR bool_or(care_intensity = 'normal') THEN 'normal'\n        ELSE 'more'\n      END AS intensity,\n      COALESCE(max(care_window_start_hour), 9)::integer AS window_start_hour,\n      COALESCE(min(care_window_end_hour), 20)::integer AS window_end_hour\n    FROM members\n  )\n  SELECT jsonb_build_object(\n    'intensity', policy.intensity,\n    'daily_limit', CASE policy.intensity WHEN 'more' THEN 3 ELSE 1 END,\n    'window_start_hour', policy.window_start_hour,\n    'window_end_hour', policy.window_end_hour,\n    'window_open', policy.window_start_hour < policy.window_end_hour\n  )\n  FROM policy\n",
+        "kind": "f",
+        "name": "amora_care_couple_cadence",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_care_couple_cadence(p_couple_id uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  WITH members AS (\n    SELECT member.care_intensity,\n           member.care_window_start_hour,\n           member.care_window_end_hour\n    FROM public.couples AS couple\n    JOIN public.profiles AS member\n      ON member.id = couple.bride_id OR member.id = couple.groom_id\n    WHERE couple.id = p_couple_id\n  ),\n  policy AS (\n    SELECT\n      CASE\n        WHEN bool_or(care_intensity = 'light') THEN 'light'\n        WHEN count(*) = 0 OR bool_or(care_intensity = 'normal') THEN 'normal'\n        ELSE 'more'\n      END AS intensity,\n      COALESCE(max(care_window_start_hour), 9)::integer AS window_start_hour,\n      COALESCE(min(care_window_end_hour), 20)::integer AS window_end_hour\n    FROM members\n  )\n  SELECT jsonb_build_object(\n    'intensity', policy.intensity,\n    'daily_limit', CASE policy.intensity WHEN 'more' THEN 3 ELSE 1 END,\n    'window_start_hour', policy.window_start_hour,\n    'window_end_hour', policy.window_end_hour,\n    'window_open', policy.window_start_hour < policy.window_end_hour\n  )\n  FROM policy\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, bigint, text, jsonb",
+        "body": "\nDECLARE\n  v_current_revision bigint;\n  v_message_id uuid;\nBEGIN\n  IF p_expected_journey_revision IS NULL\n     OR p_expected_journey_revision < 0\n     OR p_expected_journey_revision > 9007199254740991 THEN\n    RAISE EXCEPTION 'AMORA_MOMENT_CARE_REVISION_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  PERFORM pg_advisory_xact_lock(\n    hashtextextended('amora_care_daily_cap:' || p_couple_id::text, 0)\n  );\n\n  PERFORM 1\n  FROM public.couples AS couple\n  WHERE couple.id = p_couple_id\n  FOR SHARE;\n\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('state', 'source_stale');\n  END IF;\n\n  SELECT journey.state_revision\n  INTO v_current_revision\n  FROM public.wedding_journeys AS journey\n  WHERE journey.couple_id = p_couple_id\n  FOR SHARE;\n\n  IF NOT FOUND OR v_current_revision IS DISTINCT FROM p_expected_journey_revision THEN\n    RETURN jsonb_build_object(\n      'state', 'source_stale',\n      'current_revision', v_current_revision\n    );\n  END IF;\n\n  v_message_id := public.insert_amora_care_message(\n    p_couple_id,\n    p_content,\n    p_metadata\n  );\n\n  IF v_message_id IS NULL THEN\n    RETURN jsonb_build_object('state', 'consent_required');\n  END IF;\n\n  RETURN jsonb_build_object(\n    'state', 'inserted',\n    'message_id', v_message_id\n  );\nEND\n",
+        "kind": "f",
+        "name": "insert_amora_moment_care_message",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=30s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": "Atomically inserts shared moment care only when journey revision and unanimous explicit care consent are current.",
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.insert_amora_moment_care_message(p_couple_id uuid, p_expected_journey_revision bigint, p_content text, p_metadata jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '30s'\nAS $function$\nDECLARE\n  v_current_revision bigint;\n  v_message_id uuid;\nBEGIN\n  IF p_expected_journey_revision IS NULL\n     OR p_expected_journey_revision < 0\n     OR p_expected_journey_revision > 9007199254740991 THEN\n    RAISE EXCEPTION 'AMORA_MOMENT_CARE_REVISION_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  PERFORM pg_advisory_xact_lock(\n    hashtextextended('amora_care_daily_cap:' || p_couple_id::text, 0)\n  );\n\n  PERFORM 1\n  FROM public.couples AS couple\n  WHERE couple.id = p_couple_id\n  FOR SHARE;\n\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('state', 'source_stale');\n  END IF;\n\n  SELECT journey.state_revision\n  INTO v_current_revision\n  FROM public.wedding_journeys AS journey\n  WHERE journey.couple_id = p_couple_id\n  FOR SHARE;\n\n  IF NOT FOUND OR v_current_revision IS DISTINCT FROM p_expected_journey_revision THEN\n    RETURN jsonb_build_object(\n      'state', 'source_stale',\n      'current_revision', v_current_revision\n    );\n  END IF;\n\n  v_message_id := public.insert_amora_care_message(\n    p_couple_id,\n    p_content,\n    p_metadata\n  );\n\n  IF v_message_id IS NULL THEN\n    RETURN jsonb_build_object('state', 'consent_required');\n  END IF;\n\n  RETURN jsonb_build_object(\n    'state', 'inserted',\n    'message_id', v_message_id\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, integer, text, jsonb",
+        "body": "\nDECLARE\n  v_delivery public.amora_push_deliveries%ROWTYPE;\n  v_item jsonb;\nBEGIN\n  SELECT * INTO v_delivery\n  FROM public.amora_push_deliveries AS delivery\n  WHERE delivery.id = p_delivery_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_delivery.state <> 'claimed'\n     OR p_ticketed_count IS NULL OR p_ticketed_count < 0 OR p_ticketed_count > v_delivery.target_count\n     OR (p_ticketed_count = 0 AND p_error_code IS NULL)\n     OR jsonb_typeof(coalesce(p_unregistered, '[]'::jsonb)) <> 'array'\n     OR jsonb_array_length(coalesce(p_unregistered, '[]'::jsonb)) > 8 THEN\n    RETURN false;\n  END IF;\n\n  UPDATE public.amora_push_deliveries\n  SET state = CASE WHEN p_ticketed_count > 0 THEN 'ticketed' ELSE 'provider_failed' END,\n      ticketed_count = p_ticketed_count,\n      last_error_code = p_error_code,\n      updated_at = clock_timestamp()\n  WHERE id = p_delivery_id;\n\n  FOR v_item IN SELECT value FROM jsonb_array_elements(coalesce(p_unregistered, '[]'::jsonb)) LOOP\n    UPDATE public.mobile_push_device_tokens AS device_token\n    SET push_token = NULL,\n        revoked_at = coalesce(device_token.revoked_at, clock_timestamp()),\n        revoke_reason = coalesce(device_token.revoke_reason, 'provider_device_not_registered'),\n        last_seen_at = clock_timestamp()\n    WHERE device_token.installation_id = (v_item->>'installationId')::uuid\n      AND device_token.binding_epoch = (v_item->>'bindingEpoch')::bigint\n      AND device_token.user_id = v_delivery.recipient_id\n      AND device_token.revoked_at IS NULL\n      AND device_token.push_token IS NOT NULL;\n  END LOOP;\n  RETURN true;\nEND\n",
+        "kind": "f",
+        "name": "record_amora_push_result",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=10s"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.record_amora_push_result(p_delivery_id uuid, p_ticketed_count integer, p_error_code text, p_unregistered jsonb DEFAULT '[]'::jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '10s'\nAS $function$\nDECLARE\n  v_delivery public.amora_push_deliveries%ROWTYPE;\n  v_item jsonb;\nBEGIN\n  SELECT * INTO v_delivery\n  FROM public.amora_push_deliveries AS delivery\n  WHERE delivery.id = p_delivery_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_delivery.state <> 'claimed'\n     OR p_ticketed_count IS NULL OR p_ticketed_count < 0 OR p_ticketed_count > v_delivery.target_count\n     OR (p_ticketed_count = 0 AND p_error_code IS NULL)\n     OR jsonb_typeof(coalesce(p_unregistered, '[]'::jsonb)) <> 'array'\n     OR jsonb_array_length(coalesce(p_unregistered, '[]'::jsonb)) > 8 THEN\n    RETURN false;\n  END IF;\n\n  UPDATE public.amora_push_deliveries\n  SET state = CASE WHEN p_ticketed_count > 0 THEN 'ticketed' ELSE 'provider_failed' END,\n      ticketed_count = p_ticketed_count,\n      last_error_code = p_error_code,\n      updated_at = clock_timestamp()\n  WHERE id = p_delivery_id;\n\n  FOR v_item IN SELECT value FROM jsonb_array_elements(coalesce(p_unregistered, '[]'::jsonb)) LOOP\n    UPDATE public.mobile_push_device_tokens AS device_token\n    SET push_token = NULL,\n        revoked_at = coalesce(device_token.revoked_at, clock_timestamp()),\n        revoke_reason = coalesce(device_token.revoke_reason, 'provider_device_not_registered'),\n        last_seen_at = clock_timestamp()\n    WHERE device_token.installation_id = (v_item->>'installationId')::uuid\n      AND device_token.binding_epoch = (v_item->>'bindingEpoch')::bigint\n      AND device_token.user_id = v_delivery.recipient_id\n      AND device_token.revoked_at IS NULL\n      AND device_token.push_token IS NOT NULL;\n  END LOOP;\n  RETURN true;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, integer, integer",
+        "body": "\nDECLARE\n  v_profile public.profiles%ROWTYPE;\nBEGIN\n  IF p_user_id IS NULL\n     OR (p_intensity IS NULL AND p_window_start_hour IS NULL AND p_window_end_hour IS NULL)\n     OR (p_intensity IS NOT NULL AND p_intensity NOT IN ('light', 'normal', 'more'))\n     OR (p_window_start_hour IS NOT NULL AND p_window_start_hour NOT BETWEEN 9 AND 19)\n     OR (p_window_end_hour IS NOT NULL AND p_window_end_hour NOT BETWEEN 10 AND 20) THEN\n    RAISE EXCEPTION 'AMORA_CARE_CADENCE_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT * INTO v_profile FROM public.profiles WHERE id = p_user_id FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'AMORA_CARE_CADENCE_PROFILE_NOT_FOUND' USING ERRCODE = 'P0002';\n  END IF;\n  IF COALESCE(p_window_start_hour, v_profile.care_window_start_hour)\n       >= COALESCE(p_window_end_hour, v_profile.care_window_end_hour) THEN\n    RAISE EXCEPTION 'AMORA_CARE_CADENCE_WINDOW_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  UPDATE public.profiles\n  SET care_intensity = COALESCE(p_intensity, care_intensity),\n      care_window_start_hour = COALESCE(p_window_start_hour, care_window_start_hour)::smallint,\n      care_window_end_hour = COALESCE(p_window_end_hour, care_window_end_hour)::smallint,\n      updated_at = now()\n  WHERE id = p_user_id\n  RETURNING * INTO v_profile;\n\n  RETURN jsonb_build_object(\n    'intensity', v_profile.care_intensity,\n    'window_start_hour', v_profile.care_window_start_hour,\n    'window_end_hour', v_profile.care_window_end_hour\n  );\nEND\n",
+        "kind": "f",
+        "name": "set_amora_care_cadence",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.set_amora_care_cadence(p_user_id uuid, p_intensity text DEFAULT NULL::text, p_window_start_hour integer DEFAULT NULL::integer, p_window_end_hour integer DEFAULT NULL::integer)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_profile public.profiles%ROWTYPE;\nBEGIN\n  IF p_user_id IS NULL\n     OR (p_intensity IS NULL AND p_window_start_hour IS NULL AND p_window_end_hour IS NULL)\n     OR (p_intensity IS NOT NULL AND p_intensity NOT IN ('light', 'normal', 'more'))\n     OR (p_window_start_hour IS NOT NULL AND p_window_start_hour NOT BETWEEN 9 AND 19)\n     OR (p_window_end_hour IS NOT NULL AND p_window_end_hour NOT BETWEEN 10 AND 20) THEN\n    RAISE EXCEPTION 'AMORA_CARE_CADENCE_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT * INTO v_profile FROM public.profiles WHERE id = p_user_id FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'AMORA_CARE_CADENCE_PROFILE_NOT_FOUND' USING ERRCODE = 'P0002';\n  END IF;\n  IF COALESCE(p_window_start_hour, v_profile.care_window_start_hour)\n       >= COALESCE(p_window_end_hour, v_profile.care_window_end_hour) THEN\n    RAISE EXCEPTION 'AMORA_CARE_CADENCE_WINDOW_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  UPDATE public.profiles\n  SET care_intensity = COALESCE(p_intensity, care_intensity),\n      care_window_start_hour = COALESCE(p_window_start_hour, care_window_start_hour)::smallint,\n      care_window_end_hour = COALESCE(p_window_end_hour, care_window_end_hour)::smallint,\n      updated_at = now()\n  WHERE id = p_user_id\n  RETURNING * INTO v_profile;\n\n  RETURN jsonb_build_object(\n    'intensity', v_profile.care_intensity,\n    'window_start_hour', v_profile.care_window_start_hour,\n    'window_end_hour', v_profile.care_window_end_hour\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, jsonb",
+        "body": "\nBEGIN\n  IF public.amora_care_post_allowance(p_couple_id, p_metadata) <> 'allowed' THEN\n    RETURN NULL;\n  END IF;\n  RETURN public.insert_amora_care_message_pre_cadence(\n    p_couple_id,\n    p_content,\n    p_metadata\n  );\nEND\n",
+        "kind": "f",
+        "name": "insert_amora_care_message",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=30s"
+        ],
+        "result": "uuid",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.insert_amora_care_message(p_couple_id uuid, p_content text, p_metadata jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '30s'\nAS $function$\nBEGIN\n  IF public.amora_care_post_allowance(p_couple_id, p_metadata) <> 'allowed' THEN\n    RETURN NULL;\n  END IF;\n  RETURN public.insert_amora_care_message_pre_cadence(\n    p_couple_id,\n    p_content,\n    p_metadata\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, text, boolean, boolean, boolean, text, boolean, boolean, boolean, boolean",
+        "body": "\nDECLARE\n  v_base_patch boolean;\n  v_result jsonb;\n  v_couple_id uuid;\n  v_profile public.profiles%ROWTYPE;\n  v_cancelled_email_deliveries integer := 0;\nBEGIN\n  IF p_user_id IS NULL OR p_care_prompt_answered IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  v_base_patch := p_name IS NOT NULL\n    OR p_phone IS NOT NULL\n    OR p_phone_provided IS DISTINCT FROM false\n    OR p_phone_care_consent IS NOT NULL\n    OR p_care_notifications_enabled IS NOT NULL\n    OR p_community_nickname IS NOT NULL\n    OR p_force_community_nickname_sync IS DISTINCT FROM false\n    OR p_community_nickname_provided IS DISTINCT FROM false;\n\n  IF NOT v_base_patch\n     AND p_care_email_enabled IS NULL\n     AND NOT p_care_prompt_answered THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- Asking for email while withdrawing shared chat in the same call is a\n  -- contradiction, not something to resolve silently in either direction.\n  IF p_care_email_enabled = true AND p_care_notifications_enabled = false THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_CARE_EMAIL_REQUIRES_SHARED_CONSENT'\n      USING ERRCODE = '22023';\n  END IF;\n\n  -- Withdrawals touch the queue. Take the couple's active jobs first, exactly\n  -- like the wrapped function and the worker do, before any profile row lock.\n  IF p_care_notifications_enabled = false OR p_care_email_enabled = false THEN\n    SELECT id INTO v_couple_id\n    FROM public.couples\n    WHERE bride_id = p_user_id OR groom_id = p_user_id\n    ORDER BY id\n    LIMIT 1;\n\n    IF v_couple_id IS NOT NULL THEN\n      PERFORM 1\n      FROM public.amora_care_jobs\n      WHERE couple_id = v_couple_id\n        AND status IN ('pending', 'processing')\n      ORDER BY id\n      FOR UPDATE;\n    END IF;\n  END IF;\n\n  IF v_base_patch THEN\n    v_result := public.patch_profile_atomic_pre_email_consent(\n      p_user_id,\n      p_name,\n      p_phone,\n      p_phone_provided,\n      p_phone_care_consent,\n      p_care_notifications_enabled,\n      p_community_nickname,\n      p_force_community_nickname_sync,\n      p_community_nickname_provided\n    );\n  END IF;\n\n  SELECT * INTO v_profile\n  FROM public.profiles\n  WHERE id = p_user_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PROFILE_NOT_FOUND' USING ERRCODE = 'P0002';\n  END IF;\n\n  IF p_care_email_enabled = true THEN\n    IF v_profile.care_notifications_enabled IS DISTINCT FROM true\n       OR v_profile.care_notifications_consented_at IS NULL THEN\n      RAISE EXCEPTION 'PROFILE_PATCH_CARE_EMAIL_REQUIRES_SHARED_CONSENT'\n        USING ERRCODE = '22023';\n    END IF;\n    UPDATE public.profiles\n    SET care_email_enabled = true,\n        care_email_consented_at = now(),\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n  ELSIF p_care_email_enabled = false THEN\n    UPDATE public.profiles\n    SET care_email_enabled = false,\n        care_email_consented_at = NULL,\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n\n    -- Mail that has not been handed to a worker yet is cancelled now. A\n    -- delivery already processing cannot be recalled from the provider; the\n    -- claim wrapper below refuses any retry of it.\n    IF v_couple_id IS NOT NULL THEN\n      UPDATE public.amora_care_deliveries AS delivery\n      SET status = 'cancelled',\n          completed_at = now(),\n          updated_at = now(),\n          recipient_email = NULL,\n          recipient_name = NULL,\n          last_error = 'email_consent_withdrawn'\n      FROM public.amora_care_jobs AS job\n      WHERE delivery.job_id = job.id\n        AND job.couple_id = v_couple_id\n        AND job.status IN ('pending', 'processing')\n        AND delivery.user_id = p_user_id\n        AND delivery.status = 'pending';\n      GET DIAGNOSTICS v_cancelled_email_deliveries = ROW_COUNT;\n    END IF;\n  END IF;\n\n  IF p_care_prompt_answered THEN\n    UPDATE public.profiles\n    SET care_prompt_answered_at = COALESCE(care_prompt_answered_at, now()),\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n  END IF;\n\n  RETURN jsonb_build_object(\n    'profile', to_jsonb(v_profile),\n    'community_profile_synced',\n      COALESCE((v_result->>'community_profile_synced')::boolean, false),\n    'community_nickname', v_result->'community_nickname',\n    'cancelled_jobs', COALESCE((v_result->>'cancelled_jobs')::integer, 0),\n    'cancelled_email_deliveries', v_cancelled_email_deliveries\n  );\nEND\n",
+        "kind": "f",
+        "name": "patch_profile_atomic",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": "Service-only atomic profile, shared-chat care consent, care email consent, and optional community nickname patch.",
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.patch_profile_atomic(p_user_id uuid, p_name text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_phone_provided boolean DEFAULT false, p_phone_care_consent boolean DEFAULT NULL::boolean, p_care_notifications_enabled boolean DEFAULT NULL::boolean, p_community_nickname text DEFAULT NULL::text, p_force_community_nickname_sync boolean DEFAULT false, p_community_nickname_provided boolean DEFAULT false, p_care_email_enabled boolean DEFAULT NULL::boolean, p_care_prompt_answered boolean DEFAULT false)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_base_patch boolean;\n  v_result jsonb;\n  v_couple_id uuid;\n  v_profile public.profiles%ROWTYPE;\n  v_cancelled_email_deliveries integer := 0;\nBEGIN\n  IF p_user_id IS NULL OR p_care_prompt_answered IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  v_base_patch := p_name IS NOT NULL\n    OR p_phone IS NOT NULL\n    OR p_phone_provided IS DISTINCT FROM false\n    OR p_phone_care_consent IS NOT NULL\n    OR p_care_notifications_enabled IS NOT NULL\n    OR p_community_nickname IS NOT NULL\n    OR p_force_community_nickname_sync IS DISTINCT FROM false\n    OR p_community_nickname_provided IS DISTINCT FROM false;\n\n  IF NOT v_base_patch\n     AND p_care_email_enabled IS NULL\n     AND NOT p_care_prompt_answered THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- Asking for email while withdrawing shared chat in the same call is a\n  -- contradiction, not something to resolve silently in either direction.\n  IF p_care_email_enabled = true AND p_care_notifications_enabled = false THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_CARE_EMAIL_REQUIRES_SHARED_CONSENT'\n      USING ERRCODE = '22023';\n  END IF;\n\n  -- Withdrawals touch the queue. Take the couple's active jobs first, exactly\n  -- like the wrapped function and the worker do, before any profile row lock.\n  IF p_care_notifications_enabled = false OR p_care_email_enabled = false THEN\n    SELECT id INTO v_couple_id\n    FROM public.couples\n    WHERE bride_id = p_user_id OR groom_id = p_user_id\n    ORDER BY id\n    LIMIT 1;\n\n    IF v_couple_id IS NOT NULL THEN\n      PERFORM 1\n      FROM public.amora_care_jobs\n      WHERE couple_id = v_couple_id\n        AND status IN ('pending', 'processing')\n      ORDER BY id\n      FOR UPDATE;\n    END IF;\n  END IF;\n\n  IF v_base_patch THEN\n    v_result := public.patch_profile_atomic_pre_email_consent(\n      p_user_id,\n      p_name,\n      p_phone,\n      p_phone_provided,\n      p_phone_care_consent,\n      p_care_notifications_enabled,\n      p_community_nickname,\n      p_force_community_nickname_sync,\n      p_community_nickname_provided\n    );\n  END IF;\n\n  SELECT * INTO v_profile\n  FROM public.profiles\n  WHERE id = p_user_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PROFILE_NOT_FOUND' USING ERRCODE = 'P0002';\n  END IF;\n\n  IF p_care_email_enabled = true THEN\n    IF v_profile.care_notifications_enabled IS DISTINCT FROM true\n       OR v_profile.care_notifications_consented_at IS NULL THEN\n      RAISE EXCEPTION 'PROFILE_PATCH_CARE_EMAIL_REQUIRES_SHARED_CONSENT'\n        USING ERRCODE = '22023';\n    END IF;\n    UPDATE public.profiles\n    SET care_email_enabled = true,\n        care_email_consented_at = now(),\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n  ELSIF p_care_email_enabled = false THEN\n    UPDATE public.profiles\n    SET care_email_enabled = false,\n        care_email_consented_at = NULL,\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n\n    -- Mail that has not been handed to a worker yet is cancelled now. A\n    -- delivery already processing cannot be recalled from the provider; the\n    -- claim wrapper below refuses any retry of it.\n    IF v_couple_id IS NOT NULL THEN\n      UPDATE public.amora_care_deliveries AS delivery\n      SET status = 'cancelled',\n          completed_at = now(),\n          updated_at = now(),\n          recipient_email = NULL,\n          recipient_name = NULL,\n          last_error = 'email_consent_withdrawn'\n      FROM public.amora_care_jobs AS job\n      WHERE delivery.job_id = job.id\n        AND job.couple_id = v_couple_id\n        AND job.status IN ('pending', 'processing')\n        AND delivery.user_id = p_user_id\n        AND delivery.status = 'pending';\n      GET DIAGNOSTICS v_cancelled_email_deliveries = ROW_COUNT;\n    END IF;\n  END IF;\n\n  IF p_care_prompt_answered THEN\n    UPDATE public.profiles\n    SET care_prompt_answered_at = COALESCE(care_prompt_answered_at, now()),\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n  END IF;\n\n  RETURN jsonb_build_object(\n    'profile', to_jsonb(v_profile),\n    'community_profile_synced',\n      COALESCE((v_result->>'community_profile_synced')::boolean, false),\n    'community_nickname', v_result->'community_nickname',\n    'cancelled_jobs', COALESCE((v_result->>'cancelled_jobs')::integer, 0),\n    'cancelled_email_deliveries', v_cancelled_email_deliveries\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, text, text",
+        "body": "\nDECLARE\n  v_daily_cap constant integer := 2;\n  v_today date := (public.amora_push_clock() AT TIME ZONE 'Asia/Seoul')::date;\n  v_sent_today integer;\n  v_targets jsonb;\n  v_target_count integer;\n  v_delivery_id uuid;\n  v_window_end_hour integer;\nBEGIN\n  IF p_recipient_id IS NULL\n     OR p_kind IS NULL OR p_kind NOT IN ('today_one', 'task_done')\n     OR p_route IS NULL OR p_route NOT IN ('home', 'chat')\n     OR p_dedupe_key IS NULL OR p_dedupe_key !~ '^[a-z0-9:_-]{1,120}$' THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'invalid');\n  END IF;\n\n  PERFORM pg_advisory_xact_lock(hashtextextended('amora-push:' || p_recipient_id::text, 0));\n\n  IF NOT EXISTS (\n    SELECT 1 FROM public.amora_push_preferences AS preference\n    WHERE preference.user_id = p_recipient_id AND preference.enabled\n  ) THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'not_consented');\n  END IF;\n\n  IF NOT coalesce(public.amora_push_window_open(p_recipient_id), false) THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'quiet_hours');\n  END IF;\n  -- 꺼져 있던 기기가 나중에 켜져도 받는 시간이 끝난 뒤에는 오지 않게, 그 사람의 받는 시간이 끝나는 시각을\n  -- 돌려준다(보내는 쪽이 알림의 ttl 을 그때까지로 줄인다). 위 창 검사가 프로필 줄이 있는 것을 확인했다.\n  SELECT least(20, coalesce(profile.care_window_end_hour, 20))\n  INTO v_window_end_hour\n  FROM public.profiles AS profile\n  WHERE profile.id = p_recipient_id;\n\n  IF EXISTS (\n    SELECT 1 FROM public.amora_push_deliveries AS delivery\n    WHERE delivery.recipient_id = p_recipient_id AND delivery.dedupe_key = p_dedupe_key\n  ) THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'duplicate');\n  END IF;\n\n  -- 실제로 Expo 에 넘긴 것(또는 넘기는 중인 것)만 상한에 센다. 공급자가 거절한 건은 세지 않는다.\n  SELECT count(*) INTO v_sent_today\n  FROM public.amora_push_deliveries AS delivery\n  WHERE delivery.recipient_id = p_recipient_id\n    AND delivery.kst_date = v_today\n    AND delivery.state IN ('claimed', 'ticketed');\n  IF v_sent_today >= v_daily_cap THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'daily_cap');\n  END IF;\n\n  SELECT coalesce(jsonb_agg(jsonb_build_object(\n           'installationId', target.installation_id,\n           'pushToken', target.push_token,\n           'platform', target.platform,\n           'bindingEpoch', target.binding_epoch\n         ) ORDER BY target.installation_id), '[]'::jsonb),\n         count(*)\n  INTO v_targets, v_target_count\n  FROM public.get_mobile_push_delivery_targets(p_recipient_id) AS target;\n  IF v_target_count = 0 THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'no_device');\n  END IF;\n\n  INSERT INTO public.amora_push_deliveries (\n    recipient_id, kind, dedupe_key, route, kst_date, target_count\n  )\n  VALUES (\n    p_recipient_id, p_kind, p_dedupe_key, p_route, v_today, least(v_target_count, 8)\n  )\n  RETURNING id INTO v_delivery_id;\n\n  RETURN jsonb_build_object(\n    'claimed', true,\n    'deliveryId', v_delivery_id,\n    'targets', v_targets,\n    'windowEndsAt', (v_today + make_interval(hours => v_window_end_hour)) AT TIME ZONE 'Asia/Seoul'\n  );\nEND\n",
+        "kind": "f",
+        "name": "claim_amora_push_delivery",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=10s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.claim_amora_push_delivery(p_recipient_id uuid, p_kind text, p_dedupe_key text, p_route text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '10s'\nAS $function$\nDECLARE\n  v_daily_cap constant integer := 2;\n  v_today date := (public.amora_push_clock() AT TIME ZONE 'Asia/Seoul')::date;\n  v_sent_today integer;\n  v_targets jsonb;\n  v_target_count integer;\n  v_delivery_id uuid;\n  v_window_end_hour integer;\nBEGIN\n  IF p_recipient_id IS NULL\n     OR p_kind IS NULL OR p_kind NOT IN ('today_one', 'task_done')\n     OR p_route IS NULL OR p_route NOT IN ('home', 'chat')\n     OR p_dedupe_key IS NULL OR p_dedupe_key !~ '^[a-z0-9:_-]{1,120}$' THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'invalid');\n  END IF;\n\n  PERFORM pg_advisory_xact_lock(hashtextextended('amora-push:' || p_recipient_id::text, 0));\n\n  IF NOT EXISTS (\n    SELECT 1 FROM public.amora_push_preferences AS preference\n    WHERE preference.user_id = p_recipient_id AND preference.enabled\n  ) THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'not_consented');\n  END IF;\n\n  IF NOT coalesce(public.amora_push_window_open(p_recipient_id), false) THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'quiet_hours');\n  END IF;\n  -- 꺼져 있던 기기가 나중에 켜져도 받는 시간이 끝난 뒤에는 오지 않게, 그 사람의 받는 시간이 끝나는 시각을\n  -- 돌려준다(보내는 쪽이 알림의 ttl 을 그때까지로 줄인다). 위 창 검사가 프로필 줄이 있는 것을 확인했다.\n  SELECT least(20, coalesce(profile.care_window_end_hour, 20))\n  INTO v_window_end_hour\n  FROM public.profiles AS profile\n  WHERE profile.id = p_recipient_id;\n\n  IF EXISTS (\n    SELECT 1 FROM public.amora_push_deliveries AS delivery\n    WHERE delivery.recipient_id = p_recipient_id AND delivery.dedupe_key = p_dedupe_key\n  ) THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'duplicate');\n  END IF;\n\n  -- 실제로 Expo 에 넘긴 것(또는 넘기는 중인 것)만 상한에 센다. 공급자가 거절한 건은 세지 않는다.\n  SELECT count(*) INTO v_sent_today\n  FROM public.amora_push_deliveries AS delivery\n  WHERE delivery.recipient_id = p_recipient_id\n    AND delivery.kst_date = v_today\n    AND delivery.state IN ('claimed', 'ticketed');\n  IF v_sent_today >= v_daily_cap THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'daily_cap');\n  END IF;\n\n  SELECT coalesce(jsonb_agg(jsonb_build_object(\n           'installationId', target.installation_id,\n           'pushToken', target.push_token,\n           'platform', target.platform,\n           'bindingEpoch', target.binding_epoch\n         ) ORDER BY target.installation_id), '[]'::jsonb),\n         count(*)\n  INTO v_targets, v_target_count\n  FROM public.get_mobile_push_delivery_targets(p_recipient_id) AS target;\n  IF v_target_count = 0 THEN\n    RETURN jsonb_build_object('claimed', false, 'reason', 'no_device');\n  END IF;\n\n  INSERT INTO public.amora_push_deliveries (\n    recipient_id, kind, dedupe_key, route, kst_date, target_count\n  )\n  VALUES (\n    p_recipient_id, p_kind, p_dedupe_key, p_route, v_today, least(v_target_count, 8)\n  )\n  RETURNING id INTO v_delivery_id;\n\n  RETURN jsonb_build_object(\n    'claimed', true,\n    'deliveryId', v_delivery_id,\n    'targets', v_targets,\n    'windowEndsAt', (v_today + make_interval(hours => v_window_end_hour)) AT TIME ZONE 'Asia/Seoul'\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid",
+        "body": "\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_bride_id uuid;\n  v_groom_id uuid;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  SELECT bride_id, groom_id INTO v_bride_id, v_groom_id\n  FROM public.couples\n  WHERE id = v_job.couple_id\n  FOR SHARE;\n  PERFORM 1\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n  ORDER BY id\n  FOR SHARE;\n\n  -- Shared-chat consent of both members is still required by the wrapped\n  -- function. On top of that, only a member who opted into email receives it.\n  UPDATE public.amora_care_deliveries AS delivery\n  SET status = 'skipped',\n      completed_at = now(),\n      updated_at = now(),\n      recipient_email = NULL,\n      recipient_name = NULL,\n      last_error = 'email_not_consented'\n  WHERE delivery.job_id = v_job.id\n    AND delivery.status = 'pending'\n    AND NOT EXISTS (\n      SELECT 1\n      FROM public.profiles AS member\n      WHERE member.id = delivery.user_id\n        AND member.care_email_enabled = true\n        AND member.care_email_consented_at IS NOT NULL\n    );\n\n  RETURN public.claim_amora_care_email_delivery_pre_email_consent(\n    p_job_id,\n    p_lease_token\n  );\nEND\n",
+        "kind": "f",
+        "name": "claim_amora_care_email_delivery",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.claim_amora_care_email_delivery(p_job_id uuid, p_lease_token uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_bride_id uuid;\n  v_groom_id uuid;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  SELECT bride_id, groom_id INTO v_bride_id, v_groom_id\n  FROM public.couples\n  WHERE id = v_job.couple_id\n  FOR SHARE;\n  PERFORM 1\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n  ORDER BY id\n  FOR SHARE;\n\n  -- Shared-chat consent of both members is still required by the wrapped\n  -- function. On top of that, only a member who opted into email receives it.\n  UPDATE public.amora_care_deliveries AS delivery\n  SET status = 'skipped',\n      completed_at = now(),\n      updated_at = now(),\n      recipient_email = NULL,\n      recipient_name = NULL,\n      last_error = 'email_not_consented'\n  WHERE delivery.job_id = v_job.id\n    AND delivery.status = 'pending'\n    AND NOT EXISTS (\n      SELECT 1\n      FROM public.profiles AS member\n      WHERE member.id = delivery.user_id\n        AND member.care_email_enabled = true\n        AND member.care_email_consented_at IS NOT NULL\n    );\n\n  RETURN public.claim_amora_care_email_delivery_pre_email_consent(\n    p_job_id,\n    p_lease_token\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid",
+        "body": "\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n  PERFORM public.amora_care_cancel_job_internal(v_job.id, 'source_changed');\n  RETURN jsonb_build_object('state', 'cancelled', 'reason', 'source_changed');\nEND\n",
+        "kind": "f",
+        "name": "cancel_amora_care_job_source_changed",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.cancel_amora_care_job_source_changed(p_job_id uuid, p_lease_token uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '15s'\nAS $function$\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n  PERFORM public.amora_care_cancel_job_internal(v_job.id, 'source_changed');\n  RETURN jsonb_build_object('state', 'cancelled', 'reason', 'source_changed');\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ],
+          [
+            "service_role",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, boolean, bigint, text, text, text",
+        "body": "\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_revision bigint;\n  v_cadence jsonb;\n  v_policy_now timestamptz;\n  v_local timestamp;\n  v_start_hour integer;\n  v_end_hour integer;\n  v_allowance text;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  IF (p_content IS NULL) <> (p_expected_journey_revision IS NULL)\n     OR (p_content IS NOT NULL AND char_length(p_content) NOT BETWEEN 1 AND 2000)\n     OR (p_email_subject IS NULL) <> (p_email_html IS NULL)\n     OR (p_email_subject IS NOT NULL AND (\n       p_content IS NULL\n       OR char_length(p_email_subject) NOT BETWEEN 1 AND 300\n       OR char_length(p_email_html) NOT BETWEEN 1 AND 20000\n     ))\n     OR (p_expected_journey_revision IS NOT NULL AND (\n       p_expected_journey_revision < 0\n       OR p_expected_journey_revision > 9007199254740991\n     )) THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_REFRESH_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- Take the per-couple cap lock before any couple row lock, the same order as\n  -- insert_amora_care_message (advisory -> couples), so the two paths cannot\n  -- wait on each other in a cycle. Advisory locks are re-entrant in a session.\n  PERFORM pg_advisory_xact_lock(\n    hashtextextended('amora_care_daily_cap:' || v_job.couple_id::text, 0)\n  );\n  -- Same couple -> journey lock order as insert_amora_moment_care_message.\n  PERFORM 1 FROM public.couples WHERE id = v_job.couple_id FOR SHARE;\n\n  -- Once the shared message is posted, a later run only finishes the email\n  -- deliveries. The posted text is final: the email must repeat it exactly\n  -- (Resend replays one idempotency key only with the same request), and the\n  -- post already counted against the day, so no cadence check runs again.\n  IF v_job.chat_message_id IS NOT NULL THEN\n    RETURN public.prepare_amora_care_job_pre_cadence(\n      p_job_id,\n      p_lease_token,\n      p_email_enabled\n    );\n  END IF;\n\n  IF p_expected_journey_revision IS NOT NULL THEN\n    SELECT journey.state_revision INTO v_revision\n    FROM public.wedding_journeys AS journey\n    WHERE journey.couple_id = v_job.couple_id\n    FOR SHARE;\n    IF NOT FOUND OR v_revision IS DISTINCT FROM p_expected_journey_revision THEN\n      -- The plan moved between the worker's read and this insert. Do not post\n      -- anything computed from the old plan; the worker recomputes shortly.\n      PERFORM public.amora_care_release_job_internal(\n        v_job.id,\n        now() + interval '1 minute',\n        'source_stale'\n      );\n      RETURN jsonb_build_object('state', 'deferred', 'reason', 'source_stale');\n    END IF;\n    UPDATE public.amora_care_jobs\n    SET content = p_content,\n        email_subject = p_email_subject,\n        email_html = p_email_html,\n        updated_at = now()\n    WHERE id = v_job.id;\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  v_local := v_policy_now AT TIME ZONE 'Asia/Seoul';\n  IF v_job.scan_day = v_local::date THEN\n    v_cadence := public.amora_care_couple_cadence(v_job.couple_id);\n    v_start_hour := (v_cadence->>'window_start_hour')::integer;\n    v_end_hour := (v_cadence->>'window_end_hour')::integer;\n    IF v_start_hour >= v_end_hour THEN\n      PERFORM public.amora_care_cancel_job_internal(v_job.id, 'no_shared_care_window');\n      RETURN jsonb_build_object('state', 'cancelled', 'reason', 'no_shared_care_window');\n    END IF;\n    IF v_local < v_job.scan_day + make_interval(hours => v_start_hour) THEN\n      PERFORM public.amora_care_release_job_internal(\n        v_job.id,\n        (v_job.scan_day + make_interval(hours => v_start_hour)) AT TIME ZONE 'Asia/Seoul',\n        'outside_delivery_window'\n      );\n      RETURN jsonb_build_object(\n        'state', 'deferred',\n        'reason', 'outside_delivery_window',\n        'available_at',\n        (v_job.scan_day + make_interval(hours => v_start_hour)) AT TIME ZONE 'Asia/Seoul'\n      );\n    END IF;\n    IF v_local >= v_job.scan_day + make_interval(hours => v_end_hour) THEN\n      PERFORM public.amora_care_cancel_job_internal(v_job.id, 'outside_care_window');\n      RETURN jsonb_build_object('state', 'cancelled', 'reason', 'outside_care_window');\n    END IF;\n\n    SELECT * INTO v_job FROM public.amora_care_jobs WHERE id = p_job_id;\n    v_allowance := public.amora_care_post_allowance(v_job.couple_id, v_job.metadata);\n    IF v_allowance <> 'allowed' THEN\n      PERFORM public.amora_care_cancel_job_internal(v_job.id, v_allowance);\n      RETURN jsonb_build_object('state', 'cancelled', 'reason', v_allowance);\n    END IF;\n  END IF;\n\n  -- The wrapped function still owns the global 09:00-20:00 fence, expiry,\n  -- unanimous consent, roster, the chat insert, and the email deliveries.\n  RETURN public.prepare_amora_care_job_pre_cadence(\n    p_job_id,\n    p_lease_token,\n    p_email_enabled\n  );\nEND\n",
+        "kind": "f",
+        "name": "prepare_amora_care_job",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.prepare_amora_care_job(p_job_id uuid, p_lease_token uuid, p_email_enabled boolean, p_expected_journey_revision bigint DEFAULT NULL::bigint, p_content text DEFAULT NULL::text, p_email_subject text DEFAULT NULL::text, p_email_html text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_revision bigint;\n  v_cadence jsonb;\n  v_policy_now timestamptz;\n  v_local timestamp;\n  v_start_hour integer;\n  v_end_hour integer;\n  v_allowance text;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  IF (p_content IS NULL) <> (p_expected_journey_revision IS NULL)\n     OR (p_content IS NOT NULL AND char_length(p_content) NOT BETWEEN 1 AND 2000)\n     OR (p_email_subject IS NULL) <> (p_email_html IS NULL)\n     OR (p_email_subject IS NOT NULL AND (\n       p_content IS NULL\n       OR char_length(p_email_subject) NOT BETWEEN 1 AND 300\n       OR char_length(p_email_html) NOT BETWEEN 1 AND 20000\n     ))\n     OR (p_expected_journey_revision IS NOT NULL AND (\n       p_expected_journey_revision < 0\n       OR p_expected_journey_revision > 9007199254740991\n     )) THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_REFRESH_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  -- Take the per-couple cap lock before any couple row lock, the same order as\n  -- insert_amora_care_message (advisory -> couples), so the two paths cannot\n  -- wait on each other in a cycle. Advisory locks are re-entrant in a session.\n  PERFORM pg_advisory_xact_lock(\n    hashtextextended('amora_care_daily_cap:' || v_job.couple_id::text, 0)\n  );\n  -- Same couple -> journey lock order as insert_amora_moment_care_message.\n  PERFORM 1 FROM public.couples WHERE id = v_job.couple_id FOR SHARE;\n\n  -- Once the shared message is posted, a later run only finishes the email\n  -- deliveries. The posted text is final: the email must repeat it exactly\n  -- (Resend replays one idempotency key only with the same request), and the\n  -- post already counted against the day, so no cadence check runs again.\n  IF v_job.chat_message_id IS NOT NULL THEN\n    RETURN public.prepare_amora_care_job_pre_cadence(\n      p_job_id,\n      p_lease_token,\n      p_email_enabled\n    );\n  END IF;\n\n  IF p_expected_journey_revision IS NOT NULL THEN\n    SELECT journey.state_revision INTO v_revision\n    FROM public.wedding_journeys AS journey\n    WHERE journey.couple_id = v_job.couple_id\n    FOR SHARE;\n    IF NOT FOUND OR v_revision IS DISTINCT FROM p_expected_journey_revision THEN\n      -- The plan moved between the worker's read and this insert. Do not post\n      -- anything computed from the old plan; the worker recomputes shortly.\n      PERFORM public.amora_care_release_job_internal(\n        v_job.id,\n        now() + interval '1 minute',\n        'source_stale'\n      );\n      RETURN jsonb_build_object('state', 'deferred', 'reason', 'source_stale');\n    END IF;\n    UPDATE public.amora_care_jobs\n    SET content = p_content,\n        email_subject = p_email_subject,\n        email_html = p_email_html,\n        updated_at = now()\n    WHERE id = v_job.id;\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  v_local := v_policy_now AT TIME ZONE 'Asia/Seoul';\n  IF v_job.scan_day = v_local::date THEN\n    v_cadence := public.amora_care_couple_cadence(v_job.couple_id);\n    v_start_hour := (v_cadence->>'window_start_hour')::integer;\n    v_end_hour := (v_cadence->>'window_end_hour')::integer;\n    IF v_start_hour >= v_end_hour THEN\n      PERFORM public.amora_care_cancel_job_internal(v_job.id, 'no_shared_care_window');\n      RETURN jsonb_build_object('state', 'cancelled', 'reason', 'no_shared_care_window');\n    END IF;\n    IF v_local < v_job.scan_day + make_interval(hours => v_start_hour) THEN\n      PERFORM public.amora_care_release_job_internal(\n        v_job.id,\n        (v_job.scan_day + make_interval(hours => v_start_hour)) AT TIME ZONE 'Asia/Seoul',\n        'outside_delivery_window'\n      );\n      RETURN jsonb_build_object(\n        'state', 'deferred',\n        'reason', 'outside_delivery_window',\n        'available_at',\n        (v_job.scan_day + make_interval(hours => v_start_hour)) AT TIME ZONE 'Asia/Seoul'\n      );\n    END IF;\n    IF v_local >= v_job.scan_day + make_interval(hours => v_end_hour) THEN\n      PERFORM public.amora_care_cancel_job_internal(v_job.id, 'outside_care_window');\n      RETURN jsonb_build_object('state', 'cancelled', 'reason', 'outside_care_window');\n    END IF;\n\n    SELECT * INTO v_job FROM public.amora_care_jobs WHERE id = p_job_id;\n    v_allowance := public.amora_care_post_allowance(v_job.couple_id, v_job.metadata);\n    IF v_allowance <> 'allowed' THEN\n      PERFORM public.amora_care_cancel_job_internal(v_job.id, v_allowance);\n      RETURN jsonb_build_object('state', 'cancelled', 'reason', v_allowance);\n    END IF;\n  END IF;\n\n  -- The wrapped function still owns the global 09:00-20:00 fence, expiry,\n  -- unanimous consent, roster, the chat insert, and the email deliveries.\n  RETURN public.prepare_amora_care_job_pre_cadence(\n    p_job_id,\n    p_lease_token,\n    p_email_enabled\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\n  SELECT clock_timestamp()\n",
+        "kind": "f",
+        "name": "amora_push_clock",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "timestamp with time zone",
+        "strict": false,
+        "comment": null,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_push_clock()\n RETURNS timestamp with time zone\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  SELECT clock_timestamp()\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nBEGIN\n  IF NEW.care_notifications_enabled IS DISTINCT FROM true THEN\n    NEW.care_email_enabled := false;\n    NEW.care_email_consented_at := NULL;\n  END IF;\n  RETURN NEW;\nEND\n",
+        "kind": "f",
+        "name": "normalize_amora_care_email_consent",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "trigger",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.normalize_amora_care_email_consent()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  IF NEW.care_notifications_enabled IS DISTINCT FROM true THEN\n    NEW.care_email_enabled := false;\n    NEW.care_email_consented_at := NULL;\n  END IF;\n  RETURN NEW;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "",
+        "body": "\nBEGIN\n  IF current_user IN ('anon', 'authenticated')\n     AND (\n       NEW.care_notifications_enabled IS DISTINCT FROM OLD.care_notifications_enabled\n       OR NEW.care_notifications_consented_at IS DISTINCT FROM OLD.care_notifications_consented_at\n       OR NEW.care_email_enabled IS DISTINCT FROM OLD.care_email_enabled\n       OR NEW.care_email_consented_at IS DISTINCT FROM OLD.care_email_consented_at\n       OR NEW.care_prompt_answered_at IS DISTINCT FROM OLD.care_prompt_answered_at\n       OR NEW.care_intensity IS DISTINCT FROM OLD.care_intensity\n       OR NEW.care_window_start_hour IS DISTINCT FROM OLD.care_window_start_hour\n       OR NEW.care_window_end_hour IS DISTINCT FROM OLD.care_window_end_hour\n     ) THEN\n    RAISE EXCEPTION 'AMORA_CARE_CONSENT_DIRECT_UPDATE_FORBIDDEN'\n      USING ERRCODE = '42501';\n  END IF;\n  RETURN NEW;\nEND\n",
+        "kind": "f",
+        "name": "prevent_direct_amora_care_consent_change",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "trigger",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.prevent_direct_amora_care_consent_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  IF current_user IN ('anon', 'authenticated')\n     AND (\n       NEW.care_notifications_enabled IS DISTINCT FROM OLD.care_notifications_enabled\n       OR NEW.care_notifications_consented_at IS DISTINCT FROM OLD.care_notifications_consented_at\n       OR NEW.care_email_enabled IS DISTINCT FROM OLD.care_email_enabled\n       OR NEW.care_email_consented_at IS DISTINCT FROM OLD.care_email_consented_at\n       OR NEW.care_prompt_answered_at IS DISTINCT FROM OLD.care_prompt_answered_at\n       OR NEW.care_intensity IS DISTINCT FROM OLD.care_intensity\n       OR NEW.care_window_start_hour IS DISTINCT FROM OLD.care_window_start_hour\n       OR NEW.care_window_end_hour IS DISTINCT FROM OLD.care_window_end_hour\n     ) THEN\n    RAISE EXCEPTION 'AMORA_CARE_CONSENT_DIRECT_UPDATE_FORBIDDEN'\n      USING ERRCODE = '42501';\n  END IF;\n  RETURN NEW;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "jsonb",
+        "body": "\nDECLARE\n  v_kind text;\n  v_next_action jsonb;\n  v_choices jsonb;\n  v_href text;\n  v_label text;\nBEGIN\n  IF p_value IS NULL\n     OR jsonb_typeof(p_value) <> 'object'\n     OR pg_column_size(p_value) > 8192\n     OR NOT p_value ?& ARRAY[\n       'kind', 'whyNow', 'confirmed', 'unknown', 'nextAction', 'impact', 'choices'\n     ]\n     OR (SELECT count(*) FROM jsonb_object_keys(p_value)) <> 7\n     OR p_value->>'kind' NOT IN (\n       'schedule_moment', 'budget_guardrail',\n       'task_deadline', 'couple_decision', 'inquiry_waiting', 'task_done'\n     )\n     OR NOT public.amora_today_one_text_is_safe(p_value->>'whyNow', 1, 240)\n     OR NOT public.amora_today_one_text_is_safe(p_value->>'impact', 1, 180)\n     OR jsonb_typeof(p_value->'confirmed') <> 'array'\n     OR jsonb_array_length(p_value->'confirmed') NOT BETWEEN 1 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(p_value->'confirmed') AS item(value)\n       WHERE jsonb_typeof(item.value) <> 'string'\n          OR NOT public.amora_today_one_text_is_safe(item.value #>> '{}', 1, 180)\n     )\n     OR jsonb_typeof(p_value->'unknown') <> 'array'\n     OR jsonb_array_length(p_value->'unknown') NOT BETWEEN 0 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(p_value->'unknown') AS item(value)\n       WHERE jsonb_typeof(item.value) <> 'string'\n          OR NOT public.amora_today_one_text_is_safe(item.value #>> '{}', 1, 180)\n     ) THEN\n    RETURN false;\n  END IF;\n\n  v_kind := p_value->>'kind';\n  v_next_action := p_value->'nextAction';\n  IF jsonb_typeof(v_next_action) <> 'object'\n     OR NOT v_next_action ?& ARRAY['label', 'href']\n     OR (SELECT count(*) FROM jsonb_object_keys(v_next_action)) <> 2\n     OR NOT public.amora_today_one_text_is_safe(v_next_action->>'label', 1, 80)\n     OR NOT public.amora_today_one_text_is_safe(v_next_action->>'href', 1, 240) THEN\n    RETURN false;\n  END IF;\n\n  v_label := v_next_action->>'label';\n  v_href := v_next_action->>'href';\n  IF left(v_href, 1) <> '/'\n     OR left(v_href, 2) = '//'\n     OR position(E'\\\\' IN v_href) > 0\n     OR (v_kind = 'schedule_moment' AND (\n       v_label <> '일정 열기' OR v_href <> '/schedule'\n     ))\n     OR (v_kind = 'budget_guardrail' AND (\n       v_label <> '예산 열기' OR v_href <> '/budget'\n     ))\n     OR (v_kind = 'task_deadline' AND (\n       v_label <> '할 일 보기' OR v_href <> '/lounge'\n     ))\n     OR (v_kind = 'couple_decision' AND (\n       v_label <> '정할 것 보기'\n       OR v_href NOT IN ('/halls/consultation', '/halls/letter')\n     ))\n     OR (v_kind = 'inquiry_waiting' AND (\n       v_label <> '문의 보기' OR v_href <> '/halls/consultation'\n     ))\n     OR (v_kind = 'task_done' AND (\n       v_label <> '맡은 일 보기' OR v_href <> '/lounge'\n     )) THEN\n    RETURN false;\n  END IF;\n\n  v_choices := p_value->'choices';\n  IF jsonb_typeof(v_choices) <> 'array'\n     OR jsonb_array_length(v_choices) NOT BETWEEN 2 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(v_choices) AS choice(value)\n       WHERE jsonb_typeof(choice.value) <> 'object'\n          OR NOT choice.value ?& ARRAY['action', 'label']\n          OR (SELECT count(*) FROM jsonb_object_keys(choice.value)) <> 2\n          OR choice.value->>'action' NOT IN (\n            'open_source', 'snooze', 'dismiss', 'mute_source'\n          )\n          OR NOT public.amora_today_one_text_is_safe(\n            choice.value->>'label', 1, 40\n          )\n     )\n     OR (\n       SELECT count(DISTINCT choice.value->>'action')\n       FROM jsonb_array_elements(v_choices) AS choice(value)\n     ) <> jsonb_array_length(v_choices) THEN\n    RETURN false;\n  END IF;\n\n  RETURN true;\nEND\n",
+        "kind": "f",
+        "name": "amora_today_one_presentation_is_valid",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "comment": "Exact TodayOne presentation validator: schedule_moment, budget_guardrail, task_deadline, couple_decision, inquiry_waiting, task_done with fixed next actions.",
+        "language": "plpgsql",
+        "parallel": "s",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_today_one_presentation_is_valid(p_value jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n IMMUTABLE PARALLEL SAFE\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nDECLARE\n  v_kind text;\n  v_next_action jsonb;\n  v_choices jsonb;\n  v_href text;\n  v_label text;\nBEGIN\n  IF p_value IS NULL\n     OR jsonb_typeof(p_value) <> 'object'\n     OR pg_column_size(p_value) > 8192\n     OR NOT p_value ?& ARRAY[\n       'kind', 'whyNow', 'confirmed', 'unknown', 'nextAction', 'impact', 'choices'\n     ]\n     OR (SELECT count(*) FROM jsonb_object_keys(p_value)) <> 7\n     OR p_value->>'kind' NOT IN (\n       'schedule_moment', 'budget_guardrail',\n       'task_deadline', 'couple_decision', 'inquiry_waiting', 'task_done'\n     )\n     OR NOT public.amora_today_one_text_is_safe(p_value->>'whyNow', 1, 240)\n     OR NOT public.amora_today_one_text_is_safe(p_value->>'impact', 1, 180)\n     OR jsonb_typeof(p_value->'confirmed') <> 'array'\n     OR jsonb_array_length(p_value->'confirmed') NOT BETWEEN 1 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(p_value->'confirmed') AS item(value)\n       WHERE jsonb_typeof(item.value) <> 'string'\n          OR NOT public.amora_today_one_text_is_safe(item.value #>> '{}', 1, 180)\n     )\n     OR jsonb_typeof(p_value->'unknown') <> 'array'\n     OR jsonb_array_length(p_value->'unknown') NOT BETWEEN 0 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(p_value->'unknown') AS item(value)\n       WHERE jsonb_typeof(item.value) <> 'string'\n          OR NOT public.amora_today_one_text_is_safe(item.value #>> '{}', 1, 180)\n     ) THEN\n    RETURN false;\n  END IF;\n\n  v_kind := p_value->>'kind';\n  v_next_action := p_value->'nextAction';\n  IF jsonb_typeof(v_next_action) <> 'object'\n     OR NOT v_next_action ?& ARRAY['label', 'href']\n     OR (SELECT count(*) FROM jsonb_object_keys(v_next_action)) <> 2\n     OR NOT public.amora_today_one_text_is_safe(v_next_action->>'label', 1, 80)\n     OR NOT public.amora_today_one_text_is_safe(v_next_action->>'href', 1, 240) THEN\n    RETURN false;\n  END IF;\n\n  v_label := v_next_action->>'label';\n  v_href := v_next_action->>'href';\n  IF left(v_href, 1) <> '/'\n     OR left(v_href, 2) = '//'\n     OR position(E'\\\\' IN v_href) > 0\n     OR (v_kind = 'schedule_moment' AND (\n       v_label <> '일정 열기' OR v_href <> '/schedule'\n     ))\n     OR (v_kind = 'budget_guardrail' AND (\n       v_label <> '예산 열기' OR v_href <> '/budget'\n     ))\n     OR (v_kind = 'task_deadline' AND (\n       v_label <> '할 일 보기' OR v_href <> '/lounge'\n     ))\n     OR (v_kind = 'couple_decision' AND (\n       v_label <> '정할 것 보기'\n       OR v_href NOT IN ('/halls/consultation', '/halls/letter')\n     ))\n     OR (v_kind = 'inquiry_waiting' AND (\n       v_label <> '문의 보기' OR v_href <> '/halls/consultation'\n     ))\n     OR (v_kind = 'task_done' AND (\n       v_label <> '맡은 일 보기' OR v_href <> '/lounge'\n     )) THEN\n    RETURN false;\n  END IF;\n\n  v_choices := p_value->'choices';\n  IF jsonb_typeof(v_choices) <> 'array'\n     OR jsonb_array_length(v_choices) NOT BETWEEN 2 AND 4\n     OR EXISTS (\n       SELECT 1\n       FROM jsonb_array_elements(v_choices) AS choice(value)\n       WHERE jsonb_typeof(choice.value) <> 'object'\n          OR NOT choice.value ?& ARRAY['action', 'label']\n          OR (SELECT count(*) FROM jsonb_object_keys(choice.value)) <> 2\n          OR choice.value->>'action' NOT IN (\n            'open_source', 'snooze', 'dismiss', 'mute_source'\n          )\n          OR NOT public.amora_today_one_text_is_safe(\n            choice.value->>'label', 1, 40\n          )\n     )\n     OR (\n       SELECT count(DISTINCT choice.value->>'action')\n       FROM jsonb_array_elements(v_choices) AS choice(value)\n     ) <> jsonb_array_length(v_choices) THEN\n    RETURN false;\n  END IF;\n\n  RETURN true;\nEND\n$function$\n",
+        "volatility": "i",
+        "securityDefiner": false
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid",
+        "body": "\nDECLARE\n  v_hour integer := extract(hour FROM (public.amora_push_clock() AT TIME ZONE 'Asia/Seoul'))::integer;\n  v_start integer := 9;\n  v_end integer := 20;\nBEGIN\n  SELECT greatest(9, coalesce(profile.care_window_start_hour, 9)),\n         least(20, coalesce(profile.care_window_end_hour, 20))\n  INTO v_start, v_end\n  FROM public.profiles AS profile\n  WHERE profile.id = p_user_id;\n  -- 프로필 줄이 없으면 SELECT INTO 가 위 기본값을 NULL 로 덮는다. 받는 시간을 모르면 열지 않는다.\n  IF NOT FOUND THEN\n    RETURN false;\n  END IF;\n  RETURN v_start < v_end AND v_hour >= v_start AND v_hour < v_end;\nEND\n",
+        "kind": "f",
+        "name": "amora_push_window_open",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\"",
+          "lock_timeout=5s",
+          "statement_timeout=10s"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_push_window_open(p_user_id uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\n SET lock_timeout TO '5s'\n SET statement_timeout TO '10s'\nAS $function$\nDECLARE\n  v_hour integer := extract(hour FROM (public.amora_push_clock() AT TIME ZONE 'Asia/Seoul'))::integer;\n  v_start integer := 9;\n  v_end integer := 20;\nBEGIN\n  SELECT greatest(9, coalesce(profile.care_window_start_hour, 9)),\n         least(20, coalesce(profile.care_window_end_hour, 20))\n  INTO v_start, v_end\n  FROM public.profiles AS profile\n  WHERE profile.id = p_user_id;\n  -- 프로필 줄이 없으면 SELECT INTO 가 위 기본값을 NULL 로 덮는다. 받는 시간을 모르면 열지 않는다.\n  IF NOT FOUND THEN\n    RETURN false;\n  END IF;\n  RETURN v_start < v_end AND v_hour >= v_start AND v_hour < v_end;\nEND\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, jsonb",
+        "body": "\nDECLARE\n  v_cadence jsonb;\nBEGIN\n  PERFORM pg_advisory_xact_lock(\n    hashtextextended('amora_care_daily_cap:' || p_couple_id::text, 0)\n  );\n  v_cadence := public.amora_care_couple_cadence(p_couple_id);\n  IF v_cadence->>'intensity' = 'light'\n     AND NOT public.amora_care_is_imminent(COALESCE(p_metadata, '{}'::jsonb)) THEN\n    RETURN 'intensity_filtered';\n  END IF;\n  IF public.amora_care_posts_on_kst_day(p_couple_id, now())\n       >= (v_cadence->>'daily_limit')::integer THEN\n    RETURN 'daily_care_limit';\n  END IF;\n  RETURN 'allowed';\nEND\n",
+        "kind": "f",
+        "name": "amora_care_post_allowance",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "text",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_care_post_allowance(p_couple_id uuid, p_metadata jsonb)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nDECLARE\n  v_cadence jsonb;\nBEGIN\n  PERFORM pg_advisory_xact_lock(\n    hashtextextended('amora_care_daily_cap:' || p_couple_id::text, 0)\n  );\n  v_cadence := public.amora_care_couple_cadence(p_couple_id);\n  IF v_cadence->>'intensity' = 'light'\n     AND NOT public.amora_care_is_imminent(COALESCE(p_metadata, '{}'::jsonb)) THEN\n    RETURN 'intensity_filtered';\n  END IF;\n  IF public.amora_care_posts_on_kst_day(p_couple_id, now())\n       >= (v_cadence->>'daily_limit')::integer THEN\n    RETURN 'daily_care_limit';\n  END IF;\n  RETURN 'allowed';\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text",
+        "body": "\nBEGIN\n  UPDATE public.amora_care_deliveries\n  SET status = 'cancelled', completed_at = now(), updated_at = now(),\n      recipient_email = NULL, recipient_name = NULL,\n      last_error = p_reason\n  WHERE job_id = p_job_id AND status IN ('pending', 'processing');\n  UPDATE public.amora_care_jobs\n  SET status = 'cancelled', completed_at = now(), updated_at = now(),\n      lease_token = NULL, lease_expires_at = NULL,\n      last_error = p_reason,\n      content = '[redacted]', email_subject = NULL, email_html = NULL,\n      metadata = '{}'::jsonb\n  WHERE id = p_job_id;\nEND\n",
+        "kind": "f",
+        "name": "amora_care_cancel_job_internal",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "void",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_care_cancel_job_internal(p_job_id uuid, p_reason text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  UPDATE public.amora_care_deliveries\n  SET status = 'cancelled', completed_at = now(), updated_at = now(),\n      recipient_email = NULL, recipient_name = NULL,\n      last_error = p_reason\n  WHERE job_id = p_job_id AND status IN ('pending', 'processing');\n  UPDATE public.amora_care_jobs\n  SET status = 'cancelled', completed_at = now(), updated_at = now(),\n      lease_token = NULL, lease_expires_at = NULL,\n      last_error = p_reason,\n      content = '[redacted]', email_subject = NULL, email_html = NULL,\n      metadata = '{}'::jsonb\n  WHERE id = p_job_id;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, jsonb",
+        "body": "\nDECLARE\n  v_bride_id uuid;\n  v_groom_id uuid;\n  v_required integer;\n  v_consented integer;\n  v_message_id uuid;\nBEGIN\n  IF char_length(p_content) NOT BETWEEN 1 AND 2000\n     OR jsonb_typeof(COALESCE(p_metadata, '{}'::jsonb)) <> 'object' THEN\n    RAISE EXCEPTION 'AMORA_CARE_MESSAGE_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT bride_id, groom_id INTO v_bride_id, v_groom_id\n  FROM public.couples\n  WHERE id = p_couple_id\n  FOR SHARE;\n\n  SELECT count(DISTINCT member_id)::integer INTO v_required\n  FROM (VALUES (v_bride_id), (v_groom_id)) AS members(member_id)\n  WHERE member_id IS NOT NULL;\n  IF v_required = 0 THEN\n    RETURN NULL;\n  END IF;\n\n  -- Lock the current member rows so a simultaneous opt-out is serialized with\n  -- message creation. Whichever transaction commits first defines the result.\n  PERFORM 1\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n  ORDER BY id\n  FOR SHARE;\n\n  SELECT count(*)::integer INTO v_consented\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n    AND care_notifications_enabled = true\n    AND care_notifications_consented_at IS NOT NULL;\n\n  IF v_consented <> v_required THEN\n    RETURN NULL;\n  END IF;\n\n  INSERT INTO public.chat_messages(\n    couple_id, sender_id, sender_type, role, content, visibility, metadata\n  ) VALUES (\n    p_couple_id, NULL, 'ai', 'assistant', p_content, 'shared', p_metadata\n  )\n  RETURNING id INTO v_message_id;\n\n  RETURN v_message_id;\nEND\n",
+        "kind": "f",
+        "name": "insert_amora_care_message_pre_cadence",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=30s"
+        ],
+        "result": "uuid",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.insert_amora_care_message_pre_cadence(p_couple_id uuid, p_content text, p_metadata jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '30s'\nAS $function$\nDECLARE\n  v_bride_id uuid;\n  v_groom_id uuid;\n  v_required integer;\n  v_consented integer;\n  v_message_id uuid;\nBEGIN\n  IF char_length(p_content) NOT BETWEEN 1 AND 2000\n     OR jsonb_typeof(COALESCE(p_metadata, '{}'::jsonb)) <> 'object' THEN\n    RAISE EXCEPTION 'AMORA_CARE_MESSAGE_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  SELECT bride_id, groom_id INTO v_bride_id, v_groom_id\n  FROM public.couples\n  WHERE id = p_couple_id\n  FOR SHARE;\n\n  SELECT count(DISTINCT member_id)::integer INTO v_required\n  FROM (VALUES (v_bride_id), (v_groom_id)) AS members(member_id)\n  WHERE member_id IS NOT NULL;\n  IF v_required = 0 THEN\n    RETURN NULL;\n  END IF;\n\n  -- Lock the current member rows so a simultaneous opt-out is serialized with\n  -- message creation. Whichever transaction commits first defines the result.\n  PERFORM 1\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n  ORDER BY id\n  FOR SHARE;\n\n  SELECT count(*)::integer INTO v_consented\n  FROM public.profiles\n  WHERE id IN (v_bride_id, v_groom_id)\n    AND care_notifications_enabled = true\n    AND care_notifications_consented_at IS NOT NULL;\n\n  IF v_consented <> v_required THEN\n    RETURN NULL;\n  END IF;\n\n  INSERT INTO public.chat_messages(\n    couple_id, sender_id, sender_type, role, content, visibility, metadata\n  ) VALUES (\n    p_couple_id, NULL, 'ai', 'assistant', p_content, 'shared', p_metadata\n  )\n  RETURNING id INTO v_message_id;\n\n  RETURN v_message_id;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, text, text, boolean, boolean, boolean, text, boolean, boolean",
+        "body": "\nDECLARE\n  v_couple_id uuid;\n  v_profile public.profiles%ROWTYPE;\n  v_previous_name text;\n  v_community_nickname text;\n  v_default_nickname_key text;\n  v_current_nickname_key text;\n  v_community_profile_synced boolean := false;\n  v_cancelled_jobs integer := 0;\nBEGIN\n  IF p_user_id IS NULL\n     OR p_phone_provided IS NULL\n     OR p_force_community_nickname_sync IS NULL\n     OR p_community_nickname_provided IS NULL\n     OR (NOT p_phone_provided AND p_phone IS NOT NULL)\n     OR (\n       NOT p_community_nickname_provided\n       AND p_name IS NULL\n       AND p_community_nickname IS NOT NULL\n     )\n     OR (p_community_nickname_provided AND p_community_nickname IS NULL)\n     OR (p_community_nickname_provided AND p_force_community_nickname_sync)\n     OR (\n       p_name IS NULL\n       AND NOT p_phone_provided\n       AND p_phone_care_consent IS NULL\n       AND p_care_notifications_enabled IS NULL\n       AND NOT p_community_nickname_provided\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_name IS NOT NULL\n     AND (\n       btrim(p_name) = ''\n       OR p_name IS DISTINCT FROM btrim(p_name)\n       OR char_length(p_name) > 80\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_phone_provided\n     AND p_phone IS NOT NULL\n     AND p_phone !~ '^01[016789][0-9]{7,8}$' THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_PHONE' USING ERRCODE = '22023';\n  END IF;\n  IF p_name IS NOT NULL AND p_community_nickname IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_community_nickname IS NOT NULL\n     AND (\n       btrim(p_community_nickname) = ''\n       OR p_community_nickname IS DISTINCT FROM btrim(p_community_nickname)\n       OR char_length(p_community_nickname) > 20\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_force_community_nickname_sync AND p_name IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME_SYNC' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_care_notifications_enabled = false THEN\n    SELECT id INTO v_couple_id\n    FROM public.couples\n    WHERE bride_id = p_user_id OR groom_id = p_user_id\n    ORDER BY id\n    LIMIT 1;\n\n    IF v_couple_id IS NOT NULL THEN\n      -- Keep the worker-compatible global lock order: jobs before profiles.\n      PERFORM 1\n      FROM public.amora_care_jobs\n      WHERE couple_id = v_couple_id\n        AND status IN ('pending', 'processing')\n      ORDER BY id\n      FOR UPDATE;\n    END IF;\n  END IF;\n\n  SELECT * INTO v_profile\n  FROM public.profiles\n  WHERE id = p_user_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PROFILE_NOT_FOUND' USING ERRCODE = 'P0002';\n  END IF;\n  v_previous_name := v_profile.name;\n\n  IF p_phone_care_consent = true\n     AND (CASE WHEN p_phone_provided THEN p_phone ELSE v_profile.phone END) IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PHONE_REQUIRED' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_name IS NOT NULL\n     OR p_phone_provided\n     OR p_phone_care_consent IS NOT NULL\n     OR p_care_notifications_enabled IS NOT NULL THEN\n    UPDATE public.profiles\n    SET name = CASE WHEN p_name IS NOT NULL THEN p_name ELSE v_profile.name END,\n        phone = CASE WHEN p_phone_provided THEN p_phone ELSE v_profile.phone END,\n        phone_care_consented_at = CASE\n          WHEN p_phone_provided AND p_phone IS NULL THEN NULL\n          WHEN p_phone_care_consent = true THEN now()\n          WHEN p_phone_care_consent = false THEN NULL\n          ELSE v_profile.phone_care_consented_at\n        END,\n        care_notifications_enabled = COALESCE(\n          p_care_notifications_enabled,\n          v_profile.care_notifications_enabled\n        ),\n        care_notifications_consented_at = CASE\n          WHEN p_care_notifications_enabled = true THEN now()\n          WHEN p_care_notifications_enabled = false THEN NULL\n          ELSE v_profile.care_notifications_consented_at\n        END,\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n  END IF;\n\n  IF p_community_nickname IS NOT NULL THEN\n    SELECT nickname INTO v_community_nickname\n    FROM public.community_profiles\n    WHERE user_id = p_user_id\n    FOR UPDATE;\n\n    IF FOUND THEN\n      v_default_nickname_key := lower(\n        regexp_replace(btrim(v_previous_name), '\\s+', '', 'g')\n      );\n      v_current_nickname_key := lower(\n        regexp_replace(btrim(v_community_nickname), '\\s+', '', 'g')\n      );\n\n      IF (\n        p_community_nickname_provided\n        OR p_force_community_nickname_sync\n        OR v_community_nickname = '익명'\n        OR v_community_nickname = (\n          'user-' || substr(replace(p_user_id::text, '-', ''), 1, 8)\n        )\n        OR v_current_nickname_key = v_default_nickname_key\n      ) AND v_community_nickname IS DISTINCT FROM p_community_nickname THEN\n        UPDATE public.community_profiles\n        SET nickname = p_community_nickname,\n            updated_at = now()\n        WHERE user_id = p_user_id;\n        v_community_nickname := p_community_nickname;\n        v_community_profile_synced := true;\n      END IF;\n    ELSIF p_community_nickname_provided OR p_force_community_nickname_sync THEN\n      INSERT INTO public.community_profiles (\n        user_id,\n        nickname,\n        badge,\n        post_count,\n        comment_count,\n        total_upvotes_received\n      )\n      VALUES (\n        p_user_id,\n        p_community_nickname,\n        'member',\n        (\n          SELECT count(*)::integer\n          FROM public.community_posts\n          WHERE author_id = p_user_id\n            AND visibility IN ('public', 'members')\n            AND under_review = false\n        ),\n        (\n          SELECT count(*)::integer\n          FROM public.community_comments\n          WHERE author_id = p_user_id\n            AND is_deleted = false\n        ),\n        0\n      );\n      v_community_nickname := p_community_nickname;\n      v_community_profile_synced := true;\n    END IF;\n  END IF;\n\n  IF p_care_notifications_enabled = false AND v_couple_id IS NOT NULL THEN\n    UPDATE public.amora_care_deliveries AS delivery\n    SET status = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN 'cancelled'\n          ELSE delivery.status\n        END,\n        completed_at = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN now()\n          ELSE delivery.completed_at\n        END,\n        recipient_email = NULL,\n        recipient_name = NULL,\n        last_error = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN 'consent_withdrawn'\n          ELSE delivery.last_error\n        END,\n        updated_at = now()\n    FROM public.amora_care_jobs AS job\n    WHERE delivery.job_id = job.id\n      AND job.couple_id = v_couple_id\n      AND job.status IN ('pending', 'processing');\n\n    UPDATE public.amora_care_jobs\n    SET status = 'cancelled',\n        completed_at = now(),\n        updated_at = now(),\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'consent_withdrawn',\n        content = '[redacted]',\n        email_subject = NULL,\n        email_html = NULL,\n        metadata = '{}'::jsonb\n    WHERE couple_id = v_couple_id\n      AND status IN ('pending', 'processing');\n    GET DIAGNOSTICS v_cancelled_jobs = ROW_COUNT;\n  END IF;\n\n  RETURN jsonb_build_object(\n    'profile', to_jsonb(v_profile),\n    'community_profile_synced', v_community_profile_synced,\n    'community_nickname', v_community_nickname,\n    'cancelled_jobs', v_cancelled_jobs\n  );\nEND\n",
+        "kind": "f",
+        "name": "patch_profile_atomic_pre_email_consent",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": "Service-only atomic profile, consent, and optional community nickname patch.",
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.patch_profile_atomic_pre_email_consent(p_user_id uuid, p_name text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_phone_provided boolean DEFAULT false, p_phone_care_consent boolean DEFAULT NULL::boolean, p_care_notifications_enabled boolean DEFAULT NULL::boolean, p_community_nickname text DEFAULT NULL::text, p_force_community_nickname_sync boolean DEFAULT false, p_community_nickname_provided boolean DEFAULT false)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_couple_id uuid;\n  v_profile public.profiles%ROWTYPE;\n  v_previous_name text;\n  v_community_nickname text;\n  v_default_nickname_key text;\n  v_current_nickname_key text;\n  v_community_profile_synced boolean := false;\n  v_cancelled_jobs integer := 0;\nBEGIN\n  IF p_user_id IS NULL\n     OR p_phone_provided IS NULL\n     OR p_force_community_nickname_sync IS NULL\n     OR p_community_nickname_provided IS NULL\n     OR (NOT p_phone_provided AND p_phone IS NOT NULL)\n     OR (\n       NOT p_community_nickname_provided\n       AND p_name IS NULL\n       AND p_community_nickname IS NOT NULL\n     )\n     OR (p_community_nickname_provided AND p_community_nickname IS NULL)\n     OR (p_community_nickname_provided AND p_force_community_nickname_sync)\n     OR (\n       p_name IS NULL\n       AND NOT p_phone_provided\n       AND p_phone_care_consent IS NULL\n       AND p_care_notifications_enabled IS NULL\n       AND NOT p_community_nickname_provided\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID' USING ERRCODE = '22023';\n  END IF;\n  IF p_name IS NOT NULL\n     AND (\n       btrim(p_name) = ''\n       OR p_name IS DISTINCT FROM btrim(p_name)\n       OR char_length(p_name) > 80\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_phone_provided\n     AND p_phone IS NOT NULL\n     AND p_phone !~ '^01[016789][0-9]{7,8}$' THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_PHONE' USING ERRCODE = '22023';\n  END IF;\n  IF p_name IS NOT NULL AND p_community_nickname IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_community_nickname IS NOT NULL\n     AND (\n       btrim(p_community_nickname) = ''\n       OR p_community_nickname IS DISTINCT FROM btrim(p_community_nickname)\n       OR char_length(p_community_nickname) > 20\n     ) THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME' USING ERRCODE = '22023';\n  END IF;\n  IF p_force_community_nickname_sync AND p_name IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_INVALID_NICKNAME_SYNC' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_care_notifications_enabled = false THEN\n    SELECT id INTO v_couple_id\n    FROM public.couples\n    WHERE bride_id = p_user_id OR groom_id = p_user_id\n    ORDER BY id\n    LIMIT 1;\n\n    IF v_couple_id IS NOT NULL THEN\n      -- Keep the worker-compatible global lock order: jobs before profiles.\n      PERFORM 1\n      FROM public.amora_care_jobs\n      WHERE couple_id = v_couple_id\n        AND status IN ('pending', 'processing')\n      ORDER BY id\n      FOR UPDATE;\n    END IF;\n  END IF;\n\n  SELECT * INTO v_profile\n  FROM public.profiles\n  WHERE id = p_user_id\n  FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PROFILE_NOT_FOUND' USING ERRCODE = 'P0002';\n  END IF;\n  v_previous_name := v_profile.name;\n\n  IF p_phone_care_consent = true\n     AND (CASE WHEN p_phone_provided THEN p_phone ELSE v_profile.phone END) IS NULL THEN\n    RAISE EXCEPTION 'PROFILE_PATCH_PHONE_REQUIRED' USING ERRCODE = '22023';\n  END IF;\n\n  IF p_name IS NOT NULL\n     OR p_phone_provided\n     OR p_phone_care_consent IS NOT NULL\n     OR p_care_notifications_enabled IS NOT NULL THEN\n    UPDATE public.profiles\n    SET name = CASE WHEN p_name IS NOT NULL THEN p_name ELSE v_profile.name END,\n        phone = CASE WHEN p_phone_provided THEN p_phone ELSE v_profile.phone END,\n        phone_care_consented_at = CASE\n          WHEN p_phone_provided AND p_phone IS NULL THEN NULL\n          WHEN p_phone_care_consent = true THEN now()\n          WHEN p_phone_care_consent = false THEN NULL\n          ELSE v_profile.phone_care_consented_at\n        END,\n        care_notifications_enabled = COALESCE(\n          p_care_notifications_enabled,\n          v_profile.care_notifications_enabled\n        ),\n        care_notifications_consented_at = CASE\n          WHEN p_care_notifications_enabled = true THEN now()\n          WHEN p_care_notifications_enabled = false THEN NULL\n          ELSE v_profile.care_notifications_consented_at\n        END,\n        updated_at = now()\n    WHERE id = p_user_id\n    RETURNING * INTO v_profile;\n  END IF;\n\n  IF p_community_nickname IS NOT NULL THEN\n    SELECT nickname INTO v_community_nickname\n    FROM public.community_profiles\n    WHERE user_id = p_user_id\n    FOR UPDATE;\n\n    IF FOUND THEN\n      v_default_nickname_key := lower(\n        regexp_replace(btrim(v_previous_name), '\\s+', '', 'g')\n      );\n      v_current_nickname_key := lower(\n        regexp_replace(btrim(v_community_nickname), '\\s+', '', 'g')\n      );\n\n      IF (\n        p_community_nickname_provided\n        OR p_force_community_nickname_sync\n        OR v_community_nickname = '익명'\n        OR v_community_nickname = (\n          'user-' || substr(replace(p_user_id::text, '-', ''), 1, 8)\n        )\n        OR v_current_nickname_key = v_default_nickname_key\n      ) AND v_community_nickname IS DISTINCT FROM p_community_nickname THEN\n        UPDATE public.community_profiles\n        SET nickname = p_community_nickname,\n            updated_at = now()\n        WHERE user_id = p_user_id;\n        v_community_nickname := p_community_nickname;\n        v_community_profile_synced := true;\n      END IF;\n    ELSIF p_community_nickname_provided OR p_force_community_nickname_sync THEN\n      INSERT INTO public.community_profiles (\n        user_id,\n        nickname,\n        badge,\n        post_count,\n        comment_count,\n        total_upvotes_received\n      )\n      VALUES (\n        p_user_id,\n        p_community_nickname,\n        'member',\n        (\n          SELECT count(*)::integer\n          FROM public.community_posts\n          WHERE author_id = p_user_id\n            AND visibility IN ('public', 'members')\n            AND under_review = false\n        ),\n        (\n          SELECT count(*)::integer\n          FROM public.community_comments\n          WHERE author_id = p_user_id\n            AND is_deleted = false\n        ),\n        0\n      );\n      v_community_nickname := p_community_nickname;\n      v_community_profile_synced := true;\n    END IF;\n  END IF;\n\n  IF p_care_notifications_enabled = false AND v_couple_id IS NOT NULL THEN\n    UPDATE public.amora_care_deliveries AS delivery\n    SET status = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN 'cancelled'\n          ELSE delivery.status\n        END,\n        completed_at = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN now()\n          ELSE delivery.completed_at\n        END,\n        recipient_email = NULL,\n        recipient_name = NULL,\n        last_error = CASE\n          WHEN delivery.status IN ('pending', 'processing') THEN 'consent_withdrawn'\n          ELSE delivery.last_error\n        END,\n        updated_at = now()\n    FROM public.amora_care_jobs AS job\n    WHERE delivery.job_id = job.id\n      AND job.couple_id = v_couple_id\n      AND job.status IN ('pending', 'processing');\n\n    UPDATE public.amora_care_jobs\n    SET status = 'cancelled',\n        completed_at = now(),\n        updated_at = now(),\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'consent_withdrawn',\n        content = '[redacted]',\n        email_subject = NULL,\n        email_html = NULL,\n        metadata = '{}'::jsonb\n    WHERE couple_id = v_couple_id\n      AND status IN ('pending', 'processing');\n    GET DIAGNOSTICS v_cancelled_jobs = ROW_COUNT;\n  END IF;\n\n  RETURN jsonb_build_object(\n    'profile', to_jsonb(v_profile),\n    'community_profile_synced', v_community_profile_synced,\n    'community_nickname', v_community_nickname,\n    'cancelled_jobs', v_cancelled_jobs\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, timestamp with time zone",
+        "body": "\n  SELECT count(*)::integer\n  FROM public.chat_messages AS message\n  WHERE message.couple_id = p_couple_id\n    AND message.sender_id IS NULL\n    AND message.sender_type = 'ai'\n    AND message.role = 'assistant'\n    AND message.visibility = 'shared'\n    AND (\n      message.metadata->>'client_request_id' LIKE 'moment:%'\n      OR message.metadata->>'client_request_id' LIKE 'lifecycle:%'\n      OR message.metadata->>'client_request_id' LIKE 'saved-notes-recall:%'\n    )\n    AND message.created_at >= (((p_at AT TIME ZONE 'Asia/Seoul')::date)::timestamp AT TIME ZONE 'Asia/Seoul')\n    AND message.created_at < ((((p_at AT TIME ZONE 'Asia/Seoul')::date + 1))::timestamp AT TIME ZONE 'Asia/Seoul')\n",
+        "kind": "f",
+        "name": "amora_care_posts_on_kst_day",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "integer",
+        "strict": false,
+        "comment": null,
+        "language": "sql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_care_posts_on_kst_day(p_couple_id uuid, p_at timestamp with time zone)\n RETURNS integer\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT count(*)::integer\n  FROM public.chat_messages AS message\n  WHERE message.couple_id = p_couple_id\n    AND message.sender_id IS NULL\n    AND message.sender_type = 'ai'\n    AND message.role = 'assistant'\n    AND message.visibility = 'shared'\n    AND (\n      message.metadata->>'client_request_id' LIKE 'moment:%'\n      OR message.metadata->>'client_request_id' LIKE 'lifecycle:%'\n      OR message.metadata->>'client_request_id' LIKE 'saved-notes-recall:%'\n    )\n    AND message.created_at >= (((p_at AT TIME ZONE 'Asia/Seoul')::date)::timestamp AT TIME ZONE 'Asia/Seoul')\n    AND message.created_at < ((((p_at AT TIME ZONE 'Asia/Seoul')::date + 1))::timestamp AT TIME ZONE 'Asia/Seoul')\n$function$\n",
+        "volatility": "s",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, timestamp with time zone, text",
+        "body": "\nBEGIN\n  UPDATE public.amora_care_deliveries\n  SET status = 'pending', updated_at = now()\n  WHERE job_id = p_job_id AND status = 'processing';\n  UPDATE public.amora_care_jobs\n  SET status = 'pending',\n      attempt_count = GREATEST(0, attempt_count - 1),\n      available_at = p_available_at,\n      claimed_at = NULL,\n      lease_token = NULL,\n      lease_expires_at = NULL,\n      last_error = p_reason,\n      updated_at = now()\n  WHERE id = p_job_id;\nEND\n",
+        "kind": "f",
+        "name": "amora_care_release_job_internal",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "void",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.amora_care_release_job_internal(p_job_id uuid, p_available_at timestamp with time zone, p_reason text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nBEGIN\n  UPDATE public.amora_care_deliveries\n  SET status = 'pending', updated_at = now()\n  WHERE job_id = p_job_id AND status = 'processing';\n  UPDATE public.amora_care_jobs\n  SET status = 'pending',\n      attempt_count = GREATEST(0, attempt_count - 1),\n      available_at = p_available_at,\n      claimed_at = NULL,\n      lease_token = NULL,\n      lease_expires_at = NULL,\n      last_error = p_reason,\n      updated_at = now()\n  WHERE id = p_job_id;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid",
+        "body": "\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_result jsonb;\n  v_delivery_id uuid;\n  v_user_id uuid;\n  v_policy_now timestamptz;\n  v_available_at timestamptz;\n  v_send_day date;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  IF v_job.expires_at <= v_policy_now THEN\n    UPDATE public.amora_care_deliveries\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL,\n        last_error = 'scan_day_expired'\n    WHERE job_id = v_job.id AND status IN ('pending', 'processing');\n    UPDATE public.amora_care_jobs\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        lease_token = NULL, lease_expires_at = NULL,\n        last_error = 'scan_day_expired', content = '[redacted]',\n        email_subject = NULL, email_html = NULL, metadata = '{}'::jsonb\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object('state', 'expired');\n  END IF;\n\n  IF NOT public.amora_care_is_delivery_window(v_policy_now)\n     OR v_job.scan_day IS DISTINCT FROM\n        (v_policy_now AT TIME ZONE 'Asia/Seoul')::date THEN\n    v_available_at := CASE\n      WHEN v_job.scan_day > (v_policy_now AT TIME ZONE 'Asia/Seoul')::date\n        THEN ((v_job.scan_day + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul')\n      ELSE public.amora_care_next_delivery_window(v_policy_now)\n    END;\n    UPDATE public.amora_care_deliveries\n    SET status = 'pending', updated_at = now()\n    WHERE job_id = v_job.id AND status = 'processing';\n    UPDATE public.amora_care_jobs\n    SET status = 'pending',\n        attempt_count = GREATEST(0, attempt_count - 1),\n        available_at = v_available_at,\n        claimed_at = NULL,\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'outside_delivery_window',\n        updated_at = now()\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object(\n      'state', 'deferred',\n      'reason', 'outside_delivery_window',\n      'available_at', v_available_at\n    );\n  END IF;\n\n  v_result := public.claim_amora_care_email_delivery_pre_delivery_policy(\n    p_job_id,\n    p_lease_token\n  );\n  IF v_result IS NULL OR v_result->>'state' <> 'ready' THEN\n    RETURN v_result;\n  END IF;\n\n  v_delivery_id := (v_result->>'id')::uuid;\n  v_user_id := (v_result->>'user_id')::uuid;\n  v_send_day := (v_policy_now AT TIME ZONE 'Asia/Seoul')::date;\n  BEGIN\n    UPDATE public.amora_care_deliveries\n    SET send_day = v_send_day, updated_at = now()\n    WHERE id = v_delivery_id;\n  EXCEPTION WHEN unique_violation THEN\n    IF NOT EXISTS (\n      SELECT 1\n      FROM public.amora_care_deliveries AS reserved\n      WHERE reserved.user_id = v_user_id\n        AND reserved.send_day = v_send_day\n        AND reserved.id <> v_delivery_id\n    ) THEN\n      RAISE;\n    END IF;\n    UPDATE public.amora_care_deliveries\n    SET status = 'skipped', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL, send_day = NULL,\n        last_error = 'daily_frequency_limit'\n    WHERE id = v_delivery_id;\n    RETURN jsonb_build_object(\n      'state', 'skipped',\n      'id', v_delivery_id,\n      'reason', 'daily_frequency_limit'\n    );\n  END;\n  RETURN v_result;\nEND\n",
+        "kind": "f",
+        "name": "claim_amora_care_email_delivery_pre_email_consent",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.claim_amora_care_email_delivery_pre_email_consent(p_job_id uuid, p_lease_token uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_result jsonb;\n  v_delivery_id uuid;\n  v_user_id uuid;\n  v_policy_now timestamptz;\n  v_available_at timestamptz;\n  v_send_day date;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  IF v_job.expires_at <= v_policy_now THEN\n    UPDATE public.amora_care_deliveries\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL,\n        last_error = 'scan_day_expired'\n    WHERE job_id = v_job.id AND status IN ('pending', 'processing');\n    UPDATE public.amora_care_jobs\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        lease_token = NULL, lease_expires_at = NULL,\n        last_error = 'scan_day_expired', content = '[redacted]',\n        email_subject = NULL, email_html = NULL, metadata = '{}'::jsonb\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object('state', 'expired');\n  END IF;\n\n  IF NOT public.amora_care_is_delivery_window(v_policy_now)\n     OR v_job.scan_day IS DISTINCT FROM\n        (v_policy_now AT TIME ZONE 'Asia/Seoul')::date THEN\n    v_available_at := CASE\n      WHEN v_job.scan_day > (v_policy_now AT TIME ZONE 'Asia/Seoul')::date\n        THEN ((v_job.scan_day + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul')\n      ELSE public.amora_care_next_delivery_window(v_policy_now)\n    END;\n    UPDATE public.amora_care_deliveries\n    SET status = 'pending', updated_at = now()\n    WHERE job_id = v_job.id AND status = 'processing';\n    UPDATE public.amora_care_jobs\n    SET status = 'pending',\n        attempt_count = GREATEST(0, attempt_count - 1),\n        available_at = v_available_at,\n        claimed_at = NULL,\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'outside_delivery_window',\n        updated_at = now()\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object(\n      'state', 'deferred',\n      'reason', 'outside_delivery_window',\n      'available_at', v_available_at\n    );\n  END IF;\n\n  v_result := public.claim_amora_care_email_delivery_pre_delivery_policy(\n    p_job_id,\n    p_lease_token\n  );\n  IF v_result IS NULL OR v_result->>'state' <> 'ready' THEN\n    RETURN v_result;\n  END IF;\n\n  v_delivery_id := (v_result->>'id')::uuid;\n  v_user_id := (v_result->>'user_id')::uuid;\n  v_send_day := (v_policy_now AT TIME ZONE 'Asia/Seoul')::date;\n  BEGIN\n    UPDATE public.amora_care_deliveries\n    SET send_day = v_send_day, updated_at = now()\n    WHERE id = v_delivery_id;\n  EXCEPTION WHEN unique_violation THEN\n    IF NOT EXISTS (\n      SELECT 1\n      FROM public.amora_care_deliveries AS reserved\n      WHERE reserved.user_id = v_user_id\n        AND reserved.send_day = v_send_day\n        AND reserved.id <> v_delivery_id\n    ) THEN\n      RAISE;\n    END IF;\n    UPDATE public.amora_care_deliveries\n    SET status = 'skipped', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL, send_day = NULL,\n        last_error = 'daily_frequency_limit'\n    WHERE id = v_delivery_id;\n    RETURN jsonb_build_object(\n      'state', 'skipped',\n      'id', v_delivery_id,\n      'reason', 'daily_frequency_limit'\n    );\n  END;\n  RETURN v_result;\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "EXECUTE",
+            false
+          ]
+        ],
+        "args": "uuid, uuid, boolean",
+        "body": "\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_policy_now timestamptz;\n  v_available_at timestamptz;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  IF v_job.expires_at <= v_policy_now THEN\n    UPDATE public.amora_care_deliveries\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL,\n        last_error = 'scan_day_expired'\n    WHERE job_id = v_job.id AND status IN ('pending', 'processing');\n    UPDATE public.amora_care_jobs\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        lease_token = NULL, lease_expires_at = NULL,\n        last_error = 'scan_day_expired', content = '[redacted]',\n        email_subject = NULL, email_html = NULL, metadata = '{}'::jsonb\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object('state', 'expired');\n  END IF;\n\n  IF NOT public.amora_care_is_delivery_window(v_policy_now)\n     OR v_job.scan_day IS DISTINCT FROM\n        (v_policy_now AT TIME ZONE 'Asia/Seoul')::date THEN\n    v_available_at := CASE\n      WHEN v_job.scan_day > (v_policy_now AT TIME ZONE 'Asia/Seoul')::date\n        THEN ((v_job.scan_day + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul')\n      ELSE public.amora_care_next_delivery_window(v_policy_now)\n    END;\n    UPDATE public.amora_care_jobs\n    SET status = 'pending',\n        attempt_count = GREATEST(0, attempt_count - 1),\n        available_at = v_available_at,\n        claimed_at = NULL,\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'outside_delivery_window',\n        updated_at = now()\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object(\n      'state', 'deferred',\n      'reason', 'outside_delivery_window',\n      'available_at', v_available_at\n    );\n  END IF;\n\n  RETURN public.prepare_amora_care_job_pre_delivery_policy(\n    p_job_id,\n    p_lease_token,\n    p_email_enabled\n  );\nEND\n",
+        "kind": "f",
+        "name": "prepare_amora_care_job_pre_cadence",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=20s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "comment": null,
+        "language": "plpgsql",
+        "parallel": "u",
+        "definition": "CREATE OR REPLACE FUNCTION public.prepare_amora_care_job_pre_cadence(p_job_id uuid, p_lease_token uuid, p_email_enabled boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\n SET lock_timeout TO '5s'\n SET statement_timeout TO '20s'\nAS $function$\nDECLARE\n  v_job public.amora_care_jobs%ROWTYPE;\n  v_policy_now timestamptz;\n  v_available_at timestamptz;\nBEGIN\n  SELECT * INTO v_job\n  FROM public.amora_care_jobs\n  WHERE id = p_job_id\n  FOR UPDATE;\n  IF NOT FOUND OR v_job.status <> 'processing'\n     OR v_job.lease_token IS DISTINCT FROM p_lease_token\n     OR v_job.lease_expires_at <= now() THEN\n    RAISE EXCEPTION 'AMORA_CARE_JOB_LEASE_LOST' USING ERRCODE = '55000';\n  END IF;\n\n  v_policy_now := public.amora_care_delivery_clock();\n  IF v_job.expires_at <= v_policy_now THEN\n    UPDATE public.amora_care_deliveries\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        recipient_email = NULL, recipient_name = NULL,\n        last_error = 'scan_day_expired'\n    WHERE job_id = v_job.id AND status IN ('pending', 'processing');\n    UPDATE public.amora_care_jobs\n    SET status = 'expired', completed_at = now(), updated_at = now(),\n        lease_token = NULL, lease_expires_at = NULL,\n        last_error = 'scan_day_expired', content = '[redacted]',\n        email_subject = NULL, email_html = NULL, metadata = '{}'::jsonb\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object('state', 'expired');\n  END IF;\n\n  IF NOT public.amora_care_is_delivery_window(v_policy_now)\n     OR v_job.scan_day IS DISTINCT FROM\n        (v_policy_now AT TIME ZONE 'Asia/Seoul')::date THEN\n    v_available_at := CASE\n      WHEN v_job.scan_day > (v_policy_now AT TIME ZONE 'Asia/Seoul')::date\n        THEN ((v_job.scan_day + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul')\n      ELSE public.amora_care_next_delivery_window(v_policy_now)\n    END;\n    UPDATE public.amora_care_jobs\n    SET status = 'pending',\n        attempt_count = GREATEST(0, attempt_count - 1),\n        available_at = v_available_at,\n        claimed_at = NULL,\n        lease_token = NULL,\n        lease_expires_at = NULL,\n        last_error = 'outside_delivery_window',\n        updated_at = now()\n    WHERE id = v_job.id;\n    RETURN jsonb_build_object(\n      'state', 'deferred',\n      'reason', 'outside_delivery_window',\n      'available_at', v_available_at\n    );\n  END IF;\n\n  RETURN public.prepare_amora_care_job_pre_delivery_policy(\n    p_job_id,\n    p_lease_token,\n    p_email_enabled\n  );\nEND\n$function$\n",
+        "volatility": "v",
+        "securityDefiner": true
+      }
+    ],
+    "relations": [
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.amora_push_deliveries",
+        "owner": "postgres",
+        "columns": [
+          [
+            "created_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "clock_timestamp()",
+            []
+          ],
+          [
+            "dedupe_key",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "id",
+            "uuid",
+            true,
+            "",
+            "",
+            "gen_random_uuid()",
+            []
+          ],
+          [
+            "kind",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "kst_date",
+            "date",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "last_error_code",
+            "text",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "recipient_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "route",
+            "text",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "state",
+            "text",
+            true,
+            "",
+            "",
+            "'claimed'::text",
+            []
+          ],
+          [
+            "target_count",
+            "smallint",
+            true,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "ticketed_count",
+            "smallint",
+            true,
+            "",
+            "",
+            "0",
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "clock_timestamp()",
+            []
+          ]
+        ],
+        "comment": "Content-free Amora push ledger: kind, route key, KST date, state and provider error name only. Enforces dedupe and the daily cap.",
+        "indexes": [
+          [
+            "CREATE INDEX amora_push_deliveries_daily_idx ON public.amora_push_deliveries USING btree (recipient_id, kst_date)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX amora_push_deliveries_dedupe_unique ON public.amora_push_deliveries USING btree (recipient_id, dedupe_key)",
+            true,
+            true
+          ],
+          [
+            "CREATE UNIQUE INDEX amora_push_deliveries_pkey ON public.amora_push_deliveries USING btree (id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": true,
+        "policies": [],
+        "triggers": [],
+        "constraints": [
+          [
+            "amora_push_deliveries_dedupe_key_check",
+            "c",
+            true,
+            "CHECK (dedupe_key ~ '^[a-z0-9:_-]{1,120}$'::text)"
+          ],
+          [
+            "amora_push_deliveries_dedupe_unique",
+            "u",
+            true,
+            "UNIQUE (recipient_id, dedupe_key)"
+          ],
+          [
+            "amora_push_deliveries_kind_check",
+            "c",
+            true,
+            "CHECK (kind = ANY (ARRAY['today_one'::text, 'task_done'::text]))"
+          ],
+          [
+            "amora_push_deliveries_last_error_code_check",
+            "c",
+            true,
+            "CHECK (last_error_code IS NULL OR (last_error_code = ANY (ARRAY['DeviceNotRegistered'::text, 'MessageTooBig'::text, 'MessageRateExceeded'::text, 'MismatchSenderId'::text, 'InvalidCredentials'::text, 'ExpoServerError'::text, 'network_error'::text, 'invalid_response'::text])))"
+          ],
+          [
+            "amora_push_deliveries_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (id)"
+          ],
+          [
+            "amora_push_deliveries_recipient_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (recipient_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          ],
+          [
+            "amora_push_deliveries_route_check",
+            "c",
+            true,
+            "CHECK (route = ANY (ARRAY['home'::text, 'chat'::text]))"
+          ],
+          [
+            "amora_push_deliveries_state_check",
+            "c",
+            true,
+            "CHECK (state = ANY (ARRAY['claimed'::text, 'ticketed'::text, 'provider_failed'::text]))"
+          ],
+          [
+            "amora_push_deliveries_target_count_check",
+            "c",
+            true,
+            "CHECK (target_count >= 1 AND target_count <= 8)"
+          ],
+          [
+            "amora_push_deliveries_ticket_shape",
+            "c",
+            true,
+            "CHECK (state = 'claimed'::text AND ticketed_count = 0 OR state = 'ticketed'::text AND ticketed_count >= 1 AND ticketed_count <= target_count OR state = 'provider_failed'::text AND ticketed_count = 0 AND last_error_code IS NOT NULL)"
+          ],
+          [
+            "amora_push_deliveries_ticketed_count_check",
+            "c",
+            true,
+            "CHECK (ticketed_count >= 0 AND ticketed_count <= 8)"
+          ]
+        ],
+        "columnComments": []
+      },
+      {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "name": "public.amora_push_preferences",
+        "owner": "postgres",
+        "columns": [
+          [
+            "consent_version",
+            "smallint",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "consented_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "disabled_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            "clock_timestamp()",
+            []
+          ],
+          [
+            "enabled",
+            "boolean",
+            true,
+            "",
+            "",
+            "false",
+            []
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            true,
+            "",
+            "",
+            "clock_timestamp()",
+            []
+          ],
+          [
+            "user_id",
+            "uuid",
+            true,
+            "",
+            "",
+            null,
+            []
+          ]
+        ],
+        "comment": "Per-user explicit opt-in for content-free Amora app pushes (D-86). Separate from email and community reply push consent.",
+        "indexes": [
+          [
+            "CREATE UNIQUE INDEX amora_push_preferences_pkey ON public.amora_push_preferences USING btree (user_id)",
+            true,
+            true
+          ]
+        ],
+        "forceRls": true,
+        "policies": [],
+        "triggers": [],
+        "constraints": [
+          [
+            "amora_push_preferences_consent_shape",
+            "c",
+            true,
+            "CHECK (enabled AND consent_version = 1 AND consented_at IS NOT NULL AND disabled_at IS NULL OR NOT enabled AND consent_version IS NULL AND consented_at IS NULL AND disabled_at IS NOT NULL)"
+          ],
+          [
+            "amora_push_preferences_pkey",
+            "p",
+            true,
+            "PRIMARY KEY (user_id)"
+          ],
+          [
+            "amora_push_preferences_user_id_fkey",
+            "f",
+            true,
+            "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          ]
+        ],
+        "columnComments": []
+      }
+    ],
+    "existingRelations": [
+      {
+        "name": "public.amora_today_one_signals",
+        "columns": [],
+        "comment": "Latest recipient-scoped, source-revision-bound in-app TodayOne evidence (schedule, recorded spend, shared to-dos, couple decisions, waiting inquiries, finished Amora tasks). The card itself is never sent outside the app.",
+        "triggers": [],
+        "constraints": [
+          [
+            "amora_today_one_signals_kind_check",
+            "c",
+            true,
+            "CHECK (kind = ANY (ARRAY['schedule_moment'::text, 'budget_guardrail'::text, 'task_deadline'::text, 'couple_decision'::text, 'inquiry_waiting'::text, 'task_done'::text]))"
+          ]
+        ],
+        "columnComments": []
+      },
+      {
+        "name": "public.profiles",
+        "columns": [
+          [
+            "care_email_consented_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "care_email_enabled",
+            "boolean",
+            true,
+            "",
+            "",
+            "false",
+            []
+          ],
+          [
+            "care_intensity",
+            "text",
+            true,
+            "",
+            "",
+            "'normal'::text",
+            []
+          ],
+          [
+            "care_prompt_answered_at",
+            "timestamp with time zone",
+            false,
+            "",
+            "",
+            null,
+            []
+          ],
+          [
+            "care_window_end_hour",
+            "smallint",
+            true,
+            "",
+            "",
+            "20",
+            []
+          ],
+          [
+            "care_window_start_hour",
+            "smallint",
+            true,
+            "",
+            "",
+            "9",
+            []
+          ]
+        ],
+        "comment": null,
+        "triggers": [
+          [
+            "trg_normalize_amora_care_email_consent",
+            "O",
+            "CREATE TRIGGER trg_normalize_amora_care_email_consent BEFORE UPDATE OF care_notifications_enabled, care_notifications_consented_at ON profiles FOR EACH ROW EXECUTE FUNCTION normalize_amora_care_email_consent()"
+          ],
+          [
+            "trg_prevent_direct_amora_care_consent_change",
+            "O",
+            "CREATE TRIGGER trg_prevent_direct_amora_care_consent_change BEFORE UPDATE OF care_notifications_enabled, care_notifications_consented_at, care_email_enabled, care_email_consented_at, care_prompt_answered_at, care_intensity, care_window_start_hour, care_window_end_hour ON profiles FOR EACH ROW EXECUTE FUNCTION prevent_direct_amora_care_consent_change()"
+          ]
+        ],
+        "constraints": [
+          [
+            "profiles_care_cadence_valid",
+            "c",
+            true,
+            "CHECK ((care_intensity = ANY (ARRAY['light'::text, 'normal'::text, 'more'::text])) AND care_window_start_hour >= 9 AND care_window_start_hour <= 19 AND care_window_end_hour >= 10 AND care_window_end_hour <= 20 AND care_window_start_hour < care_window_end_hour)"
+          ],
+          [
+            "profiles_care_email_consent_state_valid",
+            "c",
+            true,
+            "CHECK (care_email_enabled = (care_email_consented_at IS NOT NULL))"
+          ],
+          [
+            "profiles_care_email_requires_shared_consent",
+            "c",
+            true,
+            "CHECK (NOT care_email_enabled OR care_notifications_enabled)"
+          ]
+        ],
+        "columnComments": [
+          [
+            "care_email_consented_at",
+            "Timestamp of the latest explicit care email opt-in; NULL when disabled."
+          ],
+          [
+            "care_email_enabled",
+            "True only after explicit opt-in to receive the same care messages by email. Requires shared-chat care consent."
+          ],
+          [
+            "care_intensity",
+            "Shared-chat care intensity chosen by the person: light (day-before checks only), normal (1/day), more (3/day). The couple uses the most careful member value."
+          ],
+          [
+            "care_notifications_consented_at",
+            "Timestamp of the latest explicit shared-chat care opt-in; NULL when disabled."
+          ],
+          [
+            "care_notifications_enabled",
+            "True only after explicit opt-in to Amora care messages in the shared chat. Every couple member must opt in."
+          ],
+          [
+            "care_prompt_answered_at",
+            "First time the person answered the one-time care opt-in question (either way). The lounge does not ask again."
+          ],
+          [
+            "care_window_end_hour",
+            "KST hour (exclusive, 10-20) after which the person declines scheduled care."
+          ],
+          [
+            "care_window_start_hour",
+            "First KST hour (inclusive, 9-19) the person accepts scheduled care. The couple uses the overlap of both windows."
+          ]
+        ]
+      }
+    ]
+  }
+}

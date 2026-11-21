@@ -11,6 +11,7 @@ import { getProgressSummary } from "@/app/(app)/lounge/progressSummary";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
 
+import AmoraTodayOneSlot from "./AmoraTodayOneSlot";
 import JoinedPlanHandoffNotice, { dismissJoinedHandoff, useJoinedPlanMarker } from "./JoinedPlanHandoffNotice";
 import LiveNotificationsNotice from "./LiveNotificationsNotice";
 
@@ -32,6 +33,8 @@ export const AMORA_TUTORIAL_TARGET = "amora-fab";
  *
  *   1. 아모라의 첫인사와 첫 실행 안내(`FirstRunLoungeTutorial`) — 안내를 마친 사람에게 첫인사를 한 번 미리 보인다.
  *   2. 상대가 바꾼 것과 준비 알림(`LiveNotificationsNotice`) — 옛 상단 바 알림 종이 하던 일.
+ *   2-1. 먼저 챙기기(`AmoraTodayOneSlot`) — 첫 일정 뒤 한 번 묻는 카드와 서버가 고른 오늘의 한 가지 카드.
+ *      서버 스위치가 꺼져 있거나 켜지 않은 사람에게는 아무것도 그리지 않는다.
  *   3. 합류 직후 안내(`JoinedPlanHandoffNotice`) — `?joined=1` 과 상대가 실제로 들어와 있을 때만.
  *   4. 오늘의 한 가지(`DailyAmoraFocusBridge`) — 접어 둔 한 줄. 합류 안내가 떠 있으면 접어 둔다.
  *   5. 첫 도착 안내(`LoungeFirstArrival`, 아직 혼자면 초대 코드로 가는 카드까지) — 커플이 아무것도 남기지 않았을
@@ -88,6 +91,7 @@ export default function LiveLoungeNotices() {
     <div className="flex flex-col gap-3 empty:hidden" data-live-notices>
       <FirstRunLoungeTutorial stepIds={INVITATION_TUTORIAL_STEPS} />
       <LiveNotificationsNotice />
+      <AmoraTodayOneSlot progress={journey ? progress : null} />
       {showJoinedHandoff ? (
         <JoinedPlanHandoffNotice
           facts={{

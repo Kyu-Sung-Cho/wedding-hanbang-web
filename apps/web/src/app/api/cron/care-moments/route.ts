@@ -6,7 +6,18 @@ import {
   buildDueMomentCells,
   type DueMomentCell,
 } from "@/lib/amora/momentLoop";
-import { buildCareEmailHtml, buildCareEmailSubject } from "@/lib/care/careEmail";
+import {
+  appendCareUnsubscribeFooter,
+  buildCareEmailHtml,
+  buildCareEmailSubject,
+  careEmailSite,
+} from "@/lib/care/careEmail";
+import {
+  buildCareUnsubscribeToken,
+  buildCareUnsubscribeUrl,
+  careUnsubscribeHeaders,
+  readCareUnsubscribeSecret,
+} from "@/lib/care/careUnsubscribe";
 import { kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { inspectScheduleEvents } from "@/utils/scheduleEvents";
 
@@ -117,6 +128,43 @@ function emailPayloadFromJob(job: JsonRecord) {
     subject: buildCareEmailSubject(cell),
     html: buildCareEmailHtml({ recipientName: null, cell }),
   };
+}
+
+type CareJobRefresh =
+  | { kind: "posted" }
+  | { kind: "gone" }
+  | { kind: "due"; revision: number; cell: DueMomentCell };
+
+/**
+ * 10장 P2.6: 보내기 직전에 지금 계획으로 그날의 칸을 다시 계산한다. 자정 스캔 뒤에 일정이
+ * 취소되거나 끝나거나 옮겨졌으면 그 칸이 사라지고, 작업은 아무것도 쓰지 않고 닫힌다. 칸이
+ * 남아 있으면 지금 계획으로 만든 글과 그 판번호를 넘기고, DB 가 넣기 직전에 판번호를 다시 본다.
+ * 이미 함께 대화에 글을 올린 작업(메일만 남은 재시도)은 다시 계산하지 않는다.
+ */
+async function refreshCareJob(admin: Admin, job: JsonRecord): Promise<CareJobRefresh> {
+  if (stringValue(job.chat_message_id)) return { kind: "posted" };
+  const coupleId = stringValue(job.couple_id);
+  const scanDay = stringValue(job.scan_day);
+  const dedupeKey = stringValue(job.dedupe_key);
+  if (!coupleId || !scanDay || !dedupeKey) throw new Error("care job identity payload invalid");
+
+  const { data: journey, error } = await admin
+    .from("wedding_journeys")
+    .select("wedding_date, progress, state_revision")
+    .eq("couple_id", coupleId)
+    .maybeSingle();
+  if (error) throw new Error("care job journey read failed");
+  if (!journey) return { kind: "gone" };
+  const revision = journey.state_revision;
+  if (typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 0) {
+    throw new Error("care job journey revision invalid");
+  }
+  const cell = buildDueMomentCells({
+    weddingDate: journey.wedding_date,
+    progress: objectValue(journey.progress),
+    now: kstMidnightFromYmd(scanDay),
+  }).find((candidate) => candidate.dedupeKey === dedupeKey);
+  return cell ? { kind: "due", revision, cell } : { kind: "gone" };
 }
 
 async function scanJourneys(
@@ -274,6 +322,7 @@ async function scanJourneys(
 async function drainJobs(
   admin: Admin,
   resend: Resend | null,
+  unsubscribeSecret: string | null,
   deadline: number,
   stats: CareStats,
 ) {
@@ -289,10 +338,35 @@ async function drainJobs(
     if (!jobId || !leaseToken) throw new Error("care job lease payload invalid");
     stats.claimed += 1;
 
+    const refresh = await refreshCareJob(admin, job);
+    if (refresh.kind === "gone") {
+      const { error: cancelError } = await admin.rpc("cancel_amora_care_job_source_changed", {
+        p_job_id: jobId,
+        p_lease_token: leaseToken,
+      });
+      if (cancelError) throw new Error("care job source cancel failed");
+      stats.cancelled += 1;
+      continue;
+    }
+    const refreshedEmail = refresh.kind === "due"
+      ? {
+        subject: buildCareEmailSubject(refresh.cell),
+        html: buildCareEmailHtml({ recipientName: null, cell: refresh.cell }),
+      }
+      : null;
+
     const { data: prepareData, error: prepareError } = await admin.rpc("prepare_amora_care_job", {
       p_job_id: jobId,
       p_lease_token: leaseToken,
       p_email_enabled: Boolean(resend),
+      ...(refresh.kind === "due" && refreshedEmail
+        ? {
+          p_expected_journey_revision: refresh.revision,
+          p_content: refresh.cell.message,
+          p_email_subject: refreshedEmail.subject,
+          p_email_html: refreshedEmail.html,
+        }
+        : {}),
     });
     if (prepareError) throw new Error("care job prepare failed");
     const prepared = objectValue(prepareData);
@@ -346,22 +420,33 @@ async function drainJobs(
 
       const deliveryId = stringValue(delivery.id);
       const recipient = stringValue(delivery.email);
+      const recipientUserId = stringValue(delivery.user_id);
       const idempotencyKey = stringValue(delivery.idempotency_key);
-      if (!deliveryId || !recipient || !idempotencyKey) {
+      if (!deliveryId || !recipient || !recipientUserId || !idempotencyKey) {
         throw new Error("care email delivery payload invalid");
       }
+      if (!unsubscribeSecret) throw new Error("care email unsubscribe secret missing");
 
       let success = false;
       let providerMessageId: string | null = null;
       let providerError = "provider_error";
       try {
-        const email = emailPayloadFromJob(job);
+        // The posted text and this email are the same message. A run that just
+        // refreshed the job sends what it stored; a retry sends the stored copy.
+        const email = refreshedEmail ?? emailPayloadFromJob(job);
+        // 10장 P2.7: one tap unsubscribes this person from care email only.
+        // The token is deterministic, so a retried send is byte-identical.
+        const unsubscribeUrl = buildCareUnsubscribeUrl(
+          careEmailSite(),
+          buildCareUnsubscribeToken(unsubscribeSecret, recipientUserId),
+        );
         const result = await resend.emails.send(
           {
             from: "아모라 · 웨딩한방 <noreply@hanbang.ai>",
             to: recipient,
             subject: email.subject,
-            html: email.html,
+            html: appendCareUnsubscribeFooter(email.html, unsubscribeUrl),
+            headers: careUnsubscribeHeaders(unsubscribeUrl),
           },
           { idempotencyKey },
         );
@@ -416,6 +501,8 @@ async function drainJobs(
 export async function runCareCron(input: {
   admin: Admin;
   resend: Resend | null;
+  /** Required whenever `resend` is set: every care email carries a one-tap unsubscribe link. */
+  unsubscribeSecret?: string | null;
   now: Date;
 }) {
   const scanDay = ymdInKst(input.now);
@@ -449,7 +536,7 @@ export async function runCareCron(input: {
     Math.min(deadline, startedAt + SCAN_BUDGET_MS),
     stats,
   );
-  await drainJobs(input.admin, input.resend, deadline, stats);
+  await drainJobs(input.admin, input.resend, input.unsubscribeSecret ?? null, deadline, stats);
   // This DB snapshot also exposes terminal failures performed as claim-time
   // housekeeping, which otherwise return no claimed row to the worker.
   await refreshQueueStats(input.admin, stats);
@@ -497,10 +584,20 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const unsubscribeSecret = readCareUnsubscribeSecret();
+  if (!unsubscribeSecret) {
+    // 10장 P2.7: a care email without a working one-tap unsubscribe link is not
+    // sent. Same fail-closed reasoning as a missing Resend key above.
+    return NextResponse.json(
+      { error: "care email unsubscribe secret is not configured" },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   try {
     const admin = getAdmin();
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const stats = await runCareCron({ admin, resend, now: new Date() });
+    const stats = await runCareCron({ admin, resend, unsubscribeSecret, now: new Date() });
     return NextResponse.json({ ok: true, enabled: true, ...stats });
   } catch (error) {
     log.error("api/cron/care-moments", error);

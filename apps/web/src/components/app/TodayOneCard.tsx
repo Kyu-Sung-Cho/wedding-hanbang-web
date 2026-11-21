@@ -12,9 +12,11 @@ import {
 } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
 import {
+  TODAY_ONE_CARE_KINDS_PARAM,
   validateTodayOneCareResponse,
   type TodayOneCareAction,
   type TodayOneCareCard as TodayOneCareCardData,
+  type TodayOneCareKind,
   type TodayOneCareResponse,
 } from "@hanbang/shared";
 
@@ -63,8 +65,21 @@ function parsePayload(value: unknown, userId: string): ParsedPayload | null {
   };
 }
 
+// 이 화면은 25장 2절의 새 종류(할 일 마감, 두 분이 정할 것, 답 없는 문의)를 그릴 수 있다고 서버에 알린다.
+const SURFACE_PATH = `/api/amora/today-one?${TODAY_ONE_CARE_KINDS_PARAM.name}=${TODAY_ONE_CARE_KINDS_PARAM.value}`;
+
+/** "현재 저장된 ○○에서 확인됨"과 "현재 ○○ 기록 N"에 쓰는 말. 새 종류의 판 번호는 준비 기록의 판이다. */
+const KIND_LABELS: Record<TodayOneCareKind, { record: string; revision: string }> = {
+  schedule_moment: { record: "일정", revision: "일정" },
+  budget_guardrail: { record: "예산", revision: "예산" },
+  task_deadline: { record: "할 일", revision: "준비" },
+  couple_decision: { record: "문의 기록", revision: "준비" },
+  inquiry_waiting: { record: "문의 기록", revision: "준비" },
+  task_done: { record: "맡은 일", revision: "준비" },
+};
+
 async function fetchSurface(): Promise<FetchResult> {
-  const response = await fetch("/api/amora/today-one", {
+  const response = await fetch(SURFACE_PATH, {
     method: "GET",
     credentials: "same-origin",
     cache: "no-store",
@@ -323,9 +338,11 @@ export default function TodayOneCard() {
   }
 
   const card = view.result.card;
-  const isBudgetGuardrail = card.kind === "budget_guardrail";
-  const recordLabel = isBudgetGuardrail ? "예산" : "일정";
-  const ConfirmedIcon = isBudgetGuardrail ? WalletCards : CalendarClock;
+  const recordLabel = KIND_LABELS[card.kind].record;
+  const revisionLabel = KIND_LABELS[card.kind].revision;
+  const ConfirmedIcon = card.kind === "budget_guardrail"
+    ? WalletCards
+    : card.kind === "schedule_moment" ? CalendarClock : CheckCircle2;
   const actions = new Set(card.choices.map((choice) => choice.action));
   return (
     <section
@@ -354,8 +371,8 @@ export default function TodayOneCard() {
           <time dateTime={view.result.claimedForDate}>
             {formatYmd(view.result.claimedForDate)} 기준
           </time>
-          <span aria-label={`현재 ${recordLabel} 기록 버전 ${card.sourceRevision}, 확인 전`}>
-            현재 {recordLabel} 기록 {card.sourceRevision} · 확인 전
+          <span aria-label={`현재 ${revisionLabel} 기록 버전 ${card.sourceRevision}, 확인 전`}>
+            현재 {revisionLabel} 기록 {card.sourceRevision} · 확인 전
           </span>
         </div>
 

@@ -91,12 +91,31 @@ test("today-one preference envelope enforces opt-in and the fixed daily limit", 
   );
 });
 
-test("today-one native navigation only maps the two shared contract routes", () => {
+test("today-one native navigation only maps the shared contract routes", () => {
   assert.equal(getTodayOneNativeRoute("/schedule"), "/schedule");
   assert.equal(getTodayOneNativeRoute("/budget"), "/budget");
+  // 25장 2절의 새 종류: 할 일은 홈, 편지는 편지 화면, 상담 상태는 앱의 일정 탭.
+  assert.equal(getTodayOneNativeRoute("/lounge"), "/(tabs)/lounge");
+  assert.equal(getTodayOneNativeRoute("/halls/letter"), "/halls/letter");
+  assert.equal(getTodayOneNativeRoute("/halls/consultation"), "/(tabs)/schedule");
   assert.equal(getTodayOneNativeRoute("//evil.example"), null);
   assert.equal(getTodayOneNativeRoute("/schedule?next=https://evil.example"), null);
   assert.equal(getTodayOneNativeRoute("/(tabs)/chat"), null);
+  assert.equal(getTodayOneNativeRoute("toString"), null);
+  assert.equal(getTodayOneNativeRoute(undefined), null);
+});
+
+test("every shared next-action address has an app address", async () => {
+  // 공용 계약(TS 원문)의 `hrefs: [...]` 를 모두 읽어 앱 주소가 있는지 본다. 계약에 주소를 더하면 여기서 빨개진다.
+  const contract = await readFile(
+    resolve(HERE, "../../../../packages/shared/src/contracts/todayOneCare.ts"),
+    "utf8",
+  );
+  const block = contract.slice(contract.indexOf("TODAY_ONE_CARE_NEXT_ACTIONS"));
+  const hrefs = [...block.matchAll(/hrefs: \[([^\]]*)\]/g)]
+    .flatMap((match) => [...match[1].matchAll(/"([^"]+)"/g)].map((inner) => inner[1]));
+  assert.ok(hrefs.length >= 5, "contract hrefs were not found");
+  for (const href of hrefs) assert.notEqual(getTodayOneNativeRoute(href), null, href);
 });
 
 test("today-one action body carries both optimistic-concurrency revisions", () => {
@@ -165,12 +184,17 @@ test("mobile surfaces use authenticated API, owner validation, in-app-only copy,
   assert.match(preferenceSource, /apiFetchForExpectedUser\(\s*ownerUserId/);
   assert.match(preferenceSource, /saveMode\(nextEnabled \? "enable" : "disable"\)/);
   assert.match(preferenceSource, /하루 최대 1건/);
-  assert.match(preferenceSource, /푸시·문자·이메일 알림은 보내지 않아요/);
+  assert.match(preferenceSource, /문자나 메일로는 보내지 않아요\. 앱 알림은 따로 켠 분에게만 가요\./);
   assert.match(preferenceSource, /saveInFlight\.current/);
   assert.match(preferenceSource, /ownerUserId/);
   assert.match(cardSource, /supabase\.auth\.onAuthStateChange/);
   assert.match(preferenceSource, /supabase\.auth\.onAuthStateChange/);
-  assert.match(dashboardSource, /<TodayOneCareCard/);
+  // 홈은 먼저 챙기기 한 칸(`AmoraTodayOneSlot`)을 그리고, 그 칸이 오늘의 한 가지 카드를 그린다.
+  assert.match(dashboardSource, /<AmoraTodayOneSlot /);
+  assert.match(
+    await readFile(resolve(HERE, "../components/dashboard/AmoraTodayOneSlot.tsx"), "utf8"),
+    /<TodayOneCareCard refreshVersion=\{refreshVersion\} \/>/,
+  );
   assert.match(settingsSource, /<TodayOnePreferenceControl/);
   assert.match(experienceSource, /label: "준비 포커스"/);
   assert.doesNotMatch(experienceSource, /label: "오늘의 한 가지"/);

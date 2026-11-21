@@ -8,7 +8,7 @@ vi.mock("@/lib/amora/momentLoop", () => ({
   buildDueMomentCells: vi.fn((input: { progress?: Record<string, unknown> | null }) => {
     if (input.progress?.__internalThrow === true) throw new TypeError("engine regression");
     if (input.progress?.__events && !Array.isArray(input.progress.__events)) return [];
-    return [{
+    const cell = {
     momentType: "wedding_day",
     momentLabel: "본식",
     cellKind: "d1",
@@ -17,9 +17,20 @@ vi.mock("@/lib/amora/momentLoop", () => ({
     message: "내일 일정을 편안하게 확인해봐요.",
     memoryKeys: [],
     priority: 100,
-    }];
+    };
+    // 10장 P2.6: the drain step recomputes the day's cells from the current
+    // plan. A fake journey lists which job keys are still due.
+    const dueKeys = input.progress?.__dueKeys;
+    if (Array.isArray(dueKeys)) {
+      return dueKeys.map((key) => ({ ...cell, dedupeKey: String(key) }));
+    }
+    return [cell];
   }),
 }));
+
+const CARE_UNSUBSCRIBE_TEST_SECRET = "care-unsubscribe-test-secret-0123456789abcdef";
+const DEFAULT_JOB_COUPLE_ID = "10000000-0000-4000-8000-0000000000c1";
+const DELIVERY_USER_ID = "00000000-0000-4000-8000-0000000000aa";
 
 type FakeJourney = {
   id: string;
@@ -47,6 +58,8 @@ function buildFakeAdmin(input: {
   frequencySkipped?: boolean;
   prepareState?: "ready" | "deferred";
   finishJobState?: "completed" | "completed_with_warning" | "failed";
+  /** The plan the drain step reads. Default: every claimed job's cell is still due. */
+  currentJourney?: { wedding_date: string; progress: Record<string, unknown>; state_revision: number } | null;
   queueStats?: Partial<{
     failed: number;
     active_backlog: number;
@@ -67,6 +80,16 @@ function buildFakeAdmin(input: {
   let emailClaimIndex = 0;
   let deliveryFinishIndex = 0;
   const deliveryFinishArgs: Array<Record<string, unknown>> = [];
+  const prepareArgs: Array<Record<string, unknown>> = [];
+  const sourceCancelledJobs: string[] = [];
+  const journeyReads: string[] = [];
+  const currentJourney = input.currentJourney === undefined
+    ? {
+      wedding_date: "2026-07-17",
+      progress: { __dueKeys: (input.jobs ?? []).map((job) => job.dedupe_key) },
+      state_revision: 7,
+    }
+    : input.currentJourney;
 
   const admin = {
     from(table: string) {
@@ -75,11 +98,21 @@ function buildFakeAdmin(input: {
       let cursorJourney: string | null = null;
       let snapshotAt: string | null = null;
       let limit = 200;
+      let singleCouple: string | null = null;
       const builder = {
         select() { return builder; },
         order() { return builder; },
         limit(value: number) { limit = value; return builder; },
         not() { return builder; },
+        eq(column: string, value: string) {
+          if (column !== "couple_id") throw new Error(`unexpected filter ${column}`);
+          singleCouple = value;
+          return builder;
+        },
+        async maybeSingle() {
+          journeyReads.push(String(singleCouple));
+          return { data: currentJourney, error: null };
+        },
         or(filter: string) {
           snapshotAt = filter.match(/created_at\.lte\.([^,)]+)/)?.[1] ?? null;
           const ids = filter.match(/[0-9a-f]{8}-[0-9a-f-]{27}/gi) ?? [];
@@ -144,11 +177,19 @@ function buildFakeAdmin(input: {
           jobClaimIndex += 1;
           if (!source) return { data: null, error: null };
           return {
-            data: { ...source, lease_token: `job-token-${jobClaimIndex}` },
+            data: {
+              couple_id: DEFAULT_JOB_COUPLE_ID,
+              ...source,
+              lease_token: `job-token-${jobClaimIndex}`,
+            },
             error: null,
           };
         }
+        case "cancel_amora_care_job_source_changed":
+          sourceCancelledJobs.push(String(args?.p_job_id));
+          return { data: { state: "cancelled", reason: "source_changed" }, error: null };
         case "prepare_amora_care_job":
+          prepareArgs.push(args ?? {});
           return input.prepareState === "deferred"
             ? {
               data: {
@@ -180,7 +221,7 @@ function buildFakeAdmin(input: {
             data: {
               state: "ready",
               id: "delivery-1",
-              user_id: "member-1",
+              user_id: DELIVERY_USER_ID,
               email: "member@example.com",
               name: "멤버",
               idempotency_key: "amora-care-stable-job-member-key",
@@ -225,7 +266,15 @@ function buildFakeAdmin(input: {
     },
   };
 
-  return { admin, enqueued, completedJobs, deliveryFinishArgs };
+  return {
+    admin,
+    enqueued,
+    completedJobs,
+    deliveryFinishArgs,
+    prepareArgs,
+    sourceCancelledJobs,
+    journeyReads,
+  };
 }
 
 describe("/api/cron/care-moments", () => {
@@ -400,6 +449,8 @@ describe("/api/cron/care-moments", () => {
         id: "job-retry",
         scan_day: "2026-07-16",
         dedupe_key: "retry",
+        // A retry after the shared message was posted resends the stored copy.
+        chat_message_id: "chat-job-retry",
         content: "일정 확인",
         email_subject: "저장된 제목",
         email_html: "<p>저장된 본문</p>",
@@ -409,6 +460,8 @@ describe("/api/cron/care-moments", () => {
         id: "job-retry",
         scan_day: "2026-07-16",
         dedupe_key: "retry",
+        // A retry after the shared message was posted resends the stored copy.
+        chat_message_id: "chat-job-retry",
         content: "일정 확인",
         email_subject: "저장된 제목",
         email_html: "<p>저장된 본문</p>",
@@ -424,18 +477,17 @@ describe("/api/cron/care-moments", () => {
     const result = await runCareCron({
       admin: fake.admin as never,
       resend: resend as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
       now: new Date("2026-07-16T03:00:00.000Z"),
     });
 
     expect(send).toHaveBeenCalledTimes(2);
-    expect(send.mock.calls[0]?.[0]).toMatchObject({
-      subject: "저장된 제목",
-      html: "<p>저장된 본문</p>",
-    });
-    expect(send.mock.calls[1]?.[0]).toMatchObject({
-      subject: "저장된 제목",
-      html: "<p>저장된 본문</p>",
-    });
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ subject: "저장된 제목" });
+    expect(String(send.mock.calls[0]?.[0]?.html).startsWith("<p>저장된 본문</p>")).toBe(true);
+    // Resend replays one idempotency key only for the identical request, so the
+    // retry (stored copy plus the per-recipient unsubscribe footer and headers)
+    // must be byte-identical to the first attempt.
+    expect(send.mock.calls[1]?.[0]).toEqual(send.mock.calls[0]?.[0]);
     expect(send.mock.calls[0]?.[1]).toEqual({ idempotencyKey: "amora-care-stable-job-member-key" });
     expect(send.mock.calls[1]?.[1]).toEqual({ idempotencyKey: "amora-care-stable-job-member-key" });
     expect(result.emailErrors).toBe(1);
@@ -462,6 +514,7 @@ describe("/api/cron/care-moments", () => {
     const result = await runCareCron({
       admin: fake.admin as never,
       resend: { emails: { send } } as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
       now: new Date("2026-07-16T03:00:00.000Z"),
     });
 
@@ -491,6 +544,7 @@ describe("/api/cron/care-moments", () => {
     const result = await runCareCron({
       admin: fake.admin as never,
       resend: { emails: { send: vi.fn() } } as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
       now: new Date("2026-07-16T03:00:00.000Z"),
     });
 
@@ -522,6 +576,7 @@ describe("/api/cron/care-moments", () => {
     await runCareCron({
       admin: fake.admin as never,
       resend: { emails: { send } } as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
       now: new Date("2026-07-16T03:00:00.000Z"),
     });
 
@@ -546,6 +601,7 @@ describe("/api/cron/care-moments", () => {
     const result = await runCareCron({
       admin: fake.admin as never,
       resend: { emails: { send } } as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
       now: new Date("2026-07-15T15:05:00.000Z"),
     });
 
@@ -574,6 +630,7 @@ describe("/api/cron/care-moments", () => {
     const result = await runCareCron({
       admin: fake.admin as never,
       resend: { emails: { send: vi.fn() } } as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
       now: new Date("2026-07-16T03:00:00.000Z"),
     });
 
@@ -603,6 +660,7 @@ describe("/api/cron/care-moments", () => {
     const result = await runCareCron({
       admin: fake.admin as never,
       resend: { emails: { send } } as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
       now: new Date("2026-07-16T03:00:00.000Z"),
     });
 
@@ -612,5 +670,147 @@ describe("/api/cron/care-moments", () => {
       frequencySkipped: 1,
       completedWithWarnings: 1,
     });
+  });
+
+  // 10장 P2 통과 기준: 일정이 자정 뒤에 취소되면 그날 09:00의 글이 가지 않는다.
+  it("closes the day's job without posting when its event is gone from the current plan", async () => {
+    const fake = buildFakeAdmin({
+      jobs: [{
+        id: "job-cancelled-event",
+        scan_day: "2026-07-16",
+        dedupe_key: "dress_fitting:d1:2026-07-17:event-1",
+        content: "내일 드레스 피팅이에요.",
+        email_subject: "저장된 제목",
+        email_html: "<p>저장된 본문</p>",
+        metadata: {},
+      }],
+      // 03:00 the couple cancelled the fitting: the cell is no longer due.
+      currentJourney: { wedding_date: "2026-07-17", progress: { __dueKeys: [] }, state_revision: 8 },
+    });
+    const send = vi.fn();
+
+    const result = await runCareCron({
+      admin: fake.admin as never,
+      resend: { emails: { send } } as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
+      now: new Date("2026-07-16T00:30:00.000Z"),
+    });
+
+    expect(fake.journeyReads).toEqual([DEFAULT_JOB_COUPLE_ID]);
+    expect(fake.sourceCancelledJobs).toEqual(["job-cancelled-event"]);
+    expect(fake.prepareArgs).toEqual([]);
+    expect(send).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ cancelled: 1, chatCompleted: 0, emails: 0 });
+  });
+
+  it("posts the message recomputed on the current plan together with that plan's revision", async () => {
+    const fake = buildFakeAdmin({
+      jobs: [{
+        id: "job-still-due",
+        scan_day: "2026-07-16",
+        dedupe_key: "wedding_day:d1:2026-07-17",
+        content: "자정에 만든 글",
+        email_subject: "자정에 만든 제목",
+        email_html: "<p>자정에 만든 본문</p>",
+        metadata: {},
+      }],
+      currentJourney: {
+        wedding_date: "2026-07-17",
+        progress: { __dueKeys: ["wedding_day:d1:2026-07-17"] },
+        state_revision: 12,
+      },
+    });
+
+    await runCareCron({
+      admin: fake.admin as never,
+      resend: null,
+      now: new Date("2026-07-16T00:30:00.000Z"),
+    });
+
+    expect(fake.prepareArgs).toEqual([expect.objectContaining({
+      p_job_id: "job-still-due",
+      p_expected_journey_revision: 12,
+      p_content: "내일 일정을 편안하게 확인해봐요.",
+      p_email_subject: "본식, 내일이에요. 나가기 전에 함께 확인해요",
+    })]);
+    expect(String(fake.prepareArgs[0]?.p_email_html)).not.toContain("자정에 만든 본문");
+  });
+
+  it("does not recompute a job whose shared message is already posted", async () => {
+    const fake = buildFakeAdmin({
+      jobs: [{
+        id: "job-posted",
+        scan_day: "2026-07-16",
+        dedupe_key: "posted",
+        chat_message_id: "chat-job-posted",
+        content: "[posted]",
+        email_subject: "저장된 제목",
+        email_html: "<p>저장된 본문</p>",
+        metadata: {},
+      }],
+      currentJourney: { wedding_date: "2026-07-17", progress: { __dueKeys: [] }, state_revision: 3 },
+    });
+
+    await runCareCron({ admin: fake.admin as never, resend: null, now: new Date("2026-07-16T00:30:00.000Z") });
+
+    expect(fake.journeyReads).toEqual([]);
+    expect(fake.sourceCancelledJobs).toEqual([]);
+    expect(fake.prepareArgs).toEqual([{
+      p_job_id: "job-posted",
+      p_lease_token: "job-token-1",
+      p_email_enabled: false,
+    }]);
+  });
+
+  // 10장 P2.7: 메일에는 한 번 눌러 수신을 끊는 링크와 머리글을 넣는다.
+  it("sends every care email with a one-tap unsubscribe link for that recipient", async () => {
+    const { verifyCareUnsubscribeToken } = await import("@/lib/care/careUnsubscribe");
+    const fake = buildFakeAdmin({
+      jobs: [{
+        id: "job-unsubscribe",
+        scan_day: "2026-07-16",
+        dedupe_key: "unsubscribe",
+        chat_message_id: "chat-job-unsubscribe",
+        content: "[posted]",
+        email_subject: "저장된 제목",
+        email_html: "<p>저장된 본문</p>",
+        metadata: {},
+      }],
+      emailRetry: true,
+    });
+    const send = vi.fn().mockResolvedValue({ data: { id: "provider-1" }, error: null });
+
+    await runCareCron({
+      admin: fake.admin as never,
+      resend: { emails: { send } } as never,
+      unsubscribeSecret: CARE_UNSUBSCRIBE_TEST_SECRET,
+      now: new Date("2026-07-16T03:00:00.000Z"),
+    });
+
+    const message = send.mock.calls[0]?.[0] as {
+      html: string;
+      headers: Record<string, string>;
+    };
+    const url = /^<(.+)>$/.exec(message.headers["List-Unsubscribe"] ?? "")?.[1] ?? "";
+    expect(message.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    expect(url).toMatch(/^https:\/\/[^/]+\/api\/amora\/care\/unsubscribe\?t=/);
+    expect(message.html.startsWith("<p>저장된 본문</p>")).toBe(true);
+    expect(message.html).toContain(url.replace(/&/g, "&amp;"));
+    const token = decodeURIComponent(new URL(url).searchParams.get("t") ?? "");
+    expect(verifyCareUnsubscribeToken(CARE_UNSUBSCRIBE_TEST_SECRET, token)).toBe(DELIVERY_USER_ID);
+  });
+
+  it("fails closed before reading user data when the unsubscribe secret is missing", async () => {
+    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
+    vi.stubEnv("AMORA_CARE_UNSUBSCRIBE_SECRET", "");
+    const request = new NextRequest("http://localhost/api/cron/care-moments", {
+      headers: { authorization: "Bearer test-cron-secret" },
+    });
+
+    const response = await GET(request);
+
+    expect(response.status).toBe(503);
+    expect(createClient).not.toHaveBeenCalled();
   });
 });

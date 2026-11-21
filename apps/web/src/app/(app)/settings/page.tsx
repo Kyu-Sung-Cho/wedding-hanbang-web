@@ -49,6 +49,7 @@ import { formatLoungeWon } from "@/lib/amora/loungeSummary";
 import { CONTACT } from "@/lib/constants/contact";
 import { formatWeddingBudgetCeiling, parseWeddingBudgetManwonInput } from "@/lib/weddingBudget";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
+import AmoraCarePreferenceControl from "@/components/app/AmoraCarePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import Button from "@/components/ui/Button";
 import {
@@ -264,6 +265,8 @@ export default function SettingsPage() {
   const preferenceRequest = useRef<object | null>(null);
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
   const [legacyCareConsentError, setLegacyCareConsentError] = useState("");
+  // 켤 수 있는 경로가 있으면 새 설정 칸이 켜기와 끄기를 함께 맡는다. 그때는 예전 해제 칸을 숨긴다.
+  const [careControlAvailable, setCareControlAvailable] = useState(false);
 
   // 인증 스토어는 창 포커스마다 couple/partner 를 같은 내용의 새 객체로 갈아끼운다.
   // 객체를 deps 에 두면 그때마다 코드를 지우고 다시 불러 초대 카드가 깜빡이므로,
@@ -1412,8 +1415,11 @@ export default function SettingsPage() {
         </div>
 
         {!isDemo && <TodayOnePreferenceControl />}
+        {!isDemo && (
+          <AmoraCarePreferenceControl onAvailabilityChange={setCareControlAvailable} />
+        )}
 
-        {hasLegacyCareConsent && (
+        {hasLegacyCareConsent && !careControlAvailable && (
           <div className="mt-5 border-t border-[#E8E0D8] px-5 pt-5">
             <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">이전 이메일 수신 동의</p>
             <p className="mt-1 text-sm font-light leading-relaxed text-[var(--hb-text-muted)]">
