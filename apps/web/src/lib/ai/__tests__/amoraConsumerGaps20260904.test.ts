@@ -227,8 +227,10 @@ describe("도구 선택·검색어 (안전 판정과 무관한 자리)", () => {
   it("시세 자료가 없다는 말을 되풀이하지 않고 다음 방법으로 이어간다", () => {
     const context = getMarketPriceContext();
     expect(context).toContain("시세 자료가 없다는 말은 한 대화에서 한 번만 하세요");
-    expect(context).toContain("커뮤니티의 최근 기록");
+    expect(context).toContain("견적을 두세 곳 받아 비교하는 방법");
     expect(context).toContain("받은 견적이 있는지 묻거나");
+    // 2026-11-22 커뮤니티를 닫았다(D-81). 아모라가 닫힌 커뮤니티로 안내하지 않게 그 문장을 뺐다.
+    expect(context).not.toContain("커뮤니티");
   });
 });
 
@@ -291,6 +293,8 @@ describe("할 일 카드의 링크 (2026-09-04 스테이징 Q16)", () => {
     expect(result.cleanText).not.toContain("quote-check");
   });
 
+  // 견적 확인 화면은 2026-11-22 커뮤니티 밖으로 옮겼지만 저장 링크는 옛 주소 그대로다(DB 저장 함수가
+  // 그 값으로 대조한다). 옛 주소는 next.config 가 새 주소로 보낸다.
   it("카테고리가 없으면 모델의 링크를 그대로 받는다", () => {
     const result = run({ title: "견적 비교하기", href: "/wedding/community/quote-check" });
     expect(result.pendingAction?.input.href).toBe("/wedding/community/quote-check");

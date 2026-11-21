@@ -2,14 +2,14 @@
 // 원칙: 사실만 그린다 — 입력가·확인 안 된 항목·출처. 런타임 공시가가
 // 연결된 경우에만 참고값을 표시한다.
 // 판정 언어(바가지/위험/안전/등급) 금지 — summaryTitle 자체가 사실 서술이어야 한다(엔진 보장).
-// 측정·랩핑은 웨딩코드 shareCard의 검증된 유틸을 재사용한다.
+// 측정·랩핑은 공통 카드 도구(`lib/canvasCard.ts`, 2026-11-22 웨딩코드 공유 카드에서 옮김)를 쓴다.
 
 import {
   wrapText,
   canvasToPngBlob,
   downloadCanvasPng,
   type MeasureFn,
-} from "@/lib/weddingCode/shareCard";
+} from "@/lib/canvasCard";
 
 export { canvasToPngBlob, downloadCanvasPng };
 

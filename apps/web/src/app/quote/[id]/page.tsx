@@ -24,7 +24,7 @@ export default function RetiredPublicQuotePage() {
           새 견적 점검은 입력 내용을 별도 서버 DB에 저장하지 않고 결과만 바로 보여드립니다.
         </p>
         <Link
-          href={weddingPath("/community/quote-check")}
+          href={weddingPath("/quote-check")}
           className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white hover:bg-[var(--hb-primary)]"
         >
           저장 없이 견적 점검하기

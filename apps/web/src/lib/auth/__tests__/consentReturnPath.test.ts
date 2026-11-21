@@ -7,9 +7,9 @@ import {
 
 const origin = "https://hanbang.ai";
 
-describe("community consent return path", () => {
+describe("public tool consent return path", () => {
   it("returns to the selected tool with its query and fragment", () => {
-    const destination = "/wedding/community/quote-check?category=dress&from=landing#questions";
+    const destination = "/wedding/quote-check?category=dress&from=landing#questions";
     const result = new URL(buildConsentReturnPath(destination, origin), origin);
 
     expect(result.pathname).toBe("/consent");
@@ -17,7 +17,7 @@ describe("community consent return path", () => {
   });
 
   it("preserves encoded query values and an existing redirect parameter as data", () => {
-    const destination = "/wedding/community/quote-check?question=a%26b&redirect=%2Fprice#selected";
+    const destination = "/wedding/quote-check?question=a%26b&redirect=%2Fprice#selected";
     const result = new URL(buildConsentReturnPath(destination, origin), origin);
 
     expect(result.searchParams.get("redirect")).toBe(destination);
@@ -51,14 +51,17 @@ describe("community consent return path", () => {
     expect(buildConsentReturnPath(destination, origin)).toBe(DEFAULT_CONSENT_RETURN_PATH);
   });
 
-  it("offers a public community destination when the path cannot be recovered", () => {
+  // 2026-11-22 커뮤니티를 닫기 전에는 기본 도착지가 `/wedding`(그때는 커뮤니티 피드)이었다.
+  it("offers the wedding lounge when the path cannot be recovered", () => {
     const result = new URL(DEFAULT_CONSENT_RETURN_PATH, origin);
     expect(result.pathname).toBe("/consent");
-    expect(result.searchParams.get("redirect")).toBe("/wedding");
+    expect(result.searchParams.get("redirect")).toBe("/wedding/lounge");
+    // 기본 도착지도 같은 안전 검사를 지나는 주소여야 한다. 그렇지 않으면 동의 화면이 버린다.
+    expect(buildConsentReturnPath("/wedding/lounge", origin)).toBe(DEFAULT_CONSENT_RETURN_PATH);
   });
 
   it("fails closed if the origin cannot be parsed", () => {
-    expect(buildConsentReturnPath("/wedding/community/quote-check", "invalid origin"))
+    expect(buildConsentReturnPath("/wedding/quote-check", "invalid origin"))
       .toBe(DEFAULT_CONSENT_RETURN_PATH);
   });
 });

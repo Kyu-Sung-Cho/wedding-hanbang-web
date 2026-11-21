@@ -184,10 +184,13 @@ describe("wedding app route rewrites", () => {
     // 앞 넷은 운영(https://hanbang.ai)의 `Location` 헤더, 마지막은 같은 규칙을 로컬
     // dev 서버에서 확인한 값이다. **이 값을 코드에 맞추려고 고치지 말 것** — 어긋나면
     // 오라클이나 설정이 틀린 것이지 이 기대값이 틀린 게 아니다.
+    //
+    // 2026-11-22 한 줄을 뺐다: `["/wedding/community", "/wedding"]`. 값이 틀려서가 아니라 그 규칙을
+    // 일부러 지웠기 때문이다(커뮤니티를 닫아 `/wedding/community` 아래가 '닫았어요' 화면이 됐다).
+    // 지운 규칙의 옛 관측값을 새 목적지로 고쳐 쓰면 관측이 아닌 값이 되므로 줄을 통째로 뺐다.
     const PRODUCTION_OBSERVED: Array<[string, string]> = [
       ["/market-prices", "/price"],
       ["/wedding/market-prices", "/price"],
-      ["/wedding/community", "/wedding"],
       ["/wedding/wedding", "/wedding"],
       ["/etiquette", "/wedding/manners"],
     ];

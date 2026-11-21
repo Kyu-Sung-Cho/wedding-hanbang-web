@@ -109,11 +109,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly",
       priority: 1.0,
     },
-    {
-      url: `${BASE_URL}/wedding`,
-      changeFrequency: "daily",
-      priority: 1.0,
-    },
+    // 2026-11-22: `/wedding`(그때는 커뮤니티 피드)을 뺐다. 커뮤니티를 닫았고(D-81), `/wedding` 은 이제
+    // 로그인 여부에 따라 라운지·랜딩으로 보내는 문이라 사이트맵에 실을 페이지가 아니다.
     {
       url: `${BASE_URL}/price`,
       changeFrequency: "weekly",
@@ -143,8 +140,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily" as const,
       priority: 0.9,
     })),
+    // 견적 확인 도구는 2026-11-22 커뮤니티 밖의 새 주소로 옮겼다. 옛 주소는 리다이렉트 원본이라 싣지 않는다.
     {
-      url: `${BASE_URL}/wedding/community/quote-check`,
+      url: `${BASE_URL}/wedding/quote-check`,
       changeFrequency: "monthly",
       priority: 0.7,
     },

@@ -8,11 +8,6 @@ import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 
 import { personalActionContinuation } from "@/lib/amora/personalActionContinuation";
-import { buildWeddingTasteAmoraText } from "@/lib/weddingCode/taste";
-import {
-  consumeWeddingTasteChat, forgetWeddingTasteChat, getWeddingTasteChatIdentity,
-  peekWeddingTasteChat, WEDDING_TASTE_CHAT_PARAM,
-} from "@/lib/weddingCode/tasteHandoff";
 import { AMORA_PREPARATION_SOURCE_PARAM, resolveAmoraPreparationSource, type AmoraPreparationDraft } from "@/lib/amora/preparationHandoff";
 
 import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
@@ -114,6 +109,13 @@ import AmoraLaneChoiceCard from "@/components/app/chat/AmoraLaneChoiceCard";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
+/**
+ * 2026-11-22 웨딩코드를 내리면서(2026-11-21 파운더 결정) 웨딩코드 → 아모라 넘겨받기를 끊었다.
+ * 보내던 화면(`/wedding-code/taste`)은 이제 라운지로 보내진다. 옛 링크로 와도 나만 상담 입력창에
+ * 아무것도 채우지 않고, 주소에서 이 값만 정리한다. 다른 인계와 섞인 주소를 가려내는 데에도 쓴다.
+ */
+const RETIRED_WEDDING_TASTE_CHAT_PARAM = "wcTasteChat";
+
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
 const NEW_CHAT_THRESHOLD = 200;
@@ -138,8 +140,6 @@ interface ChatComposerDraft {
   attachments: AttachmentItem[];
   retryClientRequestId: string | null;
   pendingAttachmentReads: number;
-  tasteHandoffNonce?: string;
-  tasteHandoffOriginalText?: string;
   expandHandoffNonce?: string;
 }
 
@@ -1038,7 +1038,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const textDraftRecoveryReady = useAmoraTextDraftRecovery({
     surface: "conversation", owner: profile?.id && coupleId && senderRole ? composerIdentity : null,
     partnerId: linkedPartnerId, enabled: authInitialized && !authLoading && !isDemo,
-    privateHandoffPending: searchParams.has(WEDDING_TASTE_CHAT_PARAM),
     drafts: composerDrafts, setDrafts: setComposerDrafts,
   });
   const preparationRouterRef = useRef(router);
@@ -1047,8 +1046,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const preparationKey = JSON.stringify(preparationValues);
   const currentSearchRef = useRef(searchParams);
   currentSearchRef.current = searchParams;
-  const tasteKey = JSON.stringify(searchParams.getAll(WEDDING_TASTE_CHAT_PARAM));
-  const hasTasteHandoff = searchParams.has(WEDDING_TASTE_CHAT_PARAM);
+  // 웨딩코드 넘겨받기는 끊었다(위 `RETIRED_WEDDING_TASTE_CHAT_PARAM`). 옛 링크인지만 본다.
+  const hasTasteHandoff = searchParams.has(RETIRED_WEDDING_TASTE_CHAT_PARAM);
   const hasExpandHandoff = searchParams.has(AMORA_COMPOSER_EXPAND_PARAM);
   // 이 방문은 전송 전 검토로 시작했다. URL을 정리한 뒤에도 자동 AI 쓰기를 시작하지 않는다.
   const tasteReviewVisitRef = useRef(hasTasteHandoff || hasExpandHandoff);
@@ -1068,82 +1067,19 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 주소가 정리된 뒤 새로 연 source/prefill만 허용하고 자동 인사·저장소 인계는 계속 억제한다.
   const suppressPublicHandoff = tasteReviewVisitRef.current
     && !(hasExplicitPublicHandoff && publicHandoffKey !== tasteBlockedPublicHandoffRef.current);
-  const tasteVisitRef = useRef<{ key: string; identity: string; completed: boolean } | null>(null);
-  const [tasteNotice, setTasteNotice] = useState<{
-    identity: string; epoch: number; nonce?: string; status: "pending" | "applied" | "error";
-  } | null>(null);
+  // 옛 웨딩코드 링크(`?wcTasteChat=`)로 오면 입력창에 아무것도 채우지 않고 주소만 정리한다.
+  // 이 방문은 전송 전 검토로 시작한 방문처럼 다뤄 자동 인사·다른 인계도 시작하지 않는다(위 ref 들).
   const cleanTasteQuery = useCallback(() => {
     const next = new URLSearchParams(currentSearchRef.current.toString());
-    next.delete(WEDDING_TASTE_CHAT_PARAM);
+    next.delete(RETIRED_WEDDING_TASTE_CHAT_PARAM);
     next.delete("prefill"); next.delete(AMORA_PREPARATION_SOURCE_PARAM); next.delete(START_HERE_HANDOFF_QUERY_PARAM);
     const qs = next.toString();
     preparationRouterRef.current.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
   }, []);
-  const tryPlaceWeddingTaste = useCallback((nonce: string, identity: string, epoch: number) => {
-    if (identity !== getWeddingTasteChatIdentity() || epoch !== composerEpochRef.current) return;
-    const draft = peekWeddingTasteChat(nonce);
-    if (!draft) {
-      if (tasteVisitRef.current) tasteVisitRef.current.completed = true;
-      setTasteNotice({ identity, epoch, status: "error" }); cleanTasteQuery(); return;
-    }
-    setTasteNotice({ identity, epoch, nonce, status: "pending" });
-    if (useChatStore.getState().isStreaming || useChatStore.getState().isSending || sendInFlightRef.current !== null) return;
-    const text = buildWeddingTasteAmoraText(draft);
-    handleScopeChange("private");
-    // React가 앞서 큐에 넣은 타이핑·파일 선택도 확인한다. 저장소 소비는 실제 반영 뒤에 한다.
-    setComposerDrafts(previous => {
-      const lane = previous.private_ai;
-      if (lane.input.length || lane.attachments.length || lane.pendingAttachmentReads || lane.tasteHandoffNonce
-        || epoch !== composerEpochRef.current || getWeddingTasteChatIdentity() !== identity
-        || useChatStore.getState().isStreaming || useChatStore.getState().isSending || sendInFlightRef.current !== null) return previous;
-      return { ...previous, private_ai: { ...lane, input: text, preparation: null, retryClientRequestId: null, tasteHandoffNonce: nonce, tasteHandoffOriginalText: text } };
-    });
-  }, [cleanTasteQuery, handleScopeChange]);
   useEffect(() => {
-    if (!hasTasteHandoff || embedded || !authInitialized || authLoading || !profile?.id || !coupleId || !senderRole) return;
-    let active = true;
-    const epoch = composerEpochRef.current;
-    queueMicrotask(() => {
-      if (!active || epoch !== composerEpochRef.current) return;
-      const values: string[] = JSON.parse(tasteKey);
-      const prior = tasteVisitRef.current;
-      if (prior?.key === tasteKey && prior.completed) return;
-      const params = currentSearchRef.current;
-      const mixed = params.has("prefill") || params.has(AMORA_PREPARATION_SOURCE_PARAM) || params.has(START_HERE_HANDOFF_QUERY_PARAM) || params.has(AMORA_COMPOSER_EXPAND_PARAM)
-        || params.getAll("scope").length !== 1 || params.get("scope") !== "private";
-      if (values.length !== 1 || mixed || isDemo || getWeddingTasteChatIdentity() !== composerIdentity
-        || (prior?.key === tasteKey && prior.identity !== composerIdentity)) {
-        values.forEach(forgetWeddingTasteChat);
-        tasteVisitRef.current = { key: tasteKey, identity: composerIdentity, completed: true };
-        setTasteNotice({ identity: composerIdentity, epoch, status: "error" }); cleanTasteQuery(); return;
-      }
-      tasteVisitRef.current = { key: tasteKey, identity: composerIdentity, completed: false };
-      tryPlaceWeddingTaste(values[0], composerIdentity, epoch);
-    });
-    return () => { active = false; };
-  }, [authInitialized, authLoading, cleanTasteQuery, composerIdentity, coupleId, embedded, hasTasteHandoff, isDemo, profile?.id, senderRole, tasteKey, tryPlaceWeddingTaste]);
-  const placedTasteNonce = composerDrafts.private_ai.tasteHandoffNonce;
-  useEffect(() => {
-    if (!placedTasteNonce) return;
-    let active = true;
-    const epoch = composerEpochRef.current;
-    queueMicrotask(() => {
-      if (!active || epoch !== composerEpochRef.current) return;
-      const draft = getWeddingTasteChatIdentity() === composerIdentity ? consumeWeddingTasteChat(placedTasteNonce) : null;
-      if (tasteVisitRef.current) tasteVisitRef.current.completed = true;
-      setTasteNotice({ identity: composerIdentity, epoch, status: draft ? "applied" : "error" });
-      setComposerDrafts(previous => {
-        const lane = previous.private_ai;
-        if (lane.tasteHandoffNonce !== placedTasteNonce) return previous;
-        return { ...previous, private_ai: { ...lane, input: draft || lane.input !== lane.tasteHandoffOriginalText ? lane.input : "", tasteHandoffNonce: undefined, tasteHandoffOriginalText: undefined } };
-      });
-      cleanTasteQuery();
-      if (draft) requestAnimationFrame(() => {
-        if (epoch === composerEpochRef.current && activeComposerLaneRef.current === "private_ai") textareaRef.current?.focus();
-      });
-    });
-    return () => { active = false; };
-  }, [cleanTasteQuery, composerIdentity, placedTasteNonce]);
+    if (!hasTasteHandoff || embedded) return;
+    cleanTasteQuery();
+  }, [cleanTasteQuery, embedded, hasTasteHandoff]);
 
   const expandKey = JSON.stringify(searchParams.getAll(AMORA_COMPOSER_EXPAND_PARAM));
   const expandVisitRef = useRef<string | null>(null);
@@ -1153,7 +1089,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const cleanExpandQuery = useCallback(() => {
     const next = new URLSearchParams(currentSearchRef.current.toString());
     next.delete(AMORA_COMPOSER_EXPAND_PARAM);
-    next.delete(WEDDING_TASTE_CHAT_PARAM); next.delete("prefill"); next.delete(AMORA_PREPARATION_SOURCE_PARAM); next.delete(START_HERE_HANDOFF_QUERY_PARAM);
+    next.delete(RETIRED_WEDDING_TASTE_CHAT_PARAM); next.delete("prefill"); next.delete(AMORA_PREPARATION_SOURCE_PARAM); next.delete(START_HERE_HANDOFF_QUERY_PARAM);
     preparationRouterRef.current.replace(`?${next}`, { scroll: false });
   }, []);
   const showExpandNotice = useCallback((text: string) => {
@@ -1165,7 +1101,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     const routeMatches = params.getAll(AMORA_COMPOSER_EXPAND_PARAM).length === 1
       && params.get(AMORA_COMPOSER_EXPAND_PARAM) === envelope.nonce && params.getAll("scope").length === 1
       && params.get("scope") === (envelope.lane === "private_ai" ? "private" : "shared")
-      && !params.has(WEDDING_TASTE_CHAT_PARAM) && !params.has("prefill") && !params.has(AMORA_PREPARATION_SOURCE_PARAM) && !params.has(START_HERE_HANDOFF_QUERY_PARAM);
+      && !params.has(RETIRED_WEDDING_TASTE_CHAT_PARAM) && !params.has("prefill") && !params.has(AMORA_PREPARATION_SOURCE_PARAM) && !params.has(START_HERE_HANDOFF_QUERY_PARAM);
     if (!live || !routeMatches || live.actorId !== profile?.id || live.coupleId !== coupleId) {
       setExpandConflict(null); cleanExpandQuery();
       showExpandNotice("이어 온 초안이 만료됐거나 계정 정보가 바뀌었어요. 작은 상담창에서 다시 확대해 주세요.");
@@ -1177,7 +1113,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const current = previous[envelope.lane];
       // 승인 뒤 큐에 든 타이핑과 계정 A→B→A도 실제 반영 직전에 다시 검사한다.
       if (current !== destination || !peekComposerExpand(envelope.nonce)
-        || current.attachments.length || current.pendingAttachmentReads || current.preparation || current.tasteHandoffNonce
+        || current.attachments.length || current.pendingAttachmentReads || current.preparation
         || useChatStore.getState().isSending || useChatStore.getState().isStreaming || sendInFlightRef.current !== null) return previous;
       return { ...previous, [envelope.lane]: { ...current, input: envelope.input,
         retryClientRequestId: envelope.retryClientRequestId, expandHandoffNonce: envelope.nonce } };
@@ -1191,7 +1127,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     expandVisitRef.current = expandKey;
     const params = currentSearchRef.current;
     const envelope = values.length === 1 ? peekComposerExpand(values[0]) : null;
-    const mixed = params.has(WEDDING_TASTE_CHAT_PARAM) || params.has("prefill") || params.has(AMORA_PREPARATION_SOURCE_PARAM)
+    const mixed = params.has(RETIRED_WEDDING_TASTE_CHAT_PARAM) || params.has("prefill") || params.has(AMORA_PREPARATION_SOURCE_PARAM)
       || params.has(START_HERE_HANDOFF_QUERY_PARAM) || params.getAll("scope").length !== 1;
     if (!envelope || mixed || params.get("scope") !== (envelope.lane === "private_ai" ? "private" : "shared")) {
       values.forEach(forgetComposerExpand); cleanExpandQuery();
@@ -1207,7 +1143,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       }
       cleanExpandQuery(); return;
     }
-    if (destination.attachments.length || destination.pendingAttachmentReads || destination.preparation || destination.tasteHandoffNonce
+    if (destination.attachments.length || destination.pendingAttachmentReads || destination.preparation
       || isSending || isStreaming || sendInFlightRef.current !== null) {
       showExpandNotice("전체 화면에서 작성 중인 내용은 그대로 두었어요. 첨부 처리나 전송을 마친 뒤 작은 상담창에서 다시 확대해 주세요.");
       cleanExpandQuery(); return;
@@ -1234,7 +1170,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const sameOwner = actor?.actorId === expandPlacement.actorId && actor?.coupleId === expandPlacement.coupleId && actor?.epoch === expandPlacement.epoch;
       if (!consumed && sameOwner && current.input === expandPlacement.input
         && current.retryClientRequestId === expandPlacement.retryClientRequestId
-        && !current.attachments.length && !current.pendingAttachmentReads && !current.preparation && !current.tasteHandoffNonce) {
+        && !current.attachments.length && !current.pendingAttachmentReads && !current.preparation) {
         return { ...previous, [lane]: expandPlacement.destination };
       }
       return { ...previous, [lane]: { ...current,
@@ -3937,17 +3873,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 className="min-h-11 flex-1 px-4 rounded-[6px] text-sm font-medium text-white bg-[var(--hb-action)] hover:bg-[var(--hb-action-hover)]">작은 상담창 초안 사용</button>
             </div>
           </div>
-        </div>
-      )}
-      {tasteNotice?.identity === composerIdentity && tasteNotice.epoch === composerEpochRef.current && (
-        <div role="status" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
-          {tasteNotice.status === "pending" ? <>
-            <p>이어 온 내 취향을 잠시 보관하고 있어요. 작성 중인 나만 상담과 첨부 파일은 그대로 두었어요. 입력창을 비우고 전송이 끝나면 불러올 수 있어요.</p>
-            <Button variant="ghost" className="mt-2" disabled={isStreaming || isSending || Boolean(composerDrafts.private_ai.input.length) || composerDrafts.private_ai.attachments.length > 0 || composerDrafts.private_ai.pendingAttachmentReads > 0}
-              onClick={() => { if (tasteNotice.nonce) tryPlaceWeddingTaste(tasteNotice.nonce, tasteNotice.identity, tasteNotice.epoch); }}>이어 온 내 취향 불러오기</Button>
-          </> : tasteNotice.status === "applied"
-            ? <p>내가 고른 취향을 나만 상담 입력창에 넣었어요. 내용을 확인하고 보내기를 눌러 주세요. 상대방에게는 보이지 않으며 보내면 서비스에 대화로 저장돼요.</p>
-            : <p>이어 온 취향의 계정이나 유효 시간을 확인하지 못했어요. 웨딩 취향 화면에서 현재 계정을 확인한 뒤 다시 이어 주세요.</p>}
         </div>
       )}
       {!preparationQuestionPlaced && preparationNotice?.identity === composerIdentity && preparationNotice.epoch === composerEpochRef.current && (

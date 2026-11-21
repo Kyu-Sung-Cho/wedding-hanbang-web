@@ -10,7 +10,6 @@ import { personalActionContinuation } from "@/lib/amora/personalActionContinuati
 import { AMORA_PREPARATION_SOURCE_PARAM } from "@/lib/amora/preparationHandoff";
 import { AMORA_COMPOSER_EXPAND_PARAM } from "@/lib/chat/composerExpandHandoff";
 import { START_HERE_HANDOFF_QUERY_PARAM, readDemoAmoraPrefill } from "@/lib/chat/demoHandoff";
-import { WEDDING_TASTE_CHAT_PARAM } from "@/lib/weddingCode/tasteHandoff";
 import { useChatStore } from "@/stores/chatStore";
 
 import { InvitationBackLink } from "../InvitationParts";
@@ -23,7 +22,8 @@ import { useLiveIdentity, useWideScreen } from "./useLiveIdentity";
 
 /**
  * 전체 화면 대화(`ChatContent`)만 아는 인계. 주소로 레인을 정해 들어오거나(`scope`), 다른 화면에서 질문을
- * 들고 오거나(`prefill`·준비 안내·웨딩코드·가입 인계), 작은 대화창을 넓혀 쓰던 글을 옮겨 오는(`amoraExpand`) 길이다.
+ * 들고 오거나(`prefill`·준비 안내·가입 인계), 작은 대화창을 넓혀 쓰던 글을 옮겨 오는(`amoraExpand`) 길이다.
+ * 웨딩코드 넘겨받기(`wcTasteChat`)는 2026-11-22 웨딩코드를 내리면서 끊어 목록에서 뺐다.
  * 청첩장 대화 칸(`ChatSidePanel`)은 이 인계를 읽지 않는다. 그래서 이 길로 들어온 방문은 그 인계를 끝까지
  * 처리하는 전체 화면 대화를 그대로 연다(레인·안전 판단·초안 처리를 바꾸지 않기 위해서).
  */
@@ -31,7 +31,6 @@ export const FULL_CHAT_HANDOFF_PARAMS = [
   "scope",
   "prefill",
   AMORA_PREPARATION_SOURCE_PARAM,
-  WEDDING_TASTE_CHAT_PARAM,
   START_HERE_HANDOFF_QUERY_PARAM,
   AMORA_COMPOSER_EXPAND_PARAM,
 ] as const;

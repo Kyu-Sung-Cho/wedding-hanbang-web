@@ -3,7 +3,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AmoraStyleSettingsPage from "./page";
-import { createWeddingCodeAmoraHandoff, WEDDING_CODE_AMORA_HANDOFF_STORAGE_KEY } from "@/lib/weddingCode/profile/amoraHandoff";
 import {
   DEFAULT_AMORA_PERSONALIZATION,
   type AmoraPersonalizationProfile,
@@ -106,56 +105,17 @@ describe("Amora help-style settings", () => {
     document.body.replaceChildren();
   });
 
-  it("reviews a one-time enum handoff in the current account without saving on arrival or selection", async () => {
-    const handoff = createWeddingCodeAmoraHandoff({ supportOrder: "listen_first" });
-    expect(handoff).not.toBeNull();
-    window.history.replaceState({}, "", handoff!.href);
+  // 2026-11-22: 웨딩코드에서 고른 도움 방식을 이어 받던 길(`?wcAmoraHandoff=`)을 끊었다. 웨딩코드를
+  // 내렸다(2026-11-21 파운더 결정). 옛 링크로 와도 확인 칸을 그리지 않고 아무것도 저장하지 않는다.
+  it("ignores a retired WeddingCode handoff link and shows only the user's own settings", async () => {
+    window.sessionStorage.setItem("unrelated-key", "kept");
+    window.history.replaceState({}, "", "/settings/amora-style?wcAmoraHandoff=retired-nonce");
     await act(async () => root.render(<AmoraStyleSettingsPage />));
-    expect(container.textContent).toContain("저장할 내 계정: owner-a@example.test");
-    expect(container.textContent).toContain("현재: 그때 물어보기 → 직접 고른 값: 마음 먼저");
-    expect(mocks.save).not.toHaveBeenCalled();
-    expect(window.location.search).toBe("");
-    expect(sessionStorage.getItem(WEDDING_CODE_AMORA_HANDOFF_STORAGE_KEY)).toBeNull();
-    await act(async () => buttonByText(container, "이 선택으로 설정 채우기")?.click());
-    expect(mocks.save).not.toHaveBeenCalled();
-    await act(async () => buttonByText(container, "변경 저장")?.click());
-    expect(mocks.save).toHaveBeenCalledWith({ ...mocks.profile?.preferences, supportOrder: "listen_first" });
-  });
-
-  it("waits for the current profile before consuming an intent and keeps failure read-only", async () => {
-    const handoff = createWeddingCodeAmoraHandoff({ workMode: "together" });
-    window.history.replaceState({}, "", handoff!.href);
-    mocks.status = "error";
-    await act(async () => root.render(<AmoraStyleSettingsPage />));
-    expect(sessionStorage.getItem(WEDDING_CODE_AMORA_HANDOFF_STORAGE_KEY)).not.toBeNull();
-    expect(buttonByText(container, "이 선택으로 설정 채우기")).toBeUndefined();
-    mocks.status = "ready";
-    await act(async () => root.render(<AmoraStyleSettingsPage />));
-    expect(buttonByText(container, "이 선택으로 설정 채우기")).toBeDefined();
-    expect(mocks.save).not.toHaveBeenCalled();
-  });
-
-  it("does not move a consumed draft or edited form to a different owner with the same revision", async () => {
-    const handoff = createWeddingCodeAmoraHandoff({ workMode: "together" });
-    window.history.replaceState({}, "", handoff!.href);
-    await act(async () => root.render(<AmoraStyleSettingsPage />));
-    await act(async () => buttonByText(container, "이 선택으로 설정 채우기")?.click());
-    expect(buttonByText(container, "변경 저장")?.disabled).toBe(false);
-    mocks.user = { id: "owner-b", email: "owner-b@example.test" };
-    await act(async () => root.render(<AmoraStyleSettingsPage />));
-    expect(container.textContent).not.toContain("owner-a@example.test");
+    expect(container.textContent).not.toContain("웨딩코드");
     expect(buttonByText(container, "이 선택으로 설정 채우기")).toBeUndefined();
     expect(buttonByText(container, "변경 저장")?.disabled).toBe(true);
     expect(mocks.save).not.toHaveBeenCalled();
-  });
-
-  it("rejects a duplicate nonce and does not silently apply either intent", async () => {
-    const handoff = createWeddingCodeAmoraHandoff({ workMode: "together" });
-    window.history.replaceState({}, "", handoff!.href + "&wcAmoraHandoff=another");
-    await act(async () => root.render(<AmoraStyleSettingsPage />));
-    expect(container.textContent).toContain("만료됐거나 이 탭에 없어요");
-    expect(buttonByText(container, "이 선택으로 설정 채우기")).toBeUndefined();
-    expect(mocks.save).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem("unrelated-key")).toBe("kept");
   });
 
   it("edits an explicit field and saves the complete visible state", async () => {

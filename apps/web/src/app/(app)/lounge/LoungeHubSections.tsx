@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import Button from "@/components/ui/Button";
-import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2, Split } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2 } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { openAmoraInsteadOfLink, useAmoraDock } from "@/components/app/amora/amoraDock";
@@ -9,7 +9,6 @@ import type { MissionGroup } from "@/lib/amora/missions";
 import { formatLoungeWon } from "@/lib/amora/loungeSummary";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
-import { ITEMS as WEDDING_CODE_ITEMS } from "@/constants/weddingCode36";
 import { isValidScheduleTime } from "@/utils/scheduleEvents";
 import { daysUntilLoungeEvent, type LoungePriorityItem } from "./hubModel";
 
@@ -112,7 +111,7 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <h2 className="mt-2 text-[14px] font-semibold">견적서의 포함 항목부터</h2>
       <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">기본 금액, 필수 추가금, 선택 옵션을 나눠서 확인해요. 스튜디오·드레스·메이크업은 원본 사진과 도우미 비용도 살펴보세요.</p>
       {allocated > 0 && <p className="mt-3 border-t border-[var(--amora-line)] pt-3 text-[11px] leading-5 text-[var(--amora-soft)]">현재 스튜디오·드레스·메이크업 배정액 <strong className="font-semibold">{formatLoungeWon(allocated)}</strong><span className="block text-[10px] text-[var(--amora-muted)]">입력한 세 분야의 합계 · 계약 여부와는 별도예요</span></p>}
-      <Link {...weddingLinkProps("/community/quote-check")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>견적 확인 도구 열기<ArrowRight size={12} aria-hidden="true" /></Link>
+      <Link {...weddingLinkProps("/quote-check")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>견적 확인 도구 열기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
     <section className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px]">
       <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--amora-muted)]"><BookOpen size={13} aria-hidden="true" />지금 준비에 맞는 가이드</p>
@@ -120,14 +119,7 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">처음이라 낯선 순서와 확인할 내용을 가이드에서 살펴보세요.</p>
       <Link {...weddingLinkProps(guide ? `/manners/${guide.slug}` : "/manners")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>가이드 읽기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
-    {/* 라운지에서도 공개 화면과 같은 웨딩코드 문항·결과로 이어 준다. */}
-    <section className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px]" data-lounge-preparation-style="">
-      <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--amora-muted)]"><Split size={13} aria-hidden="true" />고른 답으로 이야기하기</p>
-      <h2 className="mt-2 text-[14px] font-semibold">웨딩코드</h2>
-      <p className="mt-2 text-xs leading-[1.75] text-[var(--amora-soft)]">{WEDDING_CODE_ITEMS.length}문항으로 내가 원하는 결혼식과 준비 방식을 살펴봐요. 답하기 어려운 질문은 건너뛸 수 있어요.</p>
-      <p className="mt-2 text-xs leading-[1.75] text-[var(--amora-soft)]">19문항(약 3분)으로 나의 결혼 준비 기준을 찾고 파트너와 나란히 비교해 보세요.</p>
-      <Link {...weddingLinkProps("/preparation-style")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>웨딩코드 보기<ArrowRight size={12} aria-hidden="true" /></Link>
-    </section>
+    {/* 2026-11-22: 여기 있던 '웨딩코드' 칸(→ 준비 스타일)을 뺐다. 웨딩코드와 준비 스타일을 내렸다(2026-11-21 파운더 결정). */}
     <Link {...weddingLinkProps("/chat")} onClick={(event) => openAmoraInsteadOfLink(event, amoraDock)} className={`block rounded-[16px] border border-[var(--hb-amora-line,#8F6662)] bg-[var(--hb-amora-surface,#FBF8F2)] p-[18px] text-[var(--hb-amora-ink,#7D5753)] transition-colors hover:bg-[var(--hb-amora-hover,#EADDD8)] ${focus}`}>
       <span className="flex items-center gap-2 text-[10px]"><AmoraMark size={13} aria-hidden="true" />AMORA</span><span className="amora-display mt-2 block text-[17px]">혼자 고민하지 않아도 괜찮아요</span><span className="mt-2 block text-[11px] leading-[1.75]">정리가 안 되는 준비, 아모라와 하나씩 이야기해 봐요.</span><span className={`${AMORA_ACTION_CLASS} mt-4`}><AmoraMark size={20} />아모라와 대화하기<ArrowRight size={12} aria-hidden="true" /></span>
     </Link>

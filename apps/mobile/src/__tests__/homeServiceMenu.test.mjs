@@ -12,12 +12,16 @@ const read = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)
 const code = (path) => read(path).replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
 const WEB_ROUTES = "../../../web/src/components/invitation/live/liveRoutes.ts";
 
-/** 앱 주소 → 같은 화면을 여는 웹 주소. */
+/**
+ * 앱 주소 → 같은 화면을 여는 웹 주소.
+ *
+ * 2026-11-22: 웨딩코드 칸(`/wedding-code` ↔ 웹 `/preparation-style`)을 뺐고(웨딩코드를 내렸다), 웹 견적 확인은
+ * 커뮤니티 밖 새 주소(`/quote-check`)로 옮겼다. 그래서 다섯 칸이 네 칸이 됐다.
+ */
 const WEB_PATH_FOR = Object.freeze({
   "/budget": "/budget",
   "/checklist": "/checklist",
-  "/wedding-code": "/preparation-style",
-  "/quote-check": "/community/quote-check",
+  "/quote-check": "/quote-check",
   "/etiquette": "/manners",
 });
 
@@ -28,16 +32,17 @@ function webMoreLinks() {
   return [...block.matchAll(/\{ path: "([^"]+)", label: "([^"]+)" \}/gu)].map(([, path, label]) => ({ path, label }));
 }
 
-test("다섯 칸뿐이다. 일정·설정·커뮤니티는 없다", () => {
+test("네 칸뿐이다. 일정·설정·커뮤니티·웨딩코드는 없다", () => {
   assert.deepEqual(HOME_SERVICE_MENU.map((item) => item.href), Object.keys(WEB_PATH_FOR));
   for (const item of HOME_SERVICE_MENU) {
-    for (const absent of ["일정", "설정", "커뮤니티"]) assert.equal(item.label.includes(absent), false, `${item.label}: ${absent}`);
+    for (const absent of ["일정", "설정", "커뮤니티", "웨딩코드"]) assert.equal(item.label.includes(absent), false, `${item.label}: ${absent}`);
   }
 });
 
 test("이름과 순서, 줄 이름이 웹 청첩장 홈 맨 아래 줄과 같다", () => {
   const web = webMoreLinks();
-  assert.ok(web.length >= 7, "웹 줄을 읽지 못했다");
+  // 웹 줄은 일정·예산·웨딩 체크리스트·견적 확인 도구·예절 가이드·설정 여섯 칸이다(2026-11-22 웨딩코드를 뺌).
+  assert.ok(web.length >= 6, "웹 줄을 읽지 못했다");
   const shared = new Set(Object.values(WEB_PATH_FOR));
   assert.deepEqual(
     HOME_SERVICE_MENU.map((item) => ({ path: WEB_PATH_FOR[item.href], label: item.label })),
@@ -46,7 +51,7 @@ test("이름과 순서, 줄 이름이 웹 청첩장 홈 맨 아래 줄과 같다
   assert.equal(HOME_SERVICE_MENU_LABEL, read(WEB_ROUTES).match(/LIVE_MORE_LINKS_LABEL = "([^"]+)"/u)?.[1]);
 });
 
-test("다섯 주소는 앱에 있는 화면이다", () => {
+test("네 주소는 앱에 있는 화면이다", () => {
   for (const { href } of HOME_SERVICE_MENU) {
     assert.ok(existsSync(new URL(`../../app${href}/index.tsx`, import.meta.url)), href);
   }

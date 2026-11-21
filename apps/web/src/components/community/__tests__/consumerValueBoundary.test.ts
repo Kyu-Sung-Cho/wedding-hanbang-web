@@ -161,7 +161,7 @@ describe("community consumer-value boundary", () => {
       source("src/components/community/CommunityGuide.tsx"),
       source("src/app/(community)/community/about/page.tsx"),
       source("src/app/start-here/page.tsx"),
-      source("src/components/community/StartHereClient.tsx"),
+      source("src/components/start-here/StartHereClient.tsx"),
       source("src/constants/communityCategories.ts"),
     ].join("\n");
 
@@ -174,7 +174,7 @@ describe("community consumer-value boundary", () => {
   });
 
   it("keeps the full checklist collapsed until a visitor asks for it", () => {
-    const startHere = source("src/components/community/StartHereClient.tsx");
+    const startHere = source("src/components/start-here/StartHereClient.tsx");
 
     expect(startHere).toContain("날짜가 있으면 지금 볼 세 가지");
     expect(startHere).not.toContain('<details open={dday === null}');

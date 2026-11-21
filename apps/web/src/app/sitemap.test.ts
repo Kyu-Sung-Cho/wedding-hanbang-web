@@ -163,6 +163,18 @@ describe("vendor sitemap", () => {
     expect(urls.some((url) => /wedding-code.*[?#]/.test(url))).toBe(false);
   });
 
+  // 2026-11-22 커뮤니티를 닫았다(D-81). `/wedding` 은 커뮤니티 피드였다가 라운지·랜딩으로 보내는 문이 됐고,
+  // 커뮤니티 주소는 모두 검색 제외인 '닫았어요' 화면이다. 견적 확인은 새 주소만 싣는다.
+  it("leaves out the community and the /wedding door, and lists quote-check at its new address", async () => {
+    vi.stubEnv("CI", "true");
+
+    const urls = (await sitemap()).map(({ url }) => url);
+
+    expect(urls).not.toContain("https://hanbang.ai/wedding");
+    expect(urls.some((url) => url.includes("/community"))).toBe(false);
+    expect(urls).toContain("https://hanbang.ai/wedding/quote-check");
+  });
+
   it("omits unknown static modification dates instead of claiming the build time", async () => {
     vi.stubEnv("CI", "true");
 

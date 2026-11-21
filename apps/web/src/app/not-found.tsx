@@ -7,10 +7,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// 2026-11-22: 셋째 칸은 "커뮤니티 둘러보기"(`/wedding`, 그때는 커뮤니티 피드)였다. 커뮤니티를 닫아서(D-81)
+// 로그인 없이 열리는 첫 순서 안내로 바꿨고, 견적 확인은 커뮤니티 밖의 새 주소로 옮겼다.
 const NEXT_STEPS = [
   { href: "/price", label: "공시 가격 보기", desc: "업체가 공개한 기본가와 추가금" },
-  { href: "/wedding/community/quote-check", label: "견적서 확인하기", desc: "빠진 항목 3분 점검 · 로그인 없이" },
-  { href: "/wedding", label: "커뮤니티 둘러보기", desc: "먼저 준비한 사람들의 기록" },
+  { href: "/wedding/quote-check", label: "견적서 확인하기", desc: "빠진 항목 3분 점검 · 로그인 없이" },
+  { href: "/start-here", label: "지금 뭐부터 할지 보기", desc: "날짜가 없어도 첫 순서를 알려 드려요" },
 ];
 
 export default function NotFound() {

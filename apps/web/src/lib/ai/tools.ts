@@ -609,6 +609,9 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           // 표식 검증기(ajv)가 지어낸 경로를 거른다. 다만 **거르면 카드가 통째로
           // 사라지므로**, 애매하면 넣지 말라고 함께 적는다 — 생략하면 서버가
           // `defaultActionHref` 로 알맞은 화면을 고른다.
+          // 견적 확인 화면은 2026-11-22 커뮤니티 밖(`/wedding/quote-check`)으로 옮겼지만 저장 링크는
+          // 옛 주소 그대로다. 서버 기본값(`defaultActionHref`)과 DB 저장 함수가 이 값으로 맞춰져 있고,
+          // 옛 주소는 next.config 가 새 주소로 보낸다. 바꾸려면 DB 함수와 함께 바꾼다(새 출시 레인).
           enum: [
             "/wedding/community/quote-check",
             "/wedding/schedule",

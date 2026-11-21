@@ -237,7 +237,7 @@ function AvatarChoices({ ownerId, coupleId, name, savedAvatar, isDemo, onClose }
   const previewAvatar = kind === "initial" ? null : kind === "emoji" ? emoji : baseline;
   return (
     <div className="mt-3 rounded-xl border border-[#E5D8CA] bg-[#FBF8F2] p-4 sm:p-5" aria-label="프로필 꾸미기">
-      <p className="text-sm leading-6 text-[#635B51]">나와 연결된 상대에게 보여요. 커뮤니티 프로필은 별도로 관리해요.</p>
+      <p className="text-sm leading-6 text-[#635B51]">나와 연결된 상대에게 보여요.</p>
       {loading && <p role="status" className="mt-3 text-sm text-[#635B51]">프로필을 불러오는 중이에요.</p>}
       {ready && <>
         <div className="my-5 flex justify-center"><ProfileAvatar name={name} avatarUrl={previewAvatar} previewUrl={kind === "photo" && photo ? preview : null} size={80} /></div>

@@ -59,7 +59,7 @@ describe("웹 로그인", () => {
 });
 
 describe("견적 점검", () => {
-  const source = read("src/app/(community)/community/quote-check/page.tsx");
+  const source = read("src/app/quote-check/page.tsx");
 
   it("본문 파싱 실패를 화면에 올리지 않는다", () => {
     // `json()` 이 던지면 그 SyntaxError 가 사용자 문구가 된다.
