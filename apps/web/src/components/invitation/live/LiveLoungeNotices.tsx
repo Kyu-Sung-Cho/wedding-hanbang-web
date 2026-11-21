@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { FirstRunTutorialStepId } from "@hanbang/shared";
 
+import AmoraTasksNotice from "@/components/amoraTasks/AmoraTasksNotice";
 import DailyAmoraFocusBridge from "@/components/app/DailyAmoraFocusBridge";
 import FirstRunLoungeTutorial from "@/components/app/FirstRunLoungeTutorial";
 import LoungeFirstArrival, { buildLoungeFirstArrival } from "@/components/app/LoungeFirstArrival";
@@ -88,6 +89,7 @@ export default function LiveLoungeNotices() {
     <div className="flex flex-col gap-3 empty:hidden" data-live-notices>
       <FirstRunLoungeTutorial stepIds={INVITATION_TUTORIAL_STEPS} />
       <LiveNotificationsNotice />
+      <AmoraTasksNotice />
       {showJoinedHandoff ? (
         <JoinedPlanHandoffNotice
           facts={{

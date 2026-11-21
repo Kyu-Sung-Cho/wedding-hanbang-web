@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "kind": "amora-tasks-isolated-additive-release",
+  "release": "amora-tasks-20261120",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "baseCommit": "98c3e1184ad6999e3aec179329bf9809ec53d5b6",
+  "migrationVersion": "20261120160000",
+  "migrationName": "amora_tasks",
+  "existingData": "unchanged",
+  "newRows": "none",
+  "scope": {
+    "newTables": [
+      "public.amora_tasks",
+      "public.amora_task_daily_usage",
+      "public.amora_task_global_daily_usage"
+    ],
+    "newFunctions": [
+      "public.amora_task_kst_day",
+      "public.amora_task_couple_deletion_pending",
+      "public.offer_amora_task",
+      "public.start_amora_task",
+      "public.cancel_amora_task",
+      "public.resume_amora_task",
+      "public.claim_amora_task",
+      "public.save_amora_task_progress",
+      "public.reserve_amora_task_usage",
+      "public.release_amora_task",
+      "public.finish_amora_task",
+      "public.claim_amora_task_notifications",
+      "public.finish_amora_task_notification"
+    ],
+    "existingFunctions": "unchanged",
+    "existingTables": "unchanged",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "cron": "unchanged"
+  },
+  "backup": "fresh-remote-target-absence-and-preserved-catalog-ledger-digests-no-customer-data-export",
+  "rollback": "previous-web-deployment-preserve-new-objects-and-existing-customer-data",
+  "worker": "AMORA_TASKS_ENABLED stays off until the owner decides; this release only creates empty tables and service-role functions",
+  "artifacts": [
+    {
+      "file": "supabase/migrations/20261120160000_amora_tasks.sql",
+      "sha256": "2a9f2a00d3e196090f57f7803eed8678ec0adfbb4ec7a5848aceb03bfefda6c7"
+    },
+    {
+      "file": "supabase/release-contracts/amora-tasks-pg-catalog-v1.json",
+      "sha256": "c78964de912fbed7413634ab8db93f3d7e92b44b35c117a3b3588bc3a427dd6e"
+    },
+    {
+      "file": "scripts/amora-tasks-release.mjs",
+      "sha256": "a43025aba29ed1abf3f76063f2f99f2acf8189ed51f76e7d4ee3a7890358b0aa"
+    },
+    {
+      "file": "scripts/amora-tasks-release-catalog.mjs",
+      "sha256": "9ce59c9df5a58e79b61bf86e4102013bf2b3a7f8cec9058f2e74481ea1f48974"
+    },
+    {
+      "file": "scripts/amora-tasks-release-prepare.mjs",
+      "sha256": "9d9313cbf8c5c3e7445a0bc86f6e7fc44a1d2a6d7697b35149646fa02765f19a"
+    },
+    {
+      "file": "scripts/amora-tasks-release-fixture.mjs",
+      "sha256": "575d63e23e6dc92c5023930fdd23502391ea9f8c353368c4e078d41c6546c494"
+    },
+    {
+      "file": "scripts/amora-tasks-release-build-contract.mjs",
+      "sha256": "c52a2600d715162f1ee279426188941d20986acfb0e21235f8239ed49101a572"
+    },
+    {
+      "file": "supabase/release-contracts/amora-tasks-predecessor-build-inputs-v1.json",
+      "sha256": "9f5bd496486131a1374cb1b4f2aed779662703b672840dcf4fda2d7d5bcc3046"
+    }
+  ]
+}
