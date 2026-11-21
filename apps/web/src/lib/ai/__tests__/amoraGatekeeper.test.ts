@@ -310,6 +310,11 @@ describe("판정 모델 입력과 출력", () => {
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("양가 어른의 부탁이나 바람과 그 조율");
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("두 사람이 의논하는 제안이나 합의");
   });
+
+  it("결혼 주제에 택일을 적는다(11-21 \"같이 고치기\", 손 없는 날 질문을 거절하지 않게)", () => {
+    const wedding = AMORA_GATE_JUDGE_INSTRUCTIONS.split("\n").find((line) => line.startsWith("- wedding:")) ?? "";
+    expect(wedding).toContain("택일(손 없는 날, 길일처럼 예식·이사 날짜를 고르는 일)");
+  });
 });
 
 describe("문지기 응답 행 표식", () => {
