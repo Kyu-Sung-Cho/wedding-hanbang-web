@@ -37,7 +37,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-[var(--hb-text-strong)] mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-[var(--hb-text-muted)] mb-10">최종 수정일: 2026년 9월 23일 (가입 동의 묶음 기준)<br />36문항 웨딩코드 별도 저장 동의 안내 추가일: 2026년 10월 15일</p>
+        <p className="text-[13px] text-[var(--hb-text-muted)] mb-10">최종 수정일: 2026년 9월 23일 (가입 동의 묶음 기준)<br />36문항 웨딩코드 별도 저장 동의 안내 추가일: 2026년 10월 15일<br />네이버클라우드 처리위탁 추가일: 2026년 11월 22일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -215,6 +215,27 @@ export default function PrivacyPage() {
               날짜를 올릴 때 같이 손대야 하는 곳: privacy/page.tsx 최종 수정일·부칙,
               terms/page.tsx 최종 수정일, packages/shared 의 동의 판 상수.
             */}
+            {/*
+              2026-11-22: 아래 표에 네이버클라우드(주)를 더했다(파운더 승인, 선택지 원문
+              "지금 한 줄, 켤 때 나머지"). 아모라의 장소 찾기(lib/ai/tools/placeSearchTools.ts)는
+              사용자 검색어를 NAVER API HUB(naverapihub.apigw.ntruss.com, 지역·이미지 검색)로
+              보낸다. 그런데 그 전까지 이 방침에는 "네이버"가 한 번도 없었다. API HUB 약관 일반조건
+              7.4 ⑦ 은 이용고객 개인정보가 네이버·네이버클라우드로 갈 수 있으면 처리위탁 또는
+              제3자 제공에 맞는 고지·동의를 거치라고 정한다(2026-11-20 약관 PDF 확인).
+
+              국내 사업자라 국외 이전표에는 넣지 않는다. 그래서 국외 이전 고지의 첫 문장을
+              "위 수탁 업체는" 에서 "위 수탁 업체 중 아래 표의 업체는" 으로 좁혔다. 그대로 두면
+              네이버클라우드도 국외에 서버를 둔다고 읽힌다.
+
+              최종 수정일·부칙·동의 판은 올리지 않았다. 위 "남은 것 2" 와 같은 이유다. 날짜는
+              머리의 추가일 줄에만 적는다(2026-10-15 웨딩코드 추가일 줄이 선례).
+
+              찾아보기(인터넷 검색)를 설명하는 문장은 그 기능을 켜는 날 넣는다(같은 날 파운더 결정).
+
+              코드가 실제로 보내는 곳과 이 표의 대조는 privacy/__tests__/serverSideProcessorNotice.test.ts
+              가 한다. 장소 찾기 실행기를 돌려 fetch 가 받은 호스트를 모으고, 호스트마다 이 표의
+              사업자로 분류돼 있어야 통과한다.
+            */}
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-[13px] border-collapse">
                 <thead>
@@ -239,6 +260,10 @@ export default function PrivacyPage() {
                   <tr className="border-b border-black/[0.04]">
                     <td className="py-2">OpenAI</td>
                     <td className="py-2">AI 추론 처리(아모라)</td>
+                  </tr>
+                  <tr className="border-b border-black/[0.04]">
+                    <td className="py-2">네이버클라우드(주)</td>
+                    <td className="py-2">아모라의 장소 찾기에서 검색어 전달</td>
                   </tr>
                   <tr className="border-b border-black/[0.04]">
                     <td className="py-2">Resend, Inc.</td>
@@ -270,7 +295,7 @@ export default function PrivacyPage() {
             <div className="mt-4">
               <h3 className="text-[14px] font-medium text-[var(--hb-text-strong)] mb-2">국외 이전에 관한 고지</h3>
               <p className="text-[13px] text-charcoal">
-                위 수탁 업체는 국외에 서버를 두고 있어, 서비스를 이용하시면 개인정보가 국외로 이전됩니다. 이전은 회원이 서비스를 이용하는 시점에 암호화된 통신(HTTPS)으로 자동으로 이루어지며, 별도의 저장 매체를 통한 이전은 없습니다.
+                위 수탁 업체 중 아래 표의 업체는 국외에 서버를 두고 있어, 서비스를 이용하시면 개인정보가 국외로 이전됩니다. 이전은 회원이 서비스를 이용하는 시점에 암호화된 통신(HTTPS)으로 자동으로 이루어지며, 별도의 저장 매체를 통한 이전은 없습니다.
               </p>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-[13px] border-collapse">
