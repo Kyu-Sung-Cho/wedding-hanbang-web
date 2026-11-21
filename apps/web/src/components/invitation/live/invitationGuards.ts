@@ -92,13 +92,30 @@ export function isApproverResponse(value: unknown): value is InquiryApproverResp
     && (value.pending === undefined || value.pending === null || isApproverProposal(value.pending));
 }
 
+function isSelfSendMessage(value: unknown): boolean {
+  return isRecord(value) && isString(value.hallId) && isString(value.name) && isString(value.text);
+}
+
+/** 받는 곳마다 보낼 글(D-83 1단계). 글을 만든 판의 ID 와 지문이 있어야 화면이 지금 판과 맞춰 본다. */
+function isSelfSend(value: unknown): boolean {
+  return isRecord(value)
+    && isString(value.versionId)
+    && isString(value.fingerprint)
+    && isArray(value.messages)
+    && value.messages.every(isSelfSendMessage)
+    && typeof value.phoneOmitted === "boolean";
+}
+
 export function isLetterResponse(value: unknown): value is InvitationLetterResponse {
   return isRecord(value)
     && isNullable(value.letter, (letter): letter is object =>
       isRecord(letter) && isArray(letter.recipients) && isArray(letter.shares) && isString(letter.body))
     && isNullable(value.state, (state): state is object =>
       isRecord(state) && isString(state.status) && isArray(state.waitingFor) && isArray(state.recipients))
-    && isArray(value.missing);
+    && isArray(value.missing)
+    // 직접 보내기가 꺼진 서버는 이 칸을 주지 않는다(이 칸보다 먼저 나간 서버와 같다). 켜졌는데 저장한 판이 없으면 null.
+    // 있으면 모양이 맞아야 한다.
+    && (value.selfSend === undefined || value.selfSend === null || isSelfSend(value.selfSend));
 }
 
 /** PUT `/letter` 은 편지 응답에 새로 저장한 판을 더해 준다. */
@@ -125,11 +142,27 @@ export function isLetterApproveResponse(value: unknown): value is LetterApproveR
     && isNullable(value.letter, isLetterResponse);
 }
 
+/** 0 이상의 정수(세는 수). */
+const isCount = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+/**
+ * 받은 답 붙여 넣기(D-83 1단계)에서 고를 웨딩홀과 붙여 넣은 답으로 넣은 상담 수. 홀마다 ID 와 이름이 있어야 하고,
+ * 넣은 상담 수는 0 이상의 정수여야 한다(빈 화면이 "아직 잡힌 상담이 없어요" 대신 그 수를 말한다).
+ */
+function isReplyPaste(value: unknown): boolean {
+  return isRecord(value)
+    && isArray(value.halls)
+    && value.halls.every((hall) => isRecord(hall) && isString(hall.hallId) && isString(hall.name))
+    && isCount(value.addedCount);
+}
+
 export function isConsultationResponse(value: unknown): value is InvitationConsultationResponse {
   return isRecord(value)
     && isNullable(value.consultation, (model): model is object =>
       isRecord(model) && isString(model.dateLabel) && isString(model.venue) && isArray(model.questions))
-    && typeof value.inCalendar === "boolean";
+    && typeof value.inCalendar === "boolean"
+    // 직접 보내기가 켜진 서버만 준다. 없으면 붙여 넣기를 그리지 않는다. 있으면 모양이 맞아야 한다.
+    && (value.replyPaste === undefined || isReplyPaste(value.replyPaste));
 }
 
 export function isScheduleResult(value: unknown): value is ConsultationScheduleResult {

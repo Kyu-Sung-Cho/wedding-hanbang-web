@@ -1,6 +1,7 @@
 import type {
   CompareModel,
   CompareSortId,
+  ConsultationPasteSchedulePost,
   ConsultationScheduleResult,
   HallShortlistResponse,
   HomeModel,
@@ -19,6 +20,7 @@ import type {
   LetterApproveResult,
   LetterModel,
   LetterSavePut,
+  LetterSelfSend,
   LetterState,
   PreparationStartStage,
 } from "@hanbang/shared/invitation";
@@ -61,6 +63,8 @@ export type InvitationApi = {
   approveLetter(version: { versionId: string; fingerprint: string }): Promise<InvitationResult<LetterApproveResponse>>;
   consultation(): Promise<InvitationResult<InvitationConsultationResponse>>;
   addConsultationToSchedule(replyId: string): Promise<InvitationResult<ConsultationScheduleResult>>;
+  /** 붙여 넣은 업체 답에서 사람이 고른 날짜(와 시간)로 상담 일정 하나를 넣는다(D-83 1단계). */
+  addPastedConsultationToSchedule(input: ConsultationPasteSchedulePost): Promise<InvitationResult<ConsultationScheduleResult>>;
 };
 
 export function createInvitationApi(fetcher: InvitationFetcher): InvitationApi;
@@ -71,6 +75,7 @@ export function isJourneyModel(value: unknown): value is JourneyModel;
 export function isCompareModel(value: unknown): value is CompareModel;
 export function cleanConditionsPatch(patch: unknown): InvitationConditionsPatch | null;
 export function isLetterVersionChanged(result: InvitationResult<unknown>): boolean;
+export function isSelfSendRefusal(result: InvitationResult<unknown>): boolean;
 
 export type JourneyPlanValue = { off: readonly string[]; addOns: readonly string[] };
 export function toggledJourneyPlan(plan: JourneyPlanValue, kind: "stage" | "addOn", key: string): { off: string[]; addOns: string[] };
@@ -105,3 +110,29 @@ export type LetterNotice =
   | { kind: "waiting"; userIds: string[] };
 export function letterApprovalNotice(result: LetterApproveResult): LetterNotice;
 export function letterStateNotice(state: LetterState): LetterNotice | null;
+
+export function isScheduleYmd(value: unknown): value is string;
+export function isScheduleTime(value: unknown): value is string;
+export function pastedScheduleBody(input: unknown): ConsultationPasteSchedulePost | null;
+
+/** 편지 시트의 직접 보내기 칸(D-83 1단계). 서버가 `selfSend` 칸을 주지 않으면 null 이다. */
+export type LetterSelfSendView = {
+  /** 화면의 편지가 저장된 판과 같고 그 판으로 만든 글일 때만 있다. */
+  messages: LetterSelfSend | null;
+  /** 고치는 중이다. 저장해야 보낼 글이 나온다. */
+  saveFirst: boolean;
+  /** 고친 것은 없지만 저장한 판이 없다(처음 쓰는 초안, 또는 담은 웨딩홀이 바뀌어 서버가 판을 내렸다). */
+  beforeSave: boolean;
+  /** 아직 저장한 편지가 없고 편지에 넣을 희망 시기나 하객 수를 모른다. 모르는 것만 말한다. 물을 것이 없으면 null. */
+  askConditions: LetterConditionsToAsk | null;
+  /** 편지를 저장한 적이 있다. 업체 답을 상담 화면에 붙여 넣으라는 줄과 상담 화면 단추를 둔다(고치는 중이어도). */
+  afterSend: boolean;
+};
+/** 희망 시기만(month), 하객 수만(guests), 둘 다(both). */
+export type LetterConditionsToAsk = "month" | "guests" | "both";
+export function letterSelfSendView(response: InvitationLetterResponse, dirty: boolean): LetterSelfSendView | null;
+
+export type ScheduleTimeParts = { meridiem: "am" | "pm"; hour12: number; minute: number };
+export function scheduleTimeParts(time: string): ScheduleTimeParts | null;
+export function withMeridiem(time: string, meridiem: "am" | "pm"): string | null;
+export function kstTodayYmd(nowMs: number): string;

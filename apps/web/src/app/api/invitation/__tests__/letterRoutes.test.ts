@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { SELF_SEND_COPY } from "@hanbang/shared/invitation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FINGERPRINT,
@@ -22,6 +23,8 @@ vi.mock("@/utils/rateLimit", () => ({
   rateLimitKey: vi.fn(() => "invitation:test"),
 }));
 
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { checkRateLimitPersistent } from "@/utils/rateLimit";
 import { GET as getLetter, PUT as putLetter } from "../letter/route";
 import { POST as approve } from "../letter/approve/route";
 
@@ -86,11 +89,13 @@ beforeEach(() => {
   delete process.env.HALL_INQUIRY_SENDING_ENABLED;
   delete process.env.HALL_INQUIRY_DAILY_CAP;
   delete process.env.HALL_INQUIRY_GLOBAL_DAILY_CAP;
+  delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
 });
 afterEach(() => {
   delete process.env.HALL_INQUIRY_SENDING_ENABLED;
   delete process.env.HALL_INQUIRY_DAILY_CAP;
   delete process.env.HALL_INQUIRY_GLOBAL_DAILY_CAP;
+  delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
 });
 
 describe("letter GET", () => {
@@ -286,5 +291,200 @@ describe("letter approve (WS1, WS2, WS5)", () => {
     useClient(tables({ open: true }));
     useAdmin(() => ok({ status: "sent", queuedCount: 1 }));
     expect((await approve(jsonRequest(`${URL_BASE}/letter/approve`, "POST", body))).status).toBe(503);
+  });
+});
+
+describe("couple self-send (D-83 stage 1)", () => {
+  const approveBody = { versionId: IDS.version, fingerprint: FINGERPRINT };
+  const closing = "\n\n결혼을 준비하는 두 사람 드림\nAI 웨딩 비서의 도움을 받아 쓴 문의예요.";
+  const bodyLine = "안녕하세요. 2027년 5월 토요일 낮에 예식을 생각하고 있는 커플입니다.";
+
+  // 한 시험에서 여러 번 부르므로 hook 처럼 보이는 이름(use…)을 피한다.
+  function installClient(t: Record<string, unknown>): FakeClient {
+    const client = createFakeClient({ user: { id: IDS.bride }, tables: t as never });
+    mocks.client = client;
+    return client;
+  }
+
+  async function letterBody(t: Record<string, unknown>) {
+    installClient(t);
+    const response = await getLetter(jsonRequest(`${URL_BASE}/letter`, "GET"));
+    expect(response.status).toBe(200);
+    return response.json();
+  }
+
+  it("keeps the letter response exactly as before while the switch is off", async () => {
+    for (const value of [undefined, "false", "TRUE", "1"]) {
+      if (value === undefined) delete process.env.HALL_INQUIRY_SELF_SEND_ENABLED;
+      else process.env.HALL_INQUIRY_SELF_SEND_ENABLED = value;
+      expect(Object.keys(await letterBody(tables({ open: true }))), String(value)).toEqual(["letter", "state", "missing"]);
+      expect(Object.keys(await letterBody(tables())), String(value)).toEqual(["letter", "state", "missing"]);
+    }
+  });
+
+  it("adds the text to send, built from the saved version, hides the phone share and changes nothing else", async () => {
+    const off = await letterBody(tables({ open: true }));
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const on = await letterBody(tables({ open: true }));
+    const { selfSend, ...rest } = on;
+    // 글에 번호가 들어가지 않으므로 번호를 알려주는 칸도 없다. 그 밖의 편지·상태·빠진 조건은 꺼진 때와 같다.
+    expect(off.letter.shares.map((share: { key: string }) => share.key)).toEqual(["name", "phone", "budget"]);
+    expect(rest).toEqual({
+      ...off,
+      letter: { ...off.letter, shares: off.letter.shares.filter((share: { key: string }) => share.key !== "phone") },
+    });
+    expect(selfSend).toEqual({
+      versionId: IDS.version,
+      fingerprint: FINGERPRINT,
+      phoneOmitted: true,
+      messages: [
+        { hallId: IDS.hallA, name: "소담 하우스", text: `소담 하우스께\n\n${bodyLine}${closing}` },
+        { hallId: IDS.hallB, name: "가온 웨딩홀", text: `가온 웨딩홀께\n\n${bodyLine}${closing}` },
+      ],
+    });
+    // 휴대폰 번호는 가린 꼴로도, 원래 꼴로도 보낼 글에 들어가지 않는다.
+    expect(JSON.stringify(on)).not.toContain("1234");
+  });
+
+  it("puts the stored budget into the text when the budget share is on", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const body = await letterBody(tables({ open: true, version: { shares: { name: OFF, phone: OFF, budget: { on: true, value: "3,000만 원" } } } }));
+    expect(body.selfSend.phoneOmitted).toBe(false);
+    expect(body.selfSend.messages[0].text).toBe(`소담 하우스께\n\n${bodyLine}\n${SELF_SEND_COPY.budgetLine("3,000만 원")}${closing}`);
+  });
+
+  it("gives null instead of a text while nothing is saved or once the version is queued", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const draft = await letterBody(tables());
+    expect(draft.selfSend).toBeNull();
+    expect(draft.state).toMatchObject({ status: "draft", versionId: null });
+    expect((await letterBody(tables({ open: true, version: { queued_at: "2026-11-15T02:00:00Z" } }))).selfSend).toBeNull();
+    expect((await letterBody({ ...tables(), hall_shortlists: ok([]) }))).toMatchObject({ letter: null, state: null, selfSend: null });
+  });
+
+  it("returns the text right after saving", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    useClient(tables({ open: true }));
+    useAdmin(() => ok({ letterId: IDS.letter, versionId: IDS.version, version: 2, fingerprint: FINGERPRINT, created: true }));
+    const response = await putLetter(jsonRequest(`${URL_BASE}/letter`, "PUT", {
+      letterId: IDS.letter, recipientHallIds: [IDS.hallA, IDS.hallB], body: "본문", shares: shares({ phone: { on: true } }),
+    }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      saved: { version: 2, created: true },
+      selfSend: { versionId: IDS.version, fingerprint: FINGERPRINT, messages: [{ hallId: IDS.hallA }, { hallId: IDS.hallB }] },
+    });
+  });
+
+  it("lets the letter follow the shortlist after saving and asks to save again (letters never lock in this stage)", async () => {
+    const pick = (hallId: string, at: string) => ({ hall_id: hallId, created_at: at });
+    const onlyA = { ...tables({ open: true }), hall_shortlists: ok([pick(IDS.hallA, "2026-11-16T00:00:00Z")]) };
+    const withC = {
+      ...tables({ open: true }),
+      hall_shortlists: ok([
+        pick(IDS.hallA, "2026-11-16T00:00:00Z"), pick(IDS.hallB, "2026-11-16T00:01:00Z"), pick(IDS.hallC, "2026-11-17T00:00:00Z"),
+      ]),
+      hall_listings: ok([listingRow(IDS.hallA, "소담 하우스"), listingRow(IDS.hallB, "가온 웨딩홀"), listingRow(IDS.hallC, "다온 홀")]),
+    };
+    const reordered = {
+      ...tables({ open: true }),
+      hall_shortlists: ok([pick(IDS.hallB, "2026-11-16T00:00:00Z"), pick(IDS.hallA, "2026-11-16T00:01:00Z")]),
+    };
+
+    // 꺼져 있으면 예전처럼 저장한 판의 받는 곳 그대로다(운영자 대기열 흐름에서는 보낼 때 편지가 잠긴다).
+    const frozen = await letterBody(onlyA);
+    expect(frozen.letter.recipients).toEqual(["소담 하우스", "가온 웨딩홀"]);
+    expect(frozen.state).toMatchObject({ versionId: IDS.version, fingerprint: FINGERPRINT });
+
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    // 뺀 홀은 받는 곳에서 빠지고, 글과 알려줄 정보는 저장한 판대로 남는다. 다시 저장해야 보낼 글이 나온다.
+    const removed = await letterBody(onlyA);
+    expect(removed.letter).toMatchObject({ recipients: ["소담 하우스"], body: versionRow().body, signature: versionRow().signature });
+    expect(removed.state).toMatchObject({
+      status: "draft", letterId: IDS.letter, versionId: null, fingerprint: null, recipients: [{ hallId: IDS.hallA, name: "소담 하우스" }],
+    });
+    expect(removed.selfSend).toBeNull();
+    // 새로 담은 홀은 받는 곳에 들어온다.
+    const added = await letterBody(withC);
+    expect(added.letter.recipients).toEqual(["소담 하우스", "가온 웨딩홀", "다온 홀"]);
+    expect(added.state).toMatchObject({ versionId: null, recipients: [{ hallId: IDS.hallA }, { hallId: IDS.hallB }, { hallId: IDS.hallC }] });
+    expect(added.selfSend).toBeNull();
+    // 같은 홀들이 순서만 바뀌었으면 저장한 판 그대로다.
+    const same = await letterBody(reordered);
+    expect(same.state).toMatchObject({ versionId: IDS.version, fingerprint: FINGERPRINT });
+    expect(same.selfSend).toMatchObject({ versionId: IDS.version, messages: [{ hallId: IDS.hallA }, { hallId: IDS.hallB }] });
+    // 담은 홀을 다 뺐으면 편지 대신 담은 홀이 없다고 말한다.
+    const none = await letterBody({ ...tables({ open: true }), hall_shortlists: ok([]) });
+    expect(none).toMatchObject({ letter: null, state: null, selfSend: null });
+    expect(none.missing).toContain("shortlist");
+  });
+
+  it("asks to save again when the budget or the names changed after saving, so vendors never get the old values", async () => {
+    const budgetOn = (value: string) => ({ name: OFF, phone: OFF, budget: { on: true, value } });
+    // 저장할 때의 총예산(2,000만 원)과 지금 총예산(3,000만 원)이 다르다. 꺼져 있으면 예전처럼 저장한 판 그대로다.
+    const oldBudget = tables({ open: true, version: { shares: budgetOn("2,000만 원") } });
+    expect((await letterBody(oldBudget)).state).toMatchObject({ versionId: IDS.version });
+
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const budgetChanged = await letterBody(oldBudget);
+    expect(budgetChanged.state).toMatchObject({ status: "draft", letterId: IDS.letter, versionId: null, fingerprint: null });
+    expect(budgetChanged.selfSend).toBeNull();
+    expect(budgetChanged.letter.recipients).toEqual(["소담 하우스", "가온 웨딩홀"]);
+    // 지금 총예산과 같은 값이면 저장한 판의 글을 그대로 준다.
+    const sameBudget = await letterBody(tables({ open: true, version: { shares: budgetOn("3,000만 원") } }));
+    expect(sameBudget.state).toMatchObject({ versionId: IDS.version });
+    expect(sameBudget.selfSend.messages[0].text).toContain(SELF_SEND_COPY.budgetLine("3,000만 원"));
+
+    // 이름을 알려주기로 하고 혼자일 때 저장했는데 상대가 들어왔다: 맺음말이 "민지 드림"에서 "민지와 준호 드림"이 된다.
+    const named = { name: { on: true, value: "민지" }, phone: OFF, budget: OFF };
+    const partnerJoined = await letterBody(tables({ open: true, version: { shares: named, signature: "민지 드림" } }));
+    expect(partnerJoined.state).toMatchObject({ versionId: null });
+    expect(partnerJoined.selfSend).toBeNull();
+    const sameNames = await letterBody(tables({ open: true, version: { shares: named, signature: "민지와 준호 드림" } }));
+    expect(sameNames.state).toMatchObject({ versionId: IDS.version });
+    expect(sameNames.selfSend).not.toBeNull();
+  });
+
+  it("never stores a phone number while couples send the letter themselves", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    useClient(tables({ open: true }));
+    const admin = useAdmin(() => ok({ letterId: IDS.letter, versionId: IDS.version, version: 2, fingerprint: FINGERPRINT, created: true }));
+    const response = await putLetter(jsonRequest(`${URL_BASE}/letter`, "PUT", {
+      letterId: IDS.letter,
+      recipientHallIds: [IDS.hallA, IDS.hallB],
+      body: "본문",
+      shares: shares({ phone: { on: true, value: "010-9876-5432" } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect((admin.rpc.mock.calls[0][1] as { p_shares: { phone: unknown } }).p_shares.phone).toEqual({ on: false, value: null });
+    expect(JSON.stringify(admin.rpc.mock.calls)).not.toContain("9876");
+  });
+
+  it("refuses approval before sign-in, the rate limit or any database work", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    const client = useClient(tables({ open: true }));
+    const admin = useAdmin(() => ok(null));
+    const headerSets: Record<string, string>[] = [{}, { "sec-fetch-site": "cross-site" }];
+    for (const headers of headerSets) {
+      const response = await approve(jsonRequest(`${URL_BASE}/letter/approve`, "POST", approveBody, headers));
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({ code: "SELF_SEND_MODE", error: SELF_SEND_COPY.approveRefused });
+    }
+    expect(createClientFromRequest).not.toHaveBeenCalled();
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(client.calls).toEqual([]);
+    expect(admin.rpc).not.toHaveBeenCalled();
+  });
+
+  it("lets the operator queue win when both switches are on", async () => {
+    process.env.HALL_INQUIRY_SELF_SEND_ENABLED = "true";
+    process.env.HALL_INQUIRY_SENDING_ENABLED = "true";
+    expect(Object.keys(await letterBody(tables({ open: true })))).toEqual(["letter", "state", "missing"]);
+    useClient(tables({ open: true }));
+    const admin = useAdmin(() => ok({ status: "queued", notQueuedReason: null, queuedCount: 2, duplicateHallIds: [], waitingFor: [] }));
+    const response = await approve(jsonRequest(`${URL_BASE}/letter/approve`, "POST", approveBody));
+    expect(response.status).toBe(200);
+    expect((admin.rpc.mock.calls[0][1] as Record<string, unknown>)).toMatchObject({ p_sending_enabled: true });
   });
 });

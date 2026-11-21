@@ -5,6 +5,7 @@ import {
   HOME_STATE_COPY,
   JOURNEY_STATE_COPY,
   LETTER_STATE_COPY,
+  VENDOR_REPLY_COPY,
 } from "@hanbang/shared/invitation";
 
 import type { InvitationApiFailure } from "./invitationApi";
@@ -51,6 +52,15 @@ export function letterFailedMessage(failure: InvitationApiFailure): string {
 }
 
 /**
+ * 직접 보내기(D-83 1단계)의 편지 저장 실패. 이 단계는 아무것도 보내지 않으므로 이미 보냈다는 줄(`alreadySent`)을 쓰지
+ * 않는다. 받는 홀이 바뀌었다처럼 서버가 사람이 읽는 이유를 말하면 그 문장을, 이유가 없으면(연결 끊김) 저장하지 못했다고
+ * 말한다(앱 화면도 같은 순서다). 보내기(`send`)는 예전 그대로 `letterFailedMessage` 를 쓴다.
+ */
+export function selfSendSaveFailedMessage(failure: InvitationApiFailure): string {
+  return serverSentence(failure) ?? LETTER_STATE_COPY.saveFailed;
+}
+
+/**
  * 승인 방식 저장·제안 답하기 실패. 상대가 아직 합류하지 않았으면 고를 수 없다고 말하고, 그 밖에는 서버가 말한 이유를,
  * 이유가 없으면 저장하지 못했다고 말한다.
  */
@@ -62,4 +72,12 @@ export function approverFailedMessage(failure: InvitationApiFailure): string {
 /** 상담 일정 넣기 실패. */
 export function scheduleFailedMessage(failure: InvitationApiFailure): string {
   return serverSentence(failure) ?? COMMON_STATE_COPY.saveFailed;
+}
+
+/**
+ * 붙여 넣은 업체 답에서 고른 날짜로 상담 일정 넣기(D-83 1단계) 실패. 일정이 가득 찬 것처럼 서버가 이유를 말하면 그
+ * 문장을, 이유가 없으면(연결 끊김) 붙여 넣기의 상태 문구를 쓴다.
+ */
+export function pasteScheduleFailedMessage(failure: InvitationApiFailure): string {
+  return serverSentence(failure) ?? VENDOR_REPLY_COPY.failed;
 }

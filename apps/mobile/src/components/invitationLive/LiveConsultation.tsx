@@ -5,6 +5,8 @@ import {
   COMMON_STATE_COPY,
   CONSULTATION_STATE_COPY,
   STATUS_COPY,
+  VENDOR_REPLY_COPY,
+  type ConsultationPasteSchedulePost,
   type InvitationConsultationResponse,
   type InvitationRouteKey,
 } from "@hanbang/shared/invitation";
@@ -13,6 +15,7 @@ import InvitationButton from "@/components/invitation/InvitationButton";
 import InvitationConsultation from "@/components/invitation/InvitationConsultation";
 import InvitationStateScreen from "@/components/invitation/InvitationStateScreen";
 import { lineHeight, palette, typo } from "@/components/invitation/invitationStyle";
+import VendorReplyPaste from "@/components/invitationLive/VendorReplyPaste";
 import { useLiveOwner } from "@/lib/invitationLive";
 import { navigateInvitationRoute } from "@/lib/invitationRoutes.mjs";
 import { createReadGate } from "@/lib/readGate.mjs";
@@ -37,6 +40,16 @@ const FULL_SCHEDULE = "/schedule";
  *   버리고 넣기가 끝난 뒤 다시 읽는다(`readGate.mjs`). 옛 읽기가 "일정에 넣기" 단추를 되살리지 않게 한다.
  * - 상대와 공유하기와 다른 홀이 제안한 시간에 답하기("이 시간으로 요청"·"다른 시간 묻기")는 아직 그 일을 할
  *   API 가 없다. 눌러도 아무 일이 없는 단추를 그리지 않으려고 실제 커플 화면에서는 빼고 그린다.
+ * - 받은 답 붙여 넣기(D-83 1단계): 서버가 `replyPaste` 칸을 줄 때만 아래에 둔다(`VendorReplyPaste`). 붙여 넣은
+ *   글은 이 기기에서만 읽는다. 일정에 넣을 때 나가는 것은 사람이 고른 홀·날짜·시간뿐이다
+ *   (`POST /api/invitation/consultation/paste-schedule`). 칸이 없으면(꺼진 서버) 화면은 오늘과 똑같다.
+ *   그때는 업체 답이 두 분 폰으로 오므로, 잡힌 상담이 없을 때의 아래 줄도 답을 아래에 붙여 넣으라고 바꾼다
+ *   (`VENDOR_REPLY_COPY.emptySub`). 꺼진 서버면 오늘 줄(`CONSULTATION_STATE_COPY.noneSub`) 그대로다.
+ *   붙여 넣은 답으로 넣은 상담은 상담 모델에 나오지 않는다(운영자가 적은 답장이 아니다). 그래서 서버가 준 그 수
+ *   (`replyPaste.addedCount`)가 있으면 "아직 잡힌 상담이 없어요" 대신 넣은 수를 말하고(`VENDOR_REPLY_COPY.addedSoFar`),
+ *   새로 넣은 뒤에는 다시 읽어 그 수를 고친다. 그 상담들은 전체 일정에 있다(아래 전체 일정 단추).
+ *   고를 웨딩홀이 없으면 붙여 넣기가 웨딩홀 비교 화면으로 가는 단추를 둔다. 확정된 상담 화면에도 입력칸이 들어오므로
+ *   그때만 키보드를 피한다(`keyboardAware`).
  */
 export default function LiveConsultation({ from }: { from: "tabs" | "stack" }) {
   const liveOwner = useLiveOwner();
@@ -58,6 +71,9 @@ export default function LiveConsultation({ from }: { from: "tabs" | "stack" }) {
   const openFullSchedule = useCallback(() => {
     router.push(FULL_SCHEDULE);
   }, []);
+  const openHalls = useCallback(() => {
+    navigate("compare");
+  }, [navigate]);
 
   const load = useCallback(async () => {
     if (liveOwner.status !== "ready") return;
@@ -109,6 +125,16 @@ export default function LiveConsultation({ from }: { from: "tabs" | "stack" }) {
     if (readNow) void load();
   }, [liveOwner, state, adding, load]);
 
+  // 붙여 넣은 답에서 사람이 고른 날짜를 일정에 넣는다. 받는 것은 홀 ID·날짜·시간뿐이다. 이 일정은 상담 모델에
+  // 나오지 않고 넣은 수(`replyPaste.addedCount`)로만 보인다. 새로 넣었으면 다시 읽어 그 수를 고친다. 넣기 앞에 출발한
+  // 읽기가 늦게 와도 이 읽기가 뒤라서 덮지 못한다(`readGate.mjs`).
+  const addPasted = useCallback(async (input: ConsultationPasteSchedulePost) => {
+    if (liveOwner.status !== "ready") return null;
+    const result = await liveOwner.api.addPastedConsultationToSchedule(input);
+    if (result.ok && result.data.added) void load();
+    return result;
+  }, [liveOwner, load]);
+
   const scheduleLink = (
     <InvitationButton
       label={CONSULTATION_STATE_COPY.fullSchedule}
@@ -132,7 +158,15 @@ export default function LiveConsultation({ from }: { from: "tabs" | "stack" }) {
       />
     );
   }
-  const { consultation, inCalendar } = state.value;
+  const { consultation, inCalendar, replyPaste } = state.value;
+  // 꺼진 서버는 `replyPaste` 칸을 주지 않는다. 그러면 아무것도 더 그리지 않는다.
+  const pasteReply = replyPaste ? <VendorReplyPaste halls={replyPaste.halls} onAdd={addPasted} onOpenHalls={openHalls} /> : undefined;
+  // 붙여 넣기가 있으면 빈 화면의 아래 줄을 바꾼다. 없으면 빈 묶음이라 오늘과 같은 칸만 넘긴다.
+  const pasteSub = replyPaste ? { sub: VENDOR_REPLY_COPY.emptySub } : {};
+  // 붙여 넣은 답으로 넣은 상담이 있으면 "아직 잡힌 상담이 없어요"라고 하지 않고 그 수를 말한다.
+  const pastedTitle = replyPaste && replyPaste.addedCount > 0 ? { title: VENDOR_REPLY_COPY.addedSoFar(replyPaste.addedCount) } : {};
+  // 확정된 상담 화면에도 붙여 넣기의 입력칸이 들어온다. 그때만 키보드를 피한다. 없으면 오늘과 같은 칸만 넘긴다.
+  const pasteKeyboard = replyPaste ? { keyboardAware: true } : {};
   if (!consultation) {
     return (
       <InvitationStateScreen
@@ -142,6 +176,9 @@ export default function LiveConsultation({ from }: { from: "tabs" | "stack" }) {
         actions={[{ label: CONSULTATION_STATE_COPY.fullSchedule, onPress: openFullSchedule, tone: "outline" }]}
         withTabBar={withTabBar}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        footer={pasteReply}
+        {...pasteSub}
+        {...pastedTitle}
       />
     );
   }
@@ -161,8 +198,10 @@ export default function LiveConsultation({ from }: { from: "tabs" | "stack" }) {
         <View style={styles.footer}>
           {notice ? <Text accessibilityLiveRegion="polite" style={[typo.sans, styles.notice]}>{notice}</Text> : null}
           {scheduleLink}
+          {pasteReply}
         </View>
       }
+      {...pasteKeyboard}
     />
   );
 }

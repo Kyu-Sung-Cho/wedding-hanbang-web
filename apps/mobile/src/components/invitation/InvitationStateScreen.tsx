@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { ScrollView, StyleSheet, View, type RefreshControlProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/AppText";
@@ -23,6 +23,11 @@ type Props = {
   withTabBar?: boolean;
   /** 당겨서 다시 불러오기(불러오지 못했을 때). */
   refreshControl?: ReactElement<RefreshControlProps>;
+  /**
+   * 단추 아래에 두는 것(실제 커플: 받은 답 붙여 넣기, D-83 1단계). 화면 너비로 펼친다. 없으면 그리지 않는다.
+   * 입력칸이 들어오므로 이때만 키보드를 피하고(iOS), 키보드가 떠 있어도 단추가 한 번에 눌리게 한다.
+   */
+  footer?: ReactNode;
 };
 
 /**
@@ -39,10 +44,12 @@ export default function InvitationStateScreen({
   topInset,
   withTabBar = false,
   refreshControl,
+  footer,
 }: Props) {
   const insets = useSafeAreaInsets();
   const top = topInset ?? insets.top;
   const bottom = withTabBar ? invitationTabBarClearance(insets) + 24 : Math.max(26, insets.bottom);
+  const hasFooter = footer !== undefined && footer !== null && footer !== false;
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: 16 + top }]}>
@@ -52,6 +59,8 @@ export default function InvitationStateScreen({
         style={[styles.flex, opaqueScroll]}
         contentContainerStyle={[styles.body, { paddingBottom: bottom }]}
         refreshControl={refreshControl}
+        automaticallyAdjustKeyboardInsets={hasFooter ? true : undefined}
+        keyboardShouldPersistTaps={hasFooter ? "handled" : undefined}
       >
         <AmoraOrb size={64} mood={busy ? "working" : "calm"} />
         {title ? (
@@ -74,6 +83,7 @@ export default function InvitationStateScreen({
             ))}
           </View>
         ) : null}
+        {hasFooter ? <View style={styles.footer}>{footer}</View> : null}
       </ScrollView>
     </View>
   );
@@ -88,4 +98,5 @@ const styles = StyleSheet.create({
   center: { textAlign: "center" },
   sub: { fontSize: 14, lineHeight: lineHeight(14, 1.6), color: palette.muted },
   actions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 6 },
+  footer: { alignSelf: "stretch", marginTop: 10 },
 });

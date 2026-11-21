@@ -6,6 +6,7 @@ import { letterSignature } from "@/lib/invitation/letter";
 import { parseLetterInput, resolveShares } from "@/lib/invitation/letterInput";
 import { loadLetterView } from "@/lib/invitation/letterService";
 import { openCoupleRequest } from "@/lib/invitation/routeContext";
+import { isInquirySelfSendEnabled } from "@/lib/invitation/switches";
 import { log } from "@/utils/log";
 
 /**
@@ -47,7 +48,11 @@ export async function PUT(request: Request) {
     if (parsed.value.letterId && open.value?.letterId !== parsed.value.letterId) {
       return apiError(409, "LETTER_LOCKED", "이미 보낼 준비를 마친 편지예요. 새 편지로 써 주세요.");
     }
-    const shares = resolveShares(parsed.value.shares, open.value?.version.shares ?? null, context.journey?.totalBudget ?? null);
+    // 직접 보내기(D-83 1단계)의 글에는 휴대폰 번호가 들어가지 않으므로 번호를 받지 않는다(옛 앱이 켜서 보내도 끈다).
+    const shareInput = isInquirySelfSendEnabled()
+      ? { ...parsed.value.shares, phone: { on: false, value: null } }
+      : parsed.value.shares;
+    const shares = resolveShares(shareInput, open.value?.version.shares ?? null, context.journey?.totalBudget ?? null);
     if (!shares.ok) return apiError(400, "LETTER_SHARES_INVALID", shares.error);
 
     const saved = await saveLetterVersion(createAdminClient(), {

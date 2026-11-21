@@ -133,6 +133,27 @@ export function linkTo(scope: ParentNode, href: string): HTMLAnchorElement | nul
   return scope.querySelector<HTMLAnchorElement>(`a[href="${href}"]`);
 }
 
+/** 글자(또는 aria-label)로 링크를 찾는다. 주소가 긴 링크(문자 앱 주소 같은)를 이름으로 찾을 때 쓴다. */
+export function linkNamed(scope: ParentNode, name: string): HTMLAnchorElement {
+  const found = Array.from(scope.querySelectorAll("a")).find((link) => (link.getAttribute("aria-label") ?? text(link)) === name);
+  if (!found) {
+    const names = Array.from(scope.querySelectorAll("a")).map((link) => link.getAttribute("aria-label") ?? text(link));
+    throw new Error(`링크 "${name}" 이 없다. 있는 것: ${names.join(" / ")}`);
+  }
+  return found;
+}
+
+/** 글 칸에 사람이 친 것처럼 값을 넣는다. React 가 듣는 input 사건을 낸다(값은 원래 setter 로 넣어야 React 가 바뀐 줄 안다). */
+export async function typeInto(element: Element | null | undefined, value: string) {
+  if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement)) throw new Error("칠 칸이 없다");
+  const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(prototype, "value")?.set?.call(element, value);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await flush();
+}
+
 /** 큰 화면(1024px 이상) 판정을 흉내 낸다. jsdom 에는 matchMedia 가 없다. */
 export function mockWide(wide: boolean) {
   Object.defineProperty(window, "matchMedia", {

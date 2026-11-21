@@ -121,7 +121,9 @@ export function withAndParticle(name: string): string {
  * 파운더 결정 D-83(11-18): 1단계는 아모라가 문의 편지를 쓰고 두 분이 자기 휴대폰으로 업체마다 보낸다.
  * dialogLabel·title·partnerRead·send 는 아티팩트 원문("상담 문의 보내기 전 확인", "이 편지를 N곳에 보낼까요?",
  * "…같은 편지를 두 번 보내지 않아요.", "N곳에 보내기")과 일부러 다르다. send 에는 숫자를 쓰지 않는다.
- * 지금 이 버튼은 승인 저장 흐름이고, 문자 앱을 여는 1단계 보내기는 아직 없다(PR #531 남은 일).
+ * 직접 보내기 스위치(HALL_INQUIRY_SELF_SEND_ENABLED)가 꺼져 있으면 이 단추는 승인 저장 흐름이다. 켜져 있으면(D-83 1단계)
+ * 시트는 SELF_SEND_COPY 를 쓴다: 아래 단추는 판 저장이고, 보내기는 업체마다 "문자로 열기"가 한다. 둘 중 어느 문구로
+ * 맞출지는 파운더 결정이다.
  */
 export const LETTER_COPY = {
   dialogLabel: "상담 문의 편지 확인",

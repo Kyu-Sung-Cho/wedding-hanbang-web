@@ -1,9 +1,11 @@
+import { SELF_SEND_COPY } from "@hanbang/shared/invitation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { approverResponse } from "@/lib/invitation/approverView";
 import { apiError, privateJson, readJsonBody } from "@/lib/invitation/http";
 import { readApproverState } from "@/lib/invitation/inquiryRepository";
 import { setApprover } from "@/lib/invitation/inquiryRpc";
 import { openCoupleRequest } from "@/lib/invitation/routeContext";
+import { isInquirySelfSendEnabled } from "@/lib/invitation/switches";
 import { isRecord, isUuid } from "@/utils/requestValidation";
 import { log } from "@/utils/log";
 
@@ -36,6 +38,9 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  // 커플이 직접 보내기(D-83 1단계)에서는 승인을 쓰지 않으므로 승인 방식도 바꾸지 않는다. 새 화면은 고르는 칸을 숨기고,
+  // 옛 앱이 바꾸려 해도 상대에게 확인 요청이 가지 않게 로그인·DB 보다 먼저 멈춘다. 확인·거절은 이미 온 요청이라 둔다.
+  if (isInquirySelfSendEnabled()) return apiError(409, "SELF_SEND_MODE", SELF_SEND_COPY.approveRefused);
   try {
     const opened = await openCoupleRequest(request, { mutation: { key: "approver", perMinute: 10 }, journey: false });
     if (!opened.ok) return opened.response;

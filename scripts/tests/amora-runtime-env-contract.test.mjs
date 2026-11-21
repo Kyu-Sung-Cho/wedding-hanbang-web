@@ -12,6 +12,8 @@ const runtimeVariables = [
   "HALL_INQUIRY_SENDING_ENABLED",
   "HALL_INQUIRY_DAILY_CAP",
   "HALL_INQUIRY_GLOBAL_DAILY_CAP",
+  // 커플이 직접 보내기(D-83 1단계, 2026-11-18). 켜면 편지 응답·승인 거절·받은 답 붙여 넣기가 바뀐다.
+  "HALL_INQUIRY_SELF_SEND_ENABLED",
   "AMORA_COMMUNITY_AI_COMMENT_ENABLED",
   "AMORA_CONVERSATION_SEGMENT_READ_ENABLED",
   "AMORA_TODAY_ONE_ENABLED",
@@ -63,6 +65,7 @@ test("the example environment keeps external Amora side effects fail-closed", as
     "AMORA_AUXILIARY_MEMORY_ENABLED=false",
     "AMORA_CARE_OUTBOUND_ENABLED=false",
     "HALL_INQUIRY_SENDING_ENABLED=false",
+    "HALL_INQUIRY_SELF_SEND_ENABLED=false",
     "AMORA_COMMUNITY_AI_COMMENT_ENABLED=false",
     "AMORA_CONVERSATION_SEGMENT_READ_ENABLED=false",
     "AMORA_TODAY_ONE_ENABLED=false",

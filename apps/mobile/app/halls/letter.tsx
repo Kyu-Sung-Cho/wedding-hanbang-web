@@ -12,27 +12,39 @@
 // - 상대의 승인 권한을 줄이는 승인 방식 변경은 상대가 확인할 때까지 제안으로만 남는다. 상대는 이 시트에서
 //   확인·거절한다(`POST /api/invitation/approver/confirm|decline`). 그 사이 제안이 바뀌었으면(409) 지금 방식을
 //   다시 읽는다. 제안한 사람은 지금 방식을 다시 골라 제안을 거둔다(`PUT` 이 "withdrawn" 으로 답한다).
+// - 직접 보내기(D-83 1단계, 2026-11-18): 서버가 `selfSend` 칸을 주면 두 분이 자기 폰에서 보낸다. 승인 칸과
+//   보내기 단추 대신 "이 편지로 할게요"(`prepare`, 저장만 하고 승인하지 않는다)와 받는 곳마다의 보낼 글
+//   (`SelfSendPanel`)을 둔다. 칸이 없으면(꺼진 서버) 위의 승인 흐름 그대로다. 승인 칸은 없지만, 상대가 이미 낸
+//   승인 방식 제안에는 답할 수 있게 그 확인·거절만 둔다(서버가 이미 온 제안의 확인·거절을 받는다).
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Platform } from "react-native";
 import { router } from "expo-router";
 import {
   COMMON_STATE_COPY,
   COMPARE_COPY,
   LETTER_COPY,
   LETTER_STATE_COPY,
+  SELF_SEND_COPY,
   type InquiryApproverResponse,
   type InvitationLetterResponse,
   type InvitationRouteKey,
   type LetterModel,
   type LetterShare,
 } from "@hanbang/shared/invitation";
-import InvitationApproverPicker, { type ApproverChoice } from "@/components/invitation/InvitationApproverPicker";
+import InvitationApproverPicker, {
+  InvitationProposalAnswer,
+  type ApproverChoice,
+} from "@/components/invitation/InvitationApproverPicker";
 import InvitationLetterSheet from "@/components/invitation/InvitationLetterSheet";
 import InvitationStateScreen from "@/components/invitation/InvitationStateScreen";
+import SelfSendPanel from "@/components/invitationLive/SelfSendPanel";
 import {
   isLetterDirty,
   isLetterVersionChanged,
+  isSelfSendRefusal,
   letterApprovalNotice,
   letterSaveBody,
+  letterSelfSendView,
   letterShareFlags,
   letterStateNotice,
   sameVisibleLetter,
@@ -41,6 +53,9 @@ import {
 } from "@/lib/invitationApi.mjs";
 import { useLiveOwner } from "@/lib/invitationLive";
 import { navigateInvitationRoute } from "@/lib/invitationRoutes.mjs";
+
+/** 희망 시기·하객 수를 묻는 첫 대화. 웨딩홀 비교의 "조건 알려 주기"와 같은 길이다(`app/halls/index.tsx`). */
+const ASK_CONDITIONS_HREF = "/(tabs)/lounge?conditions=1";
 
 type LetterScreenState =
   | { status: "loading" }
@@ -74,6 +89,15 @@ function noticeText(notice: LetterNotice, members: Members, mode: string | null)
   }
 }
 
+/**
+ * 저장한 뒤 보낼 글이 나왔으면 아이폰에서 그 위 첫 줄(`SELF_SEND_COPY.intro`)을 읽어 준다. 화면 읽기는 새로 나온 글을
+ * 스스로 읽지 않는다. 안드로이드는 그 줄의 `accessibilityLiveRegion`(`SelfSendPanel`)이 알린다.
+ */
+function announceSelfSendTexts(response: InvitationLetterResponse) {
+  if (Platform.OS !== "ios" || !letterSelfSendView(response, false)?.messages) return;
+  AccessibilityInfo.announceForAccessibility(SELF_SEND_COPY.intro);
+}
+
 export default function HallsLetterScreen() {
   const liveOwner = useLiveOwner();
   const [state, setState] = useState<LetterScreenState>({ status: "loading" });
@@ -96,6 +120,12 @@ export default function HallsLetterScreen() {
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
     else navigate("compare");
+  }, [navigate]);
+  const askConditions = useCallback(() => {
+    router.dismissTo(ASK_CONDITIONS_HREF);
+  }, []);
+  const openConsultation = useCallback(() => {
+    navigate("status");
   }, [navigate]);
 
   useEffect(() => {
@@ -159,6 +189,10 @@ export default function HallsLetterScreen() {
         if (isLetterVersionChanged(approved)) {
           reload();
           setActionNotice(LETTER_STATE_COPY.versionChanged);
+        } else if (isSelfSendRefusal(approved)) {
+          // 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜졌다. 실패한 것은 없으니 아무 말도 남기지 않고 다시 읽는다:
+          // 이 앱은 보낼 글을 그릴 줄 안다. 서버의 문장(앱을 업데이트하라는 말)은 옛 앱에게 하는 말이다.
+          reload();
         } else {
           if (approved.status === 409) reload();
           setActionNotice(approved.message ?? LETTER_STATE_COPY.saveFailed);
@@ -173,6 +207,36 @@ export default function HallsLetterScreen() {
     }
   }, [liveOwner, state, server, letterState, shown, body, flags, reload, members]);
 
+  // 직접 보내기: 고친 편지(또는 아직 저장하지 않은 초안)를 새 판으로 저장만 한다. 승인하지 않는다.
+  // 서버가 저장한 판으로 받는 곳마다 보낼 글을 엮어 같은 답에 실어 준다. `send` 의 저장 절반과 같은 길이다.
+  const prepare = useCallback(async () => {
+    if (liveOwner.status !== "ready" || state.status !== "ready" || !server || !letterState || !shown || sendingRef.current) return;
+    // 승인 방식 제안에 답하는 동안에는 저장하지 않는다. 쓰기는 한 번에 하나다(웹과 같다). 둘이 엇갈리면 저장한 답이
+    // 답하기 전의 승인 방식을 다시 그려, 이미 답한 제안이 화면에 되살아난다.
+    if (approverSavingRef.current) return;
+    if (letterState.versionId !== null && !isLetterDirty(server, body, flags)) return;
+    sendingRef.current = true;
+    setSending(true);
+    setActionNotice(null);
+    try {
+      const saved = await liveOwner.api.saveLetter(letterSaveBody(letterState, server, body, flags));
+      if (!saved.ok) {
+        if (saved.status === 409) reload();
+        setActionNotice(saved.message ?? LETTER_STATE_COPY.saveFailed);
+        return;
+      }
+      setState({ status: "ready", letter: saved.data, approver: state.approver });
+      setEditedBody(null);
+      setEditedFlags(null);
+      // 저장된 판이 사람이 보던 편지와 다르면(맺음말이 바뀌는 등) 보낼 글도 그 판으로 엮였다. 다시 보게 한다.
+      if (saved.data.letter && !sameVisibleLetter(saved.data.letter, shown)) setActionNotice(LETTER_STATE_COPY.versionChanged);
+      announceSelfSendTexts(saved.data);
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
+  }, [liveOwner, state, server, letterState, shown, body, flags, reload]);
+
   const chooseApprover = useCallback(async (choice: ApproverChoice) => {
     if (liveOwner.status !== "ready" || state.status !== "ready" || approverSavingRef.current || sendingRef.current) return;
     approverSavingRef.current = true;
@@ -183,6 +247,11 @@ export default function HallsLetterScreen() {
         choice.mode === "designated" ? { mode: "designated", designatedUserId: choice.userId } : { mode: "both" },
       );
       if (!result.ok) {
+        // 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜졌다(보내기와 같다). 실패한 것은 없으니 아무 말도 남기지 않고 다시 읽는다.
+        if (isSelfSendRefusal(result)) {
+          reload();
+          return;
+        }
         setActionNotice(result.message ?? COMMON_STATE_COPY.saveFailed);
         return;
       }
@@ -235,9 +304,27 @@ export default function HallsLetterScreen() {
     );
   }
 
-  const stateNotice = letterStateNotice(letterState);
+  // 직접 보내기 칸. 서버가 `selfSend` 칸을 주지 않으면 null 이고 아래 시트는 오늘과 똑같다.
+  const dirty = server !== null && isLetterDirty(server, body, flags);
+  const selfSendView = letterSelfSendView(state.letter, dirty);
+  // 직접 보내기에서는 승인 흐름의 말(승인만 저장됨·누구를 기다림)과 승인 칸을 쓰지 않는다.
+  const stateNotice = selfSendView ? null : letterStateNotice(letterState);
   const notice = actionNotice ?? (stateNotice ? noticeText(stateNotice, members, letterState.approver.mode) : null);
-  const approver = state.approver;
+  const approver = selfSendView ? null : state.approver;
+  // 직접 보내기에서도 상대가 이미 낸 승인 방식 제안에는 답할 수 있다(확인·거절만 둔다). 답할 수 없으면 그리지 않는다.
+  const proposal = selfSendView && state.approver?.pending?.viewerCanRespond ? state.approver : null;
+  const selfSendProps = selfSendView ? {
+    title: SELF_SEND_COPY.title(shown.recipients.length),
+    hidePartnerRead: true,
+    mainAction: {
+      label: sending ? SELF_SEND_COPY.saving : SELF_SEND_COPY.save,
+      // 저장할 것이 있을 때만 눌린다: 고쳤거나 아직 저장한 판이 없을 때. 승인 방식 제안에 답하는 동안에는 기다린다.
+      onPress: (letterState.versionId === null || dirty) && !sending && !approverSaving ? () => {
+        void prepare();
+      } : undefined,
+    },
+    selfSend: <SelfSendPanel view={selfSendView} onAskConditions={askConditions} onOpenConsultation={openConsultation} />,
+  } : {};
   return (
     <InvitationLetterSheet
       model={shown}
@@ -270,7 +357,17 @@ export default function HallsLetterScreen() {
             void respondApprover(accept);
           }}
         />
+      ) : proposal ? (
+        <InvitationProposalAnswer
+          pending={proposal.pending ?? null}
+          members={proposal.members}
+          busy={approverSaving || sending}
+          onRespond={(accept) => {
+            void respondApprover(accept);
+          }}
+        />
       ) : null}
+      {...selfSendProps}
     />
   );
 }
