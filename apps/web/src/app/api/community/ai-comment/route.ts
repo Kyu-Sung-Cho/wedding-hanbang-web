@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { checkAmoraGate, isAmoraGatekeeperEnabled } from "@/lib/ai/amoraGatekeeper";
 import { getAmoraProviderCallCostReservationMicrousd } from "@/lib/ai/amoraRequestPolicy";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
@@ -123,6 +124,25 @@ export async function POST(req: NextRequest) {
 
     if (existingComment) {
       return NextResponse.json({ error: "이미 AI 댓글이 존재합니다.", commentId: existingComment.id }, { status: 409 });
+    }
+
+    // 문지기(D-89). 글이 결혼 준비와 무관하거나 폭력·자살·자해를 담으면 댓글을 쓰지 않는다.
+    // 스위치가 꺼져 있으면 부르지 않는다(오늘과 같다).
+    if (isAmoraGatekeeperEnabled()) {
+      const gate = await checkAmoraGate({
+        text: [plainText(post.title, MAX_TITLE_CHARS), plainText(post.content, MAX_CONTENT_CHARS)]
+          .filter(Boolean)
+          .join("\n"),
+        surface: "community_comment",
+        userId: post.author_id ?? null,
+        coupleId: null,
+      });
+      if (gate.verdict !== "allow") {
+        return NextResponse.json(
+          { error: "COMMUNITY_AI_COMMENT_GATEKEEPER_BLOCKED", code: "COMMUNITY_AI_COMMENT_GATEKEEPER_BLOCKED", verdict: gate.verdict },
+          { status: 422, headers: { "Cache-Control": "no-store" } },
+        );
+      }
     }
 
     // 카테고리 힌트

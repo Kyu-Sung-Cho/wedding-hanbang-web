@@ -38,6 +38,13 @@ vi.mock("@/lib/ai/costGuard", () => ({
   reserveAmoraTurn: mocks.reserveAmoraTurn,
 }));
 
+const gateMocks = vi.hoisted(() => ({ checkAmoraGate: vi.fn() }));
+
+vi.mock("@/lib/ai/amoraGatekeeper", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/ai/amoraGatekeeper")>()),
+  checkAmoraGate: gateMocks.checkAmoraGate,
+}));
+
 function request(): NextRequest {
   return new NextRequest("http://localhost/api/community/ai-comment", {
     method: "POST",
@@ -238,5 +245,57 @@ describe("POST /api/community/ai-comment safety gates", () => {
 
     expect(response.status).toBe(503);
     expect(mocks.providerGeneration).not.toHaveBeenCalled();
+  });
+
+  describe("문지기(D-89)", () => {
+    afterEach(() => {
+      delete process.env.AMORA_GATEKEEPER_ENABLED;
+    });
+
+    it("문지기가 막으면 댓글 모델을 부르지 않는다", async () => {
+      process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED = "true";
+      process.env.AMORA_GATEKEEPER_ENABLED = "true";
+      mockServiceClientForGeneration();
+      mocks.reserveAmoraTurn.mockResolvedValue({ allowed: true });
+      gateMocks.checkAmoraGate.mockResolvedValue({ verdict: "out_of_scope", reply: "x" });
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(422);
+      await expect(response.json()).resolves.toEqual(expect.objectContaining({
+        code: "COMMUNITY_AI_COMMENT_GATEKEEPER_BLOCKED",
+        verdict: "out_of_scope",
+      }));
+      expect(gateMocks.checkAmoraGate).toHaveBeenCalledWith(expect.objectContaining({
+        surface: "community_comment",
+        text: "예식장 계약 조언\n계약서를 확인할 때 무엇을 봐야 하나요?",
+      }));
+      expect(mocks.createOpenAIResponse).not.toHaveBeenCalled();
+      expect(mocks.providerGeneration).not.toHaveBeenCalled();
+    });
+
+    it("문지기가 통과시키면 오늘처럼 댓글을 만든다", async () => {
+      process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED = "true";
+      process.env.AMORA_GATEKEEPER_ENABLED = "true";
+      mockServiceClientForGeneration();
+      mocks.reserveAmoraTurn.mockResolvedValue({ allowed: true });
+      gateMocks.checkAmoraGate.mockResolvedValue({ verdict: "allow", reply: null });
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(201);
+      expect(mocks.createOpenAIResponse).toHaveBeenCalledTimes(1);
+    });
+
+    it("스위치가 꺼져 있으면 문지기를 부르지 않는다", async () => {
+      process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED = "true";
+      mockServiceClientForGeneration();
+      mocks.reserveAmoraTurn.mockResolvedValue({ allowed: true });
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(201);
+      expect(gateMocks.checkAmoraGate).not.toHaveBeenCalled();
+    });
   });
 });
