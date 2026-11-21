@@ -307,6 +307,10 @@ describe("판정 모델 입력과 출력", () => {
     // 11-20 판의 넓은 꼴이 평범한 조율 12문장 중 3개를 막았다. 그 꼴이 돌아오지 않는다.
     expect(violence).not.toContain("휴대폰을 검사함");
     expect(violence).not.toContain("돈을 못 쓰게 함");
+    // "못 만나게" 꼴이 있으면 명절 방문 조율("친정에 못 가게 됐어")을 10번 중 4번 막았다.
+    expect(violence).not.toContain("못 만나게");
+    // 11-21 "지금처럼 막기": 의절처럼 해치겠다는 뜻이 아닌 위협도 강요로 막는다.
+    expect(violence).toContain("(의절하겠다거나 내쫓겠다는 말처럼 해치겠다는 뜻이 아닌 위협도)");
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("양가 어른의 부탁이나 바람과 그 조율");
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("두 사람이 의논하는 제안이나 합의");
   });

@@ -19,7 +19,7 @@
  */
 
 /** 판정 규칙이나 문장이 바뀌면 올린다. 저장된 응답 행에 남아 어느 판으로 막았는지 보인다. */
-export const AMORA_GATEKEEPER_VERSION = "2026-11-21.v3";
+export const AMORA_GATEKEEPER_VERSION = "2026-11-21.v4";
 
 /** 서버가 쓴 문지기 응답 행의 `metadata.response_origin`. */
 export const AMORA_GATEKEEPER_RESPONSE_ORIGIN = "deterministic_amora_gatekeeper";
