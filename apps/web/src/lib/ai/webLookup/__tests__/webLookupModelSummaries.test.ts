@@ -141,6 +141,14 @@ describe("대화 도구의 모델 칸과 다음 턴 이력", () => {
     }
   });
 
+  // 2026-11-22: 저장본에서 도메인이 빠지자 위 시험은 이력 함수가 도메인을 실어도 초록이 됐다(넘겨줄 도메인이
+  // 없어서). 이력 한 줄이 도메인을 싣지 않는다는 것을 저장본 모양과 상관없이 직접 본다.
+  it("페이지 읽기 이력 한 줄은 실시간 결과를 받아도 도메인·네이버 칸을 싣지 않는다", () => {
+    const entry = webLookupHistoryEntry(readByRef as unknown as Record<string, unknown>);
+    expect(entry).toMatchObject({ tool: "read_page", priceCount: 1 });
+    expectNoNaverText(entry);
+  });
+
   it("검색 저장본은 우리 값만 남긴다(약관 특약 1.3 저장 금지)", () => {
     const persisted = webLookupPersistableResult(searchTool);
     expectNoNaverText(persisted);
