@@ -1577,7 +1577,7 @@ export default function ChatSidePanel({
             <AmoraAvatar />
             <div>
               <h3 className="text-sm font-medium text-[var(--hb-text-strong)]">아모라 AI</h3>
-              <p className="text-[0.6875rem] text-[var(--hb-text-muted)]">AI 동반자</p>
+              <p className="text-[0.6875rem] text-[var(--hb-text-muted)]">AI 웨딩 비서</p>
             </div>
           </div>
           <div className="flex items-center gap-1">

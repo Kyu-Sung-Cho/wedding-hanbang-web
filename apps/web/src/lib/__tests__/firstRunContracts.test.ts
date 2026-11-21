@@ -273,7 +273,7 @@ describe("아모라 첫마디", () => {
           for (const banned of ["업체", "견적", "계약금", "위약금", "예산은", "%"]) {
             expect(text).not.toContain(banned);
           }
-          // 호칭 — 제품 계약상 정본은 "결혼 준비 동반자"다.
+          // 호칭 — 제품 계약상 정본은 "AI 웨딩 비서"다(2026-11-16).
           for (const banned of ["플래너", "파트너"]) {
             expect(text).not.toContain(banned);
           }

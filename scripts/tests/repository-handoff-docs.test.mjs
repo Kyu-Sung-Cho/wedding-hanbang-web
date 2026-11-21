@@ -5,6 +5,7 @@ import test from "node:test";
 const root = new URL("../../", import.meta.url);
 // 2026-08-08 파운더 결정으로 도구 중심 정의를 동반자 정의가 승계했다.
 // 2026-08-23 파운더 결정으로 두 사람 승인이 없어지고 알림이 그 자리를 맡았다.
+// 2026-11-16 파운더 결정으로 아모라가 "AI 웨딩 비서"가 됐고, 한 줄 정의는 그대로 뒀다.
 // 정본: docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md
 const currentProductDefinition =
   "웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한 시기에 준비하는 사람들의 기록을 함께 보며, 확인한 것만 예산·체크리스트·일정에 남기고 바뀐 내용을 서로에게 알리는 서비스입니다.";
@@ -555,4 +556,58 @@ test("운영 스크립트가 요구하는 env 키가 .env.example에 문서화�
   );
   assert.match(example, /^AMORA_EVAL_SECRET=$/m);
   assert.match(amoraEval, /AMORA_EVAL_SECRET must be set to at least 32 characters/);
+});
+
+// 2026-11-16 파운더 결정: 아모라의 정본 호칭은 "AI 웨딩 비서"다(그 전 "결혼 준비 동반자").
+// 살아 있는 계약 문서 넷이 같은 이름을 정본으로 적어야, 다음 세션이 옛 이름으로 화면을
+// 되돌리지 않는다. 옛 이름을 역사로 적는 것은 괜찮고, 정본으로 적는 것만 막는다.
+test("live contract docs name Amora by the 2026-11-16 title", async () => {
+  const [claude, agents, startHere, contract] = await Promise.all(
+    ["CLAUDE.md", "AGENTS.md", "START_HERE.md", currentProductContractPath].map(
+      (path) => readFile(new URL(path, root), "utf8"),
+    ),
+  );
+
+  for (const [name, document] of [
+    ["CLAUDE.md", claude],
+    ["AGENTS.md", agents],
+    ["START_HERE.md", startHere],
+  ]) {
+    assert.match(
+      document,
+      /정본\s+호칭은\s+\*\*AI 웨딩 비서\*\*/,
+      `${name}가 "AI 웨딩 비서"를 정본 호칭으로 적지 않았다`,
+    );
+  }
+  assert.match(
+    contract,
+    /\*\*아모라 = AI 웨딩 비서\.\*\*/,
+    "계약 §2가 \"AI 웨딩 비서\"를 정본 호칭으로 적지 않았다",
+  );
+
+  for (const [name, document] of [
+    ["CLAUDE.md", claude],
+    ["AGENTS.md", agents],
+    ["START_HERE.md", startHere],
+    [currentProductContractPath, contract],
+  ]) {
+    assert.doesNotMatch(
+      document,
+      /호칭은\s+\*\*결혼 준비 동반자\*\*|\*\*아모라 = 결혼 준비 동반자\.\*\*/,
+      `${name}가 옛 호칭 "결혼 준비 동반자"를 정본으로 적고 있다`,
+    );
+  }
+
+  // 정체성 결정과 그 원문이 작업 기준 문서와 계약에 남아 있어야 한다.
+  assert.match(
+    normalized(claude),
+    /2026-11-16 파운더 결정: 아모라는 먼저 일하는 proactive AI 웨딩 비서다/,
+  );
+  assert.match(contract, /^## 0-A\. 2026-11-16 개정/m);
+  for (const document of [claude, contract]) {
+    assert.ok(
+      document.includes("근데 이러면 pickle ai 나 meta muse ai랑 비슷해 proactive ai 웨딩비서로"),
+      "정체성을 정한 파운더 원문이 빠졌다",
+    );
+  }
 });

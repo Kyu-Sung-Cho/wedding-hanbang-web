@@ -12,6 +12,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { stripComments } from "@/app/landing/__tests__/landingSource";
+
 const appRoot = resolve(process.cwd());
 const source = (relativePath: string) =>
   readFileSync(resolve(appRoot, relativePath), "utf8");
@@ -43,7 +45,7 @@ describe("아모라 정체성이 프롬프트와 사용자 표면에서 같은 �
   });
 
   it("아모라를 '파트너'라고도 부르지 않는다", () => {
-    // 정본 호칭은 "결혼 준비 동반자"다(wedding/CLAUDE.md). 이 제품에서 "파트너"는
+    // 정본 호칭은 "AI 웨딩 비서"다(2026-11-16, wedding/CLAUDE.md). 이 제품에서 "파트너"는
     // **배우자될 사람**을 가리키고, 그 단어는 고위험 안전 정규식에도 가해자를 가리키는
     // 명사로 들어 있다(lib/ai/amoraQuestionScope.ts). 모델이 자기를 그렇게 부르면
     // "파트너가 때렸어" 같은 문장에서 주어가 누구인지가 흐려진다 — 라벨 문제가 아니라
@@ -75,17 +77,58 @@ describe("아모라 정체성이 프롬프트와 사용자 표면에서 같은 �
   });
 
   it("자기소개와 역할 정의가 서로 다른 말을 하지 않는다", () => {
-    expect(prompts).toContain("결혼 준비를 함께 걷는 AI 동반자입니다");
-    expect(voice).toContain("결혼 준비를 함께 걷는 AI 동반자입니다");
+    // 2026-11-16 파운더 결정으로 호칭이 "AI 웨딩 비서"가 됐다. 그 전 문장은
+    // "결혼 준비를 함께 걷는 AI 동반자입니다"였다. 자기소개(prompts.ts)는 "커플의 결혼 준비를
+    // 돕는 AI 웨딩 비서입니다"이고, 목소리 계약은 "커플의"를 뺐다. 목소리 계약은 줄이 한
+    // 글자만 늘어도 뒤 절이 밀리는 것을 amoraDoesNotAdmitUnmadeMistakes.test.ts 가 막는다.
+    expect(prompts).toContain("커플의 결혼 준비를 돕는 AI 웨딩 비서입니다");
+    expect(voice).toContain("결혼 준비를 돕는 AI 웨딩 비서입니다");
     // 사람인 척 금지는 개명과 무관하게 남아 있어야 한다. "지인처럼"이지 "지인인 척"이 아니다.
     expect(voice).toContain("사람인 척하거나 실제 결혼·상담 경험을 지어내지 마세요");
   });
 
   it("법적 AI 고지가 모델의 자기소개와 같은 이름을 쓴다", () => {
     // 고지와 자기소개가 서로 다른 이름을 말하는 상태는 개명 전보다 나쁘다.
-    expect(aiNotice).toContain("AI 동반자");
+    // 2026-11-16 파운더 확인: 고지문은 호칭 낱말만 바꾸고 나머지 글자는 그대로 둔다.
+    expect(aiNotice).toContain("AI 웨딩 비서");
     expect(aiNotice).not.toContain("AI 플래너");
     expect(aiNotice).not.toContain("AI 파트너");
+  });
+
+  it("옛 호칭 '동반자'가 아모라를 부르는 자리에 돌아오지 않는다", () => {
+    // 2026-11-16 파운더 결정: 정본 호칭은 "AI 웨딩 비서"다. 그 전 이름("결혼 준비 동반자",
+    // "AI 동반자")이 한 자리라도 남으면 고지, 자기소개, 화면이 서로 다른 이름을 말한다.
+    // 예절 가이드의 "동반자"(하객의 일행)는 다른 뜻이라 여기서 보지 않는다.
+    //
+    // 옛 이름은 원문에서 본다. 주석에 남은 이름도 다음 사람이 되살릴 재료가 된다.
+    // 새 이름은 주석을 벗기고 본다. 그래야 주석이 화면 글자 대신 대답하지 못한다.
+    const titleSurfaces = [
+      ["시스템 프롬프트", "src/lib/ai/prompts.ts"],
+      ["목소리 계약", "src/lib/ai/amoraVoice.ts"],
+      ["프로필 편집기 프롬프트", "src/lib/ai/amora-profile.ts"],
+      ["커뮤니티 댓글 프롬프트", "src/app/api/community/ai-comment/route.ts"],
+      ["AI 기본법 고지", "src/components/common/AiNoticeFooter.tsx"],
+      ["아모라 옆 패널", "src/components/app/chat/ChatSidePanel.tsx"],
+      ["소개 화면 푸터", "src/components/landing/Footer.tsx"],
+    ] as const;
+    // 옛 이름이 있던 자리 가운데 2026-11-18 디자인 시안 이식(#531)으로 문장째 없어진 곳이다.
+    // 랜딩 첫 화면 본문과 공유 카드는 앱과 같은 시작 화면 문구(START_COPY)를 읽고 호칭을
+    // 쓰지 않는다. 새 이름을 요구하지 않고, 옛 이름이 돌아오지 않는지만 본다.
+    const formerTitleSurfaces = [
+      ["랜딩 카피", "src/components/landing/redesign/landingContent.ts"],
+      ["공유 카드", "src/app/landing/opengraph-image.tsx"],
+    ] as const;
+    for (const [label, path] of [...titleSurfaces, ...formerTitleSurfaces]) {
+      const raw = source(path);
+      for (const oldTitle of ["AI 동반자", "결혼 준비 동반자", "동반자로서"]) {
+        expect(raw, `${label}(${path})에 옛 호칭 "${oldTitle}"이 남아 있다`)
+          .not.toContain(oldTitle);
+      }
+    }
+    for (const [label, path] of titleSurfaces) {
+      expect(stripComments(source(path)), `${label}(${path})가 아모라를 "AI 웨딩 비서"라고 부르지 않는다`)
+        .toContain("AI 웨딩 비서");
+    }
   });
 
   it("실행 위임 문장은 그대로 둔다", () => {
