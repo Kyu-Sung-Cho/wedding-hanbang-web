@@ -307,6 +307,12 @@ describe("판정 모델 입력과 출력", () => {
     // 11-20 판의 넓은 꼴이 평범한 조율 12문장 중 3개를 막았다. 그 꼴이 돌아오지 않는다.
     expect(violence).not.toContain("휴대폰을 검사함");
     expect(violence).not.toContain("돈을 못 쓰게 함");
+    // 11-21 저녁 "4안": "못 만나게" 괄호는 남기고(빼면 "친구 못 만나게 해" 꼴이 지난다) 의절 위협을 강요로 적는다.
+    expect(violence).toContain(
+      "(가족이나 친구와 못 만나게 하거나 연락을 끊게 하는 것도. 의절하겠다거나 내쫓겠다는 말처럼 해치겠다는 뜻이 아닌 위협도)",
+    );
+    // 명절 방문 조율(결정 5)이 20번 중 7번 막혀 none 예시에 적었다.
+    expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("명절에 어느 집에 갈지나 어른 뜻 때문에 한쪽 집에 못 가게 된 일");
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("양가 어른의 부탁이나 바람과 그 조율");
     expect(AMORA_GATE_JUDGE_INSTRUCTIONS).toContain("두 사람이 의논하는 제안이나 합의");
   });
