@@ -59,6 +59,13 @@ describe("Dashboard cancelled schedule boundary", () => {
   let container: HTMLDivElement;
   let originalState: ReturnType<typeof useAuthStore.getState>;
 
+  // 대시보드는 오늘 이후의 planned 일정만 "다가오는 일정"으로 보여 준다. 시계를
+  // 고정하지 않으면 픽스처 일정(2027-01-03)이 지난 뒤 코드 변경 없이 깨진다.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-27T03:00:00Z"));
+  });
+
   beforeEach(() => {
     originalState = useAuthStore.getState();
     container = document.createElement("div");
@@ -76,6 +83,7 @@ describe("Dashboard cancelled schedule boundary", () => {
     await act(async () => root.unmount());
     useAuthStore.setState(originalState);
     document.body.replaceChildren();
+    vi.useRealTimers();
   });
 
   it("uses only planned events for next and upcoming schedule surfaces", async () => {
