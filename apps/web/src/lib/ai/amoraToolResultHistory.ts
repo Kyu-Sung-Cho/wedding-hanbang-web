@@ -1,5 +1,6 @@
 import { readPlaceSearchFacts } from "@hanbang/shared/place-search-presentation";
 import { AMORA_W3_PRIOR_ASSISTANT_MAX_CHARS, type AmoraBoundedContinuityResult } from "@/lib/ai/amoraBoundedContinuity";
+import { webLookupHistoryEntry } from "@/lib/ai/webLookup/webLookupModelView";
 
 type Data = Record<string, unknown>;
 const MAX_DATA_CHARS = 4000;
@@ -54,7 +55,8 @@ export function appendAmoraToolResultHistory(content: string, toolResults: unkno
     if (!result || result.success !== true) continue;
     const output = record(result.toolOutput);
     if (!output || output.error !== undefined) continue;
-    const item = result.toolName === "search_nearby_places" ? searchData(output) : null;
+    // 찾아보기는 무엇을 언제 찾았는지만 남긴다. 업체 이름·금액은 이력에 없다(`webLookupHistoryEntry`).
+    const item = result.toolName === "search_nearby_places" ? searchData(output) : webLookupHistoryEntry(result);
     if (!item) continue;
     const serialized = JSON.stringify(item);
     if (seen.has(serialized)) continue;

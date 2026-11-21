@@ -145,7 +145,8 @@ test("화면이 카드를 그리고 서버에 그릴 수 있는 도구를 알린
   // 펼침(spread) 없이 이름을 그대로 적어야 한다. 대신 모델의 목록과 같은지 여기서 잰다.
   const declaration = chatSource.match(/const MOBILE_RENDERED_TOOLS = \[([^\]]*)\] as const;/u)?.[1] ?? "";
   const rendered = [...declaration.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(rendered, ["search_nearby_places", ...TOOL_RESULT_CARD_TOOLS]);
+  // 찾아보기 카드 둘(2026-11-20 D-85, `WebLookupCards.tsx`)은 장소 검색 바로 뒤에 선언한다.
+  assert.deepEqual(rendered, ["search_nearby_places", "search_web", "read_page", ...TOOL_RESULT_CARD_TOOLS]);
   for (const name of ["update_budget", "add_schedule_event", "toggle_checklist_item", "add_amora_action"]) {
     assert.ok(TOOL_RESULT_CARD_TOOLS.includes(name), name);
   }

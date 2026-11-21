@@ -384,6 +384,13 @@ console.info("[costGuard] config", {
     GLOBAL_DAILY_COST_CAP_MICROUSD,
   ) / 1_000_000,
 });
+/**
+ * 찾아보기(`webLookup/webLookupQuota.ts`)가 같은 하루 금액 상한에 걸리게 한다(D-88). 그날 상한에
+ * 닿았으면 인터넷 찾기도 멈춘다. 값만 돌려준다. 예약·정산은 하지 않는다.
+ */
+export function getAmoraGlobalDailyCostCap(): { guardEnabled: boolean; costMicrousd: number } {
+  return { guardEnabled: GUARD_ENABLED, costMicrousd: GLOBAL_DAILY_COST_CAP_MICROUSD };
+}
 // Keep the atomic global reservation when the per-couple quota is disabled.
 // The RPC parameter is PostgreSQL INTEGER, so the sentinel must stay within int4.
 const DISABLED_COUPLE_CAP = POSTGRES_INT_MAX;

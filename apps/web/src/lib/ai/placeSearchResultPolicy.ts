@@ -1,5 +1,6 @@
 import type { ToolExecutionResult } from "@/types/database.types";
 import { formatPlaceSearchDate, readPlaceSearchFacts } from "@hanbang/shared/place-search-presentation";
+import { webLookupModelOutput, webLookupPersistableResult } from "@/lib/ai/webLookup/webLookupModelView";
 
 export const EPHEMERAL_PLACE_SEARCH_TOOL = "search_nearby_places";
 const PRIVATE_SCHEDULE_MUTATION_TOOLS = new Set([
@@ -220,6 +221,9 @@ export function getPersistableToolResults(
     .flatMap((result) => {
       // 개인 조회 건수와 모델 초안은 별도 최소 metadata만 사용한다. 도구 이력으로 재전송하지 않는다.
       if (result.toolName === "get_personal_actions" || result.toolName === "prepare_personal_action") return [];
+      // 찾아보기: 검색은 우리 값만 남긴 자리표시, 읽기는 업체 페이지에서 뽑은 칸만 남긴다. 네이버 글은 남기지 않는다.
+      const webLookup = webLookupPersistableResult(result);
+      if (webLookup !== undefined) return webLookup ? [webLookup] : [];
       if (result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL) {
         const placeholder = placeSearchPlaceholderResult(result);
         return placeholder ? [placeholder] : [];
@@ -259,6 +263,9 @@ export function getModelSafeToolOutput(result: ToolExecutionResult): Record<stri
   if (result.toolName === PRIVATE_BOOKING_CANCELLATION_TOOL) {
     return privacySafeBookingCancellationOutput(result);
   }
+  // 찾아보기: 네이버 글은 한 글자도 보내지 않고, 업체 페이지는 정해진 칸만 보낸다(08장 H5).
+  const webLookup = webLookupModelOutput(result);
+  if (webLookup) return webLookup;
   if (result.toolName !== EPHEMERAL_PLACE_SEARCH_TOOL) return result.toolOutput;
   const output = result.toolOutput;
   const places = Array.isArray(output.places) ? output.places : [];
@@ -284,6 +291,12 @@ export function getModelSafeToolOutput(result: ToolExecutionResult): Record<stri
   };
 }
 
-export function hasEphemeralPlaceSearchResult(results: ToolExecutionResult[]): boolean {
-  return results.some((result) => result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL);
+export function hasEphemeralPlaceSearchResult(
+  results: ToolExecutionResult[],
+  options: { ignoreBlockedVendorQueries?: boolean } = {},
+): boolean {
+  // 찾아보기가 열린 턴(2026-11-20)에는 웨딩 업체 질의로 막힌 결과를 세지 않는다. 막힌 검색은 네이버에서
+  // 아무것도 가져오지 않았으므로 잠글 이유가 없고, 잠그면 모델이 search_web 으로 다시 갈 수 없다.
+  return results.some((result) => result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL
+    && !(options.ignoreBlockedVendorQueries && result.toolOutput.reason === "wedding_vendor_query_blocked"));
 }

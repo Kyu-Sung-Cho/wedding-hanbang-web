@@ -25,6 +25,7 @@
     "./amora-shared-actions": "./src/contracts/amoraSharedActions.mjs",
     "./mediation-responses": "./src/contracts/amoraMediationResponses.mjs",
     "./place-search-presentation": "./src/contracts/placeSearchPresentation.mjs",
+    "./web-lookup-presentation": "./src/contracts/webLookupPresentation.mjs",
     "./amora-visible-text": "./src/contracts/amoraVisibleText.mjs",
     "./amora-reference-links": "./src/contracts/amoraReferenceLinks.mjs",
     "./profile-avatar": "./src/contracts/profileAvatar.mjs",

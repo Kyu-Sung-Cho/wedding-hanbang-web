@@ -163,6 +163,7 @@ import {
   type ChatViewCursors,
 } from "@/lib/chatPrivacyScope";
 import { PlaceCards } from "@/components/chat/PlaceCards";
+import { WebLookupPageCard, WebLookupSearchCard } from "@/components/chat/WebLookupCards";
 import { AmoraMessageBody } from "@/components/chat/AmoraMessageBody";
 import { ToolResultCard } from "@/components/chat/ToolResultCard";
 import { PersonalActionSave } from "@/components/chat/PersonalActionSave";
@@ -660,6 +661,8 @@ type ChatStreamUpdateCallback = (
 // 뽑아 평가한다. 모델(`TOOL_RESULT_CARD_TOOLS`)과 같은지는 toolResultCard.test.mjs 가 잰다.
 const MOBILE_RENDERED_TOOLS = [
   "search_nearby_places",
+  "search_web",
+  "read_page",
   "update_budget",
   "update_category_budget",
   "add_custom_category",
@@ -1056,6 +1059,8 @@ function asChatMessageMetadata(value: unknown): ChatMessageMetadata | null {
         // 받아서 다시 열었을 때 카드 자리를 그린다(2026-09-03).
         result !== null
         && (result.toolName !== "search_nearby_places" || isPlaceSearchPlaceholder(result))
+        // 찾아보기 검색도 저장본은 우리 값만 남은 자리표시뿐이다(네이버 글은 저장하지 않는다).
+        && (result.toolName !== "search_web" || result.toolOutput.displayOnlyPlaceholder === true)
       )
     : undefined;
   const metadata = { ...value };
@@ -4701,6 +4706,26 @@ export default function ChatScreen() {
     );
     const placeResults = livePlaceResults.length > 0 ? livePlaceResults : allPlaceResults;
     const hasPlaceResults = placeResults.length > 0;
+    // 찾아보기(2026-11-20 D-85). 방금 받은 검색 결과가 있으면 저장된 자리표시는 그리지 않고,
+    // 같은 페이지 읽기 결과(방금 받은 것과 저장본)는 한 장만 그린다.
+    const webLookupAll = isAi
+      ? (item.metadata?.toolResults ?? []).filter(
+          (result) => result.toolName === "search_web" || result.toolName === "read_page",
+        )
+      : [];
+    const hasLiveWebSearch = webLookupAll.some(
+      (result) => result.toolName === "search_web" && result.toolOutput.displayOnlyPlaceholder !== true,
+    );
+    const seenPageReads = new Set<string>();
+    const webLookupResults = webLookupAll.filter((result) => {
+      if (result.toolName === "search_web") {
+        return !(hasLiveWebSearch && result.toolOutput.displayOnlyPlaceholder === true);
+      }
+      const key = `${String(result.toolOutput.url ?? "")}|${String(result.toolOutput.checkedAt ?? "")}|${String(result.success)}`;
+      if (seenPageReads.has(key)) return false;
+      seenPageReads.add(key);
+      return true;
+    });
     // 2026-09-04: 반영 결과 영수증. 카드로 못 그리는 도구는 모델이 null 을 주고,
     // 같은 실패가 여러 번 온 턴은 한 장으로 접는다.
     // 그리는 도구를 이름으로 걸러낸다(renderedToolsAreDeclared.test.mjs 가 선언 목록과 대조).
@@ -4958,6 +4983,11 @@ export default function ChatScreen() {
           )}
           {placeResults.map((result, index) => (
             <PlaceCards key={`${result.toolName}-${index}`} result={result} />
+          ))}
+          {webLookupResults.map((result, index) => (
+            result.toolName === "search_web"
+              ? <WebLookupSearchCard key={`${result.toolName}-${index}`} result={result} />
+              : <WebLookupPageCard key={`${result.toolName}-${index}`} result={result} />
           ))}
           {toolResultCards.map((model, index) => (
             <ToolResultCard key={`${model.toolName}-${index}`} model={model} />
