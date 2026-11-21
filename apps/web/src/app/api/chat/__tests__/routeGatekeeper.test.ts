@@ -294,6 +294,25 @@ describe("POST /api/chat — 문지기(D-89)", () => {
     expect(mocks.reserve).not.toHaveBeenCalled();
   });
 
+  // 2026-11-22 main 병합(찾아보기 PR #535): 찾아보기 도구는 W0 도구 부여 자리에서 열린다. 문지기는 그보다
+  // 앞에서 턴을 끝내므로 막힌 턴은 찾아보기가 켜져 있어도 모델·네이버에 닿지 않는다.
+  it("찾아보기가 켜져 있어도 막힌 턴은 모델과 네이버에 닿지 않는다(문지기가 W0 도구 부여보다 앞)", async () => {
+    vi.stubEnv("AMORA_WEB_SEARCH_ENABLED", "true");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    mocks.checkAmoraGate.mockResolvedValue(gateDecision("blocked_risk"));
+    try {
+      const response = await POST(request(chatBody("결혼식 끝나고 그 사람 혼내 줄 거야. 강남 웨딩홀 대관료도 찾아줘")));
+      const done = doneEvent(await response.text());
+
+      expect(done.fullContent).toBe(AMORA_GATE_BLOCKED_RISK_REPLY);
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.fromTables).not.toContain(STORED_CONTEXT_TABLE);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("위험은 번호 없는 한 줄을 그 레인(나만 상담)에 저장한다", async () => {
     mocks.checkAmoraGate.mockResolvedValue(gateDecision("blocked_risk"));
 

@@ -164,6 +164,7 @@ import {
 } from "@/lib/chatPrivacyScope";
 import { PlaceCards } from "@/components/chat/PlaceCards";
 import { WebLookupPageCard, WebLookupSearchCard } from "@/components/chat/WebLookupCards";
+import { selectWebLookupResultsToRender } from "@/components/chat/webLookupResultSelection";
 import { AmoraMessageBody } from "@/components/chat/AmoraMessageBody";
 import { ToolResultCard } from "@/components/chat/ToolResultCard";
 import { PersonalActionSave } from "@/components/chat/PersonalActionSave";
@@ -4706,26 +4707,10 @@ export default function ChatScreen() {
     );
     const placeResults = livePlaceResults.length > 0 ? livePlaceResults : allPlaceResults;
     const hasPlaceResults = placeResults.length > 0;
-    // 찾아보기(2026-11-20 D-85). 방금 받은 검색 결과가 있으면 저장된 자리표시는 그리지 않고,
-    // 같은 페이지 읽기 결과(방금 받은 것과 저장본)는 한 장만 그린다.
-    const webLookupAll = isAi
-      ? (item.metadata?.toolResults ?? []).filter(
-          (result) => result.toolName === "search_web" || result.toolName === "read_page",
-        )
+    // 찾아보기(2026-11-20 D-85). 같은 턴의 실시간 결과와 저장본은 한 장만 그린다(`webLookupResultSelection.ts`).
+    const webLookupResults = isAi
+      ? selectWebLookupResultsToRender(item.metadata?.toolResults ?? [])
       : [];
-    const hasLiveWebSearch = webLookupAll.some(
-      (result) => result.toolName === "search_web" && result.toolOutput.displayOnlyPlaceholder !== true,
-    );
-    const seenPageReads = new Set<string>();
-    const webLookupResults = webLookupAll.filter((result) => {
-      if (result.toolName === "search_web") {
-        return !(hasLiveWebSearch && result.toolOutput.displayOnlyPlaceholder === true);
-      }
-      const key = `${String(result.toolOutput.url ?? "")}|${String(result.toolOutput.checkedAt ?? "")}|${String(result.success)}`;
-      if (seenPageReads.has(key)) return false;
-      seenPageReads.add(key);
-      return true;
-    });
     // 2026-09-04: 반영 결과 영수증. 카드로 못 그리는 도구는 모델이 null 을 주고,
     // 같은 실패가 여러 번 온 턴은 한 장으로 접는다.
     // 그리는 도구를 이름으로 걸러낸다(renderedToolsAreDeclared.test.mjs 가 선언 목록과 대조).
@@ -4987,7 +4972,9 @@ export default function ChatScreen() {
           {webLookupResults.map((result, index) => (
             result.toolName === "search_web"
               ? <WebLookupSearchCard key={`${result.toolName}-${index}`} result={result} />
-              : <WebLookupPageCard key={`${result.toolName}-${index}`} result={result} />
+              : result.toolName === "read_page"
+                ? <WebLookupPageCard key={`${result.toolName}-${index}`} result={result} />
+                : null
           ))}
           {toolResultCards.map((model, index) => (
             <ToolResultCard key={`${model.toolName}-${index}`} model={model} />

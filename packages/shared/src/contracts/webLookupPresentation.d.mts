@@ -1,4 +1,4 @@
-export const WEB_LOOKUP_NEEDS_VENDOR_CHECK: "업체 확인 필요";
+export const WEB_LOOKUP_NEEDS_VENDOR_CHECK: "업체에 확인해 주세요";
 export const WEB_LOOKUP_COPY: Readonly<{
   sourceName: string;
   columns: Readonly<{ name: string; area: string; category: string; page: string; item: string; price: string }>;
@@ -11,6 +11,7 @@ export const WEB_LOOKUP_COPY: Readonly<{
   pagePriceNote: string;
   pageNoPrice: string;
   pageTextless: string;
+  pageTitleWithoutDomain: string;
 }>;
 export function formatWebLookupDate(value: unknown): string | null;
 export function safeWebLookupHref(value: unknown): string | null;
@@ -51,7 +52,7 @@ export type WebLookupPageCard =
       pageTitle: string | null;
       subtitle: string | null;
       prices: WebLookupPagePrice[];
-      priceCell: "업체 확인 필요" | null;
+      priceCell: "업체에 확인해 주세요" | null;
       note: string;
       href: string | null;
       domain: string | null;

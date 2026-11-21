@@ -146,4 +146,19 @@ describe("대화 도구의 모델 칸과 다음 턴 이력", () => {
     expectNoNaverText(persisted);
     expect(persisted?.toolOutput).toEqual({ query: "강남 웨딩홀", resultCount: 3, checkedAt: SEARCH.checkedAt, displayOnlyPlaceholder: true });
   });
+
+  it("페이지 읽기 저장본은 업체 주소·도메인 없이 제목·금액 줄·확인 시각만 남긴다(2026-11-22 파운더 결정 4)", () => {
+    const persisted = webLookupPersistableResult(readByRef);
+    expectNoNaverText(persisted);
+    expect(persisted?.toolOutput).toEqual({
+      checkedAt: PAGE.checkedAt,
+      title: PAGE.title,
+      prices: PAGE.prices,
+      priceStatus: "found",
+      textless: false,
+      storedCopy: true,
+    });
+    // 다시 열 때 한 번 더 거쳐도 같은 모양이다(웹 `dbRowToMessage`).
+    expect(webLookupPersistableResult(persisted as ToolExecutionResult)).toEqual(persisted);
+  });
 });

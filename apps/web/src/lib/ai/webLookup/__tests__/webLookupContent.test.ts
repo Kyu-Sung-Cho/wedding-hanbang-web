@@ -398,9 +398,9 @@ describe("모델에게 가는 칸", () => {
     expect(webLookupModelOutput(typed)).toMatchObject({ domain: "evil-hall.co.kr", pageTitle: "이블홀 가격 안내" });
   });
 
-  it("가격이 없으면 '업체 확인 필요' 다", () => {
+  it("가격이 없으면 '업체에 확인해 주세요' 다", () => {
     const view = webLookupModelOutput({ ...READ_RESULT, toolOutput: { ...READ_RESULT.toolOutput, prices: [] } });
-    expect(view).toMatchObject({ prices: [], priceStatus: "업체 확인 필요" });
+    expect(view).toMatchObject({ prices: [], priceStatus: "업체에 확인해 주세요" });
   });
 
   it("실패한 읽기는 이유와 우리 안내만 간다(주소는 가지 않는다)", () => {
@@ -432,14 +432,17 @@ describe("저장과 다음 턴 이력", () => {
     expect(JSON.stringify(persisted)).not.toContain(INJECTION);
   });
 
-  it("읽기는 업체 페이지에서 뽑은 칸만 저장한다", () => {
+  it("읽기는 업체 페이지에서 뽑은 칸만 저장하고 업체 주소·도메인은 남기지 않는다(2026-11-22 파운더 결정 4)", () => {
     const persisted = webLookupPersistableResult(READ_RESULT);
     expect(persisted?.toolOutput).toMatchObject({
-      domain: "evil-hall.co.kr",
       prices: [{ label: "식대", amount: "5만원" }],
       priceStatus: "found",
+      storedCopy: true,
     });
     expect(persisted?.toolOutput).not.toHaveProperty("remainingToday");
+    expect(persisted?.toolOutput).not.toHaveProperty("url");
+    expect(persisted?.toolOutput).not.toHaveProperty("domain");
+    expect(JSON.stringify(persisted)).not.toContain("evil-hall");
   });
 
   it("실패는 저장하지 않는다", () => {

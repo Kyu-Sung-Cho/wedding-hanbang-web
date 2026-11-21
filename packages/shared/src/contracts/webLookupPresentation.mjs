@@ -4,8 +4,11 @@
  * - 검색 결과는 네이버 순서 그대로 보인다. 순서를 바꾸거나 합치지 않는다(네이버 오픈 API 이용약관의
  *   "가공 없이"·순위 수정 금지, `apps/web/src/lib/ai/webLookup/naverWebLookup.ts`). 출처 "네이버 검색"과
  *   원본으로 가는 링크를 함께 둔다.
- * - 가격은 업체 공식 페이지에 적힌 줄만 보이고, 없으면 "업체 확인 필요" 다.
+ * - 가격은 업체 공식 페이지에 적힌 줄만 보이고, 없으면 "업체에 확인해 주세요" 다(2026-11-22 파운더 결정 2).
  * - 순위·추천·평판·후기 표시는 없다.
+ * - 저장된 페이지 카드(`storedCopy`)에는 페이지 제목·금액 줄·확인 시각만 있고 업체 주소·도메인은 없다
+ *   (2026-11-22 파운더 결정 4). 그래서 제목은 도메인 없는 문장이고 "페이지 열기" 링크가 없다.
+ *   방금 받은 실시간 카드는 그대로 도메인과 링크를 보인다.
  * - 화면 문장은 이 파일에만 있다. 바꾸려면 파운더 승인(D-12)을 받는다.
  */
 
@@ -14,7 +17,7 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit", minute: "2-digit", hourCycle: "h23",
 });
 
-export const WEB_LOOKUP_NEEDS_VENDOR_CHECK = "업체 확인 필요";
+export const WEB_LOOKUP_NEEDS_VENDOR_CHECK = "업체에 확인해 주세요";
 
 export const WEB_LOOKUP_COPY = Object.freeze({
   sourceName: "네이버 검색",
@@ -28,6 +31,8 @@ export const WEB_LOOKUP_COPY = Object.freeze({
   pagePriceNote: "공식 페이지에 적힌 그대로예요. 실제 계약 금액과 다를 수 있어요.",
   pageNoPrice: "이 페이지에는 가격이 적혀 있지 않아요.",
   pageTextless: "글이 거의 없는 페이지라 가격을 읽지 못했을 수 있어요.",
+  // 도메인을 모를 때(저장된 페이지 카드)의 제목. 2026-11-22 새 문장, 승인 대기(D-12).
+  pageTitleWithoutDomain: "공식 페이지에서 확인했어요",
 });
 
 /** @param {unknown} value */
@@ -180,8 +185,10 @@ const PAGE_FAILURE_DEFAULT = "페이지를 열지 못했어요. 직접 열어 �
  */
 export function getWebLookupPageCard(rawOutput, success) {
   const output = record(rawOutput) ?? {};
-  const href = safeWebLookupHref(output.url);
-  const domain = text(output.domain) ?? hostLabel(output.url);
+  // 저장본은 주소·도메인을 남기지 않는다. 옛 행에 남아 있어도 그리지 않는다(2026-11-22 파운더 결정 4).
+  const stored = output.storedCopy === true;
+  const href = stored ? null : safeWebLookupHref(output.url);
+  const domain = stored ? null : (text(output.domain) ?? hostLabel(output.url));
   if (!success) {
     const reason = text(output.error) ?? "fetch_failed";
     if (SILENT_FAILURES.has(reason)) return null;
@@ -202,7 +209,7 @@ export function getWebLookupPageCard(rawOutput, success) {
   const checkedAtLabel = formatWebLookupDate(output.checkedAt);
   return {
     kind: "page",
-    title: `${domain ?? "업체"} 공식 페이지에서 확인했어요`,
+    title: domain ? `${domain} 공식 페이지에서 확인했어요` : WEB_LOOKUP_COPY.pageTitleWithoutDomain,
     pageTitle: text(output.title),
     subtitle: checkedAtLabel ? `${checkedAtLabel}에 확인했어요.` : null,
     prices,

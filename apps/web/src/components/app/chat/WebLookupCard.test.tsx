@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { getPersistableToolResults } from "@/lib/ai/placeSearchResultPolicy";
 import type { ToolExecutionResult } from "@/types/database.types";
 import VendorToolCard from "./VendorToolCard";
 
@@ -10,7 +11,8 @@ import VendorToolCard from "./VendorToolCard";
 
 /**
  * 찾아보기 카드(웹). 같은 기준 표, 출처와 확인 시각, 네이버 순서 그대로, 순위·별점·후기 없음,
- * 가격이 없으면 "업체 확인 필요"(D-85, D-14 조건). 문장은 `@hanbang/shared/web-lookup-presentation`.
+ * 가격이 없으면 "업체에 확인해 주세요"(D-85, D-14 조건, 2026-11-22 파운더 결정 2). 저장된 페이지 카드는
+ * 업체 주소·도메인 없이 그린다(결정 4). 문장은 `@hanbang/shared/web-lookup-presentation`.
  */
 
 const SEARCH: ToolExecutionResult = {
@@ -96,10 +98,32 @@ describe("찾아보기 카드", () => {
     expect(container.querySelector("a")?.getAttribute("href")).toBe("https://www.sky-garden-hall.co.kr/price");
   });
 
-  it("가격이 없으면 '업체 확인 필요' 다", () => {
+  it("가격이 없으면 '업체에 확인해 주세요' 다", () => {
     const text = render({ ...PAGE, toolOutput: { ...PAGE.toolOutput, prices: [], priceStatus: "needs_vendor_check" } });
-    expect(text).toContain("업체 확인 필요");
+    expect(text).toContain("업체에 확인해 주세요");
+    expect(text).not.toContain("업체 확인 필요");
     expect(text).toContain("이 페이지에는 가격이 적혀 있지 않아요.");
+  });
+
+  it("저장된 페이지 카드는 업체 주소·도메인 없이 제목·금액 줄·확인 시각만 보인다(결정 4)", () => {
+    const [stored] = getPersistableToolResults([PAGE]);
+    const text = render(stored);
+    // 도메인 없는 새 제목(2026-11-22, 승인 대기). 옛 대신 문장("업체 공식 페이지에서…")과 갈리도록 통째로 본다.
+    expect(container.querySelector("[data-testid='web-lookup-page-card'] section")?.getAttribute("aria-label"))
+      .toBe("공식 페이지에서 확인했어요");
+    expect(text).not.toContain("sky-garden-hall");
+    expect(text).toContain("하늘정원 예식 안내");
+    expect(text).toContain("1인 식대");
+    expect(text).toContain("65,000원");
+    expect(text).toContain("2026.11.20 16:31에 확인했어요.");
+    expect(container.querySelector("a")).toBeNull();
+  });
+
+  it("옛 저장본에 주소가 남아 있어도 저장본 표시가 있으면 주소를 그리지 않는다", () => {
+    const text = render({ ...PAGE, toolInput: {}, toolOutput: { ...PAGE.toolOutput, storedCopy: true } });
+    expect(text).toContain("공식 페이지에서 확인했어요");
+    expect(text).not.toContain("sky-garden-hall");
+    expect(container.querySelector("a")).toBeNull();
   });
 
   it("다시 열면 자리표시만 보인다(네이버 글은 저장하지 않았다)", () => {

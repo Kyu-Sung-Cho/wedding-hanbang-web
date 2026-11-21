@@ -7,7 +7,7 @@ import { stripInvisibleChars } from "@/lib/ai/webLookup/webLookupText";
  *   - 가격 줄: 항목 이름(14자) + 금액(쓰인 그대로) + 원문 한 줄(90자, 카드에만)
  *
  * 금액을 찾는 일은 정규식이 한다. 모델이 아니라서 페이지 속 지시문에 흔들리지 않는다. 금액이
- * 없는 페이지는 "업체 확인 필요"다. 가격을 지어내거나 블로그에서 옮기지 않는다(D-85).
+ * 없는 페이지는 "업체에 확인해 주세요"다. 가격을 지어내거나 블로그에서 옮기지 않는다(D-85).
  */
 
 export interface WebLookupPriceFact {

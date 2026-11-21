@@ -61,17 +61,17 @@ const SEARCH_GUIDANCE_DEFAULT = "지금 찾아보지 못했습니다. 잠시 뒤
 const READ_GUIDANCE: Readonly<Record<string, string>> = {
   url_not_from_search: "이번 턴 search_web 결과의 readableRefs 나 사용자가 직접 보낸 주소만 읽을 수 있습니다.",
   blocked_by_terms: "약관상 자동으로 읽을 수 없는 곳입니다. 사용자가 직접 열어 보도록 안내하세요.",
-  blocked_by_robots: "그 사이트가 자동 읽기를 허락하지 않았습니다(robots.txt). 가격은 업체 확인 필요로 두세요.",
-  robots_unreachable: "그 사이트의 읽기 허락을 확인하지 못해 읽지 않았습니다. 가격은 업체 확인 필요로 두세요.",
-  not_a_page: "글로 된 페이지가 아니라 읽지 못했습니다. 가격은 업체 확인 필요로 두세요.",
+  blocked_by_robots: "그 사이트가 자동 읽기를 허락하지 않았습니다(robots.txt). 가격은 '업체에 확인해 주세요'라고 안내하세요.",
+  robots_unreachable: "그 사이트의 읽기 허락을 확인하지 못해 읽지 않았습니다. 가격은 '업체에 확인해 주세요'라고 안내하세요.",
+  not_a_page: "글로 된 페이지가 아니라 읽지 못했습니다. 가격은 '업체에 확인해 주세요'라고 안내하세요.",
   couple_daily_cap: "오늘 찾아보기 횟수를 다 썼습니다. 내일 다시 확인할 수 있다고 말하세요.",
-  global_daily_cap: "오늘은 더 읽을 수 없습니다. 가격은 업체 확인 필요로 두세요.",
-  global_cost_cap: "오늘은 더 읽을 수 없습니다. 가격은 업체 확인 필요로 두세요.",
+  global_daily_cap: "오늘은 더 읽을 수 없습니다. 가격은 '업체에 확인해 주세요'라고 안내하세요.",
+  global_cost_cap: "오늘은 더 읽을 수 없습니다. 가격은 '업체에 확인해 주세요'라고 안내하세요.",
   turn_read_limit: "이번 답에서는 더 읽지 않습니다. 이미 읽은 결과로 답하세요.",
-  web_lookup_unavailable: "지금은 페이지를 읽을 수 없습니다. 가격은 업체 확인 필요로 두세요.",
-  disabled: "지금은 페이지를 읽을 수 없습니다. 가격은 업체 확인 필요로 두세요.",
+  web_lookup_unavailable: "지금은 페이지를 읽을 수 없습니다. 가격은 '업체에 확인해 주세요'라고 안내하세요.",
+  disabled: "지금은 페이지를 읽을 수 없습니다. 가격은 '업체에 확인해 주세요'라고 안내하세요.",
 };
-const READ_GUIDANCE_DEFAULT = "페이지를 열지 못했습니다. 가격은 업체 확인 필요로 두세요.";
+const READ_GUIDANCE_DEFAULT = "페이지를 열지 못했습니다. 가격은 '업체에 확인해 주세요'라고 안내하세요.";
 
 function searchModelOutput(result: ToolExecutionResult): Record<string, unknown> {
   const output = result.toolOutput;
@@ -142,7 +142,7 @@ function readModelOutput(result: ToolExecutionResult): Record<string, unknown> {
     checkedAt: formatWebLookupCheckedAt(output.checkedAt),
     pageTitle: stringOrNull(output.title),
     prices,
-    priceStatus: prices.length > 0 ? "공식 페이지에 적힌 금액" : "업체 확인 필요",
+    priceStatus: prices.length > 0 ? "공식 페이지에 적힌 금액" : "업체에 확인해 주세요",
     ...(output.textless === true ? { pageNote: "글이 거의 없는 페이지라 가격을 읽지 못했을 수 있습니다." } : {}),
     dataNotice: DATA_NOTICE,
     ...(typeof output.remainingToday === "number" ? { remainingToday: output.remainingToday } : {}),
@@ -158,7 +158,8 @@ export function webLookupModelOutput(result: ToolExecutionResult): Record<string
 
 /**
  * 저장할 모양. 검색은 우리가 만든 값만 남긴 자리표시(장소 검색과 같은 방식)이고, 읽기는 업체
- * 페이지에서 뽑은 칸만 남긴다. 실패는 남기지 않는다. `undefined` 면 찾아보기 도구가 아니다.
+ * 페이지에서 뽑은 칸(페이지 제목·금액 줄·확인 시각)만 남기고 주소·도메인은 남기지 않는다. 실패는
+ * 남기지 않는다. `undefined` 면 찾아보기 도구가 아니다. 이미 저장본이어도 같은 모양이 나온다.
  */
 export function webLookupPersistableResult(result: ToolExecutionResult): ToolExecutionResult | null | undefined {
   if (result.toolName !== SEARCH_WEB_TOOL_NAME && result.toolName !== READ_PAGE_TOOL_NAME) return undefined;
@@ -188,17 +189,19 @@ export function webLookupPersistableResult(result: ToolExecutionResult): ToolExe
         return label && amount ? [{ label, amount, quote: quote ?? "" }] : [];
       })
     : [];
+  // 저장본에는 업체 주소·도메인을 남기지 않는다(2026-11-22 파운더 결정 4: 페이지 제목·금액 줄·확인 시각만).
+  // 번호표로 읽은 주소는 네이버 지역 결과의 `link` 에서 왔다(검색 API 특약 1.3·1.4). 실시간 카드는 방금 받은
+  // 결과로 그리므로 주소가 그대로 있다. `storedCopy` 는 앱이 같은 읽기의 실시간 카드와 저장본을 한 장으로 접을 때 본다.
   return {
     toolName: READ_PAGE_TOOL_NAME,
     toolInput: {},
     toolOutput: {
-      url: stringOrNull(output.url),
-      domain: stringOrNull(output.domain),
       checkedAt: stringOrNull(output.checkedAt),
       title: stringOrNull(output.title),
       prices,
       priceStatus: prices.length > 0 ? "found" : "needs_vendor_check",
       textless: output.textless === true,
+      storedCopy: true,
     },
     success: true,
     displayMessage: "",
@@ -228,7 +231,7 @@ export function webLookupHistoryEntry(result: Record<string, unknown>): Record<s
   }
   if (result.toolName === READ_PAGE_TOOL_NAME) {
     // 페이지 주소·도메인은 이력(다음 턴 모델 입력)에 넣지 않는다. 번호표로 읽은 주소는 네이버 결과의
-    // `link` 에서 왔고(약관 검색 API 특약 1.3: 파생물도 AI 입력 금지), 저장본에는 어디서 온 주소인지 남지 않는다.
+    // `link` 에서 왔고(약관 검색 API 특약 1.3: 파생물도 AI 입력 금지), 저장본에는 주소 자체가 없다.
     const priceCount = Array.isArray(output.prices) ? output.prices.length : 0;
     return {
       tool: READ_PAGE_TOOL_NAME,
