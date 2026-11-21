@@ -36,12 +36,12 @@ export const AMORA_TASK_KIND_SPECS: Readonly<Record<AmoraTaskKind, AmoraTaskKind
   hall_candidates: {
     needs: "web_search",
     plan: ["조건에 맞는 웨딩홀을 찾아봐요", "공식 안내에서 확인한 것만 같은 기준 표로 정리해요"],
-    columns: ["웨딩홀", "지역", "식대(1인)", "대관료", "보증 인원", "확인한 곳"],
+    columns: ["웨딩홀", "지역", "식대(1인)", "대관료", "보증 인원", "확인한 날"],
   },
   sdm_candidates: {
     needs: "web_search",
     plan: ["조건에 맞는 업체를 찾아봐요", "공식 안내에서 확인한 것만 같은 기준 표로 정리해요"],
-    columns: ["업체", "분야", "지역", "가격", "포함 항목", "확인한 곳"],
+    columns: ["업체", "분야", "지역", "가격", "포함 항목", "확인한 날"],
   },
   inquiry_letters: {
     needs: "inquiry",

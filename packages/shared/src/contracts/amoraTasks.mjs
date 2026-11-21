@@ -118,7 +118,7 @@ export const AMORA_TASK_COPY = Object.freeze({
   resultNextTitle: '다음에 할 일',
   resultNextNote: '누르면 대화 입력칸에 글이 채워져요. 보내고 나서 확인 카드를 눌러야 반영돼요.',
   resultNextButton: '대화에서 이어 하기',
-  priceUnknown: '업체 확인 필요',
+  priceUnknown: '업체에 확인해 주세요',
   cancel: '그만하기',
   cancelled: '그만두었어요.',
   resume: '이어서 하기',

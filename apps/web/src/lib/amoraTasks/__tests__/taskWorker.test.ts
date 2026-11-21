@@ -247,14 +247,32 @@ describe("찾기가 드는 일", () => {
       coupleId: COUPLE,
       sourceUrls: ["https://chapel.example/hall", "https://raum.example/", "https://blog.example/top"],
     });
-    const result = fake.finishes.at(-1)!.result as { rows: { cells: string[]; sourceIds: string[] }[]; nextActions: { prompt: string }[] };
-    // 표는 서버가 짠다: 이름·사이트는 네이버 칸(w), 가격은 공식 페이지(p)에서만. 순위 모음 글은 빠진다.
+    const result = fake.finishes.at(-1)!.result as {
+      rows: { cells: string[]; sourceIds: string[] }[];
+      sources: { id: string; url: string | null }[];
+      nextActions: { prompt: string }[];
+    };
+    // 표는 서버가 짠다: 이름은 네이버 칸(w), 가격과 확인한 날은 공식 페이지(p)에서만. 순위 모음 글은 빠진다.
     expect(result.rows.map((r) => r.cells)).toEqual([
-      ["더채플 강남 웨딩홀 공식", "강남", "1인 65,000원", "업체 확인 필요", "200명", "chapel.example"],
-      ["라움 강남 웨딩홀", "강남", "업체 확인 필요", "업체 확인 필요", "업체 확인 필요", "raum.example"],
+      ["더채플 강남 웨딩홀 공식", "강남", "1인 65,000원", "업체에 확인해 주세요", "200명", "11월 20일"],
+      ["라움 강남 웨딩홀", "강남", "업체에 확인해 주세요", "업체에 확인해 주세요", "업체에 확인해 주세요", ""],
     ]);
     expect(result.rows.map((r) => r.sourceIds)).toEqual([["w1", "p1"], ["w2"]]);
     expect(result.nextActions.map((a) => a.prompt)).toEqual(["더채플 강남 웨딩홀 공식에 보낼 문의 글을 써 줘", "라움 강남 웨딩홀 상담 일정을 넣고 싶어"]);
+    // 저장하는 결과와 끝난 일의 진행 기록에는 업체 주소·도메인·링크·전화가 없다(2026-11-22 파운더 결정 4, 갈래 3 의 저장 카드와 같다).
+    // 공식 페이지는 읽을 때부터 주소 없이 남고, 네이버 링크는 공식 페이지를 읽는 동안에만 진행 기록에 있다가 끝날 때 지워진다.
+    expect(result.sources.map((s) => [s.id, s.url])).toEqual([["w1", null], ["w2", null], ["p1", null]]);
+    for (const saved of fake.savedProgress) {
+      for (const item of (saved.evidence ?? []) as { kind: string; url: string | null }[]) {
+        if (item.kind === "page") expect(item.url).toBeNull();
+      }
+    }
+    const storedResult = JSON.stringify(fake.finishes.at(-1)!.result);
+    const finalProgress = JSON.stringify(fake.savedProgress.at(-1));
+    for (const address of ["chapel.example", "raum.example", "blog.example", "식대 6만원대", "02-000-0000"]) {
+      expect(storedResult.includes(address), `result ${address}`).toBe(false);
+      expect(finalProgress.includes(address), `progress ${address}`).toBe(false);
+    }
     // 네이버 결과의 글(이름·주소·사이트)은 어떤 모델 걸음에도 들어가지 않는다(약관: 검색 데이터를 AI 입력으로 쓰지 않음).
     for (const sent of model.inputs) {
       for (const leaked of ["더채플", "라움", "chapel.example", "raum.example", "식대 6만원대", "순위 모음", "02-000-0000"]) {

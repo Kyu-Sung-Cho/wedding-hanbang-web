@@ -299,7 +299,7 @@ function ResultSections({ result, onContinue }: { result: AmoraTaskResult; onCon
             <View key={`row-${rowIndex}`} style={styles.rowCard}>
               {result.columns.map((column, columnIndex) => {
                 const cell = row.cells[columnIndex];
-                // 빈 칸은 그리지 않는다. 값은 서버가 저장한 글 그대로다(가격을 모르면 서버가 "업체 확인 필요"를 적는다).
+                // 빈 칸은 그리지 않는다. 값은 서버가 저장한 글 그대로다(가격을 모르면 서버가 "업체에 확인해 주세요"를 적는다).
                 if (!cell) return null;
                 return (
                   <View key={`cell-${rowIndex}-${columnIndex}`} style={styles.cell}>

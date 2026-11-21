@@ -8,9 +8,10 @@ import { AMORA_TASK_KIND_SPECS, cleanTaskText, daysBetweenYmd, isValidYmd, addDa
  *
  * - 근거마다 번호가 있다(e 일정, a 할 일, q 견적, b 예산, d 날짜 후보, w 찾은 결과, p 공식 페이지, l 편지, r 답장).
  * - **표의 줄은 근거 번호를 하나 이상 달아야 남는다.** 번호가 없거나 없는 번호면 그 줄을 버린다.
- * - 앱 안 자료로 하는 일(할 일·날짜·견적)은 표를 코드가 만든다. 모델은 요약과 다음에 할 일 고르기만 한다.
- * - 찾기가 드는 일은 모델이 표를 채우고 코드가 거른다: 순위·추천 말이 든 줄은 버리고, 가격은 공식 페이지(p)를
- *   근거로 단 줄에만 남긴다. 아니면 "업체 확인 필요"로 바꾼다(D-85). "확인한 곳" 칸은 코드가 채운다.
+ * - 표는 모든 종류에서 코드가 만든다. 모델은 요약과 다음에 할 일 고르기만 한다.
+ * - 찾기가 드는 일의 표: 순위·추천 말이 든 줄은 버리고, 가격은 공식 페이지(p)를 근거로 단 줄에만 남긴다.
+ *   아니면 "업체에 확인해 주세요"로 바꾼다(D-85). "확인한 날" 칸은 공식 페이지를 읽은 날이다.
+ * - 저장하는 결과에는 업체 주소·도메인·링크를 남기지 않는다(2026-11-22 파운더 결정 4, 갈래 3 의 저장 카드와 같다).
  * - 다음에 할 일은 서버의 틀로 만든 글이다. 대화 입력칸에 채울 뿐이고 반영은 대화의 확인 카드가 한다.
  */
 
@@ -28,6 +29,8 @@ export type TaskEvidence = {
   facts?: { label: string; value: string }[];
   /** 갈래 3 이 모델용으로 만든 요약(공식 페이지). 네이버 결과의 글은 여기 오지 않는다. */
   modelSummary?: unknown;
+  /** 공식 페이지(p)를 읽은 찾은 결과(w)의 번호. 페이지 주소를 남기지 않으므로 이것으로 표의 줄과 잇는다. */
+  readFrom?: string;
 };
 
 export type TaskResultRow = { cells: string[]; sourceIds: string[] };
@@ -225,24 +228,16 @@ export function buildQuoteRows(evidence: readonly TaskEvidence[]): TaskResultRow
 // 찾기가 드는 일: 표는 서버가 짠다(네이버 결과는 모델에게 주지 않는다)
 // ---------------------------------------------------------------------------
 
-function hostLabel(url: string | null): string {
-  if (!url) return "";
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
-}
-
 function priceFrom(page: TaskEvidence | undefined, pattern: RegExp, mustBeWon = true): string {
   const fact = page?.facts?.find((item) => pattern.test(item.label));
   return fact && (!mustBeWon || PRICE_LIKE.test(fact.value)) ? fact.value : AMORA_TASK_COPY.priceUnknown;
 }
 
 /**
- * 같은 기준 표를 서버가 짠다(갈래 3 권고). 업체 이름·사이트는 네이버 결과(w), 가격은 공식 페이지(p)에서만 온다.
- * 공식 페이지를 읽지 못한 곳의 가격은 "업체 확인 필요"다(D-85). 이름에 순위·추천 말이 든 줄(모음 글)은 뺀다.
- * 근거 번호로 출처를 가른다: w 는 네이버 칸, p 는 공식 페이지. 네이버 칸을 저장하면 안 된다고 정해지면 w 칸만 뺀다.
+ * 같은 기준 표를 서버가 짠다(갈래 3 권고). 업체 이름은 네이버 결과(w), 가격은 공식 페이지(p)에서만 온다.
+ * 공식 페이지를 읽지 못한 곳의 가격은 "업체에 확인해 주세요"다(D-85). 이름에 순위·추천 말이 든 줄(모음 글)은 뺀다.
+ * 마지막 칸은 공식 페이지를 읽은 날이고 도메인은 적지 않는다(2026-11-22 파운더 결정 4). 공식 페이지는 주소가 아니라
+ * 읽은 찾은 결과의 번호(readFrom)로 그 줄과 잇는다. 업체 이름(w)을 저장해도 되는지는 네이버의 답을 기다린다.
  */
 export function buildSearchRows(
   kind: AmoraTaskKind,
@@ -255,16 +250,24 @@ export function buildSearchRows(
   const rows = evidence
     .filter((item) => item.kind === "web" && !JUDGEMENT_WORDS.test(item.title))
     .map((web) => {
-      const page = pages.find((candidate) => hostLabel(candidate.url) !== "" && hostLabel(candidate.url) === hostLabel(web.url));
-      const site = hostLabel(page?.url ?? web.url);
+      const page = pages.find((candidate) => candidate.readFrom === web.id);
+      const checked = page && isValidYmd(page.checkedOn) ? formatShortDate(page.checkedOn) : "";
       const cells = kind === "hall_candidates"
-        ? [web.title, region, priceFrom(page, /식대|식사|1인/u), priceFrom(page, /대관/u), priceFrom(page, /보증/u, false), site]
-        : [web.title, field, region, priceFrom(page, /가격|패키지|촬영|드레스|메이크업|스드메/u), "", site];
+        ? [web.title, region, priceFrom(page, /식대|식사|1인/u), priceFrom(page, /대관/u), priceFrom(page, /보증/u, false), checked]
+        : [web.title, field, region, priceFrom(page, /가격|패키지|촬영|드레스|메이크업|스드메/u), "", checked];
       return { cells, sourceIds: page ? [web.id, page.id] : [web.id], hasPage: page !== undefined };
     });
   return [...rows.filter((row) => row.hasPage), ...rows.filter((row) => !row.hasPage)]
     .slice(0, MAX_ROWS)
     .map(({ cells, sourceIds }) => ({ cells, sourceIds }));
+}
+
+/**
+ * 끝난 일의 진행 기록에서 찾은 결과(w)의 주소·전화·링크를 지운다(2026-11-22 파운더 결정 4). 링크는 공식 페이지를
+ * 읽는 동안에만 필요하다. 확인이 필요해 멈춘 일은 이어 하기(resume)가 같은 진행에서 다시 읽으므로 거기서는 부르지 않는다.
+ */
+export function withoutSearchAddresses(evidence: readonly TaskEvidence[]): TaskEvidence[] {
+  return evidence.map((item) => (item.kind === "web" ? { ...item, url: null, detail: "" } : item));
 }
 
 // ---------------------------------------------------------------------------
@@ -367,9 +370,11 @@ export function assembleTaskResult(input: {
   nextActions: readonly TaskNextAction[];
 }): TaskResult {
   const cited = new Set(input.rows.flatMap((row) => row.sourceIds));
+  // 찾은 결과(w)의 링크는 네이버 지역 결과의 link 라서 저장하는 출처에 남기지 않는다(2026-11-22 파운더 결정 4,
+  // 검색 API 특약 1.3·1.4). 공식 페이지(p)는 처음부터 주소 없이 남기고, 앱 안 자료에는 주소가 없다.
   const sources = input.evidence
     .filter((item) => cited.has(item.id))
-    .map((item) => ({ id: item.id, title: item.title, url: item.url, checkedOn: item.checkedOn }));
+    .map((item) => ({ id: item.id, title: item.title, url: item.kind === "web" ? null : item.url, checkedOn: item.checkedOn }));
   return {
     summary: input.summary,
     columns: [...AMORA_TASK_KIND_SPECS[input.kind].columns],

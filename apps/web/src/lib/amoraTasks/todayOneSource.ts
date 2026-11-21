@@ -14,7 +14,7 @@ import type { AmoraTaskMemberRow } from "./taskStore";
 export const TODAY_ONE_TASK_DONE_COPY = Object.freeze({
   whyNow: "아모라가 맡은 일을 마쳤어요.",
   confirmedTitle: (title: string) => `맡은 일: ${title}`,
-  unknown: "결과가 맞는지는 출처를 열어 확인해 주세요.",
+  unknown: "결과가 맞는지는 출처를 보고 확인해 주세요.",
   impact: "확인만 하며 할 일이나 일정은 바꾸지 않아요.",
 });
 

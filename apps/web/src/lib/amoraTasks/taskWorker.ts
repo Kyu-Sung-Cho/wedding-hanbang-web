@@ -37,6 +37,7 @@ import {
   quoteTotal,
   safeSummary,
   buildSearchRows,
+  withoutSearchAddresses,
   type BudgetCategoryLike,
   type QuoteInput,
   type TaskEvidence,
@@ -373,6 +374,8 @@ async function organize(state: SliceState): Promise<SliceOutcome> {
     evidence,
     nextActions: buildNextActions(task.kind, rows, response.data.nextActions, task.input),
   });
+  // 끝난 일은 다시 읽지 않으므로 진행 기록에서도 찾은 결과의 주소·전화·링크를 지운다(결정 4). 결과는 위에서 이미 만들었다.
+  state.progress = { ...state.progress, evidence: withoutSearchAddresses(evidence) };
   if (!(await save(state, "organizing", "정리를 마쳤어요"))) return { kind: "lost" };
   const ok = await deps.store.finish({
     taskId: task.id,
@@ -492,8 +495,10 @@ async function searchStep(state: SliceState): Promise<{ label: string } | { outc
     state.progress = { ...progress, readIds, reads: progress.reads + 1 };
     return { label: "공식 안내를 읽지 못해 다른 곳을 보고 있어요" };
   }
+  // 공식 페이지는 주소 없이 남긴다(2026-11-22 파운더 결정 4). 그 주소는 네이버 결과의 link 라서, 어느 찾은 결과를
+  // 읽었는지(readFrom)로 표의 줄과 잇는다. 남기는 것은 페이지 제목·금액 줄·확인한 날이다.
   const evidence = addEvidence(progress.evidence, {
-    kind: "page", title: page.title || target.title, detail: "", url: page.url, checkedOn: today,
+    kind: "page", title: page.title || target.title, detail: "", url: null, readFrom: target.id, checkedOn: today,
     facts: page.prices.map((price) => ({ label: price.label, value: price.amount })),
     modelSummary: page.modelSummary,
   });

@@ -162,8 +162,8 @@ export function buildOrganizeInstructions(kind: AmoraTaskKind, rowsBuiltByServer
     : [
       `같은 기준 표를 만든다. 칸 순서: ${columns}.`,
       "줄마다 source_ids 에 근거 번호(w 또는 p로 시작)를 하나 이상 단다. 근거가 없는 업체는 넣지 않는다.",
-      "가격 칸은 공식 페이지(p 번호)의 facts 에 적힌 값만 그대로 적는다. 없으면 \"업체 확인 필요\" 라고 적는다.",
-      "확인한 곳 칸은 빈 글자로 둔다. 서버가 채운다. 줄은 열 개까지만 쓴다.",
+      "가격 칸은 공식 페이지(p 번호)의 facts 에 적힌 값만 그대로 적는다. 없으면 \"업체에 확인해 주세요\" 라고 적는다.",
+      "확인한 날 칸은 빈 글자로 둔다. 서버가 채운다. 줄은 열 개까지만 쓴다.",
     ].join("\n");
   return [
     ...COMMON_RULES,
