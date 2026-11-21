@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { hasCoerciveControlSignal } from "@hanbang/shared";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { resolveAmoraWeddingClarificationContinuity } from "@/lib/ai/amoraClarificationContinuity";
 
@@ -91,6 +92,65 @@ describe("되묻기가 대화를 끊지 않는다", () => {
       currentUserText: "응 그렇게 해줘",
     });
     expect(continuity).not.toBeNull();
+  });
+});
+
+/**
+ * **2026-11-16 결정: 통제만 있는 문장은 채팅에서 안전 레인으로 보내지 않는다.**
+ *
+ * U1 측정(`amora-muse-design-20261112/evidence/u1-corpora/fear-control.json`, 이 판정기를 보지 않고 쓴
+ * 문장)이 통제 문장 여섯이 하나도 안전 분류에 걸리지 않는다고 적었다. 고쳐 잡지 않기로 했다. 까닭:
+ *
+ *  1. 같은 낱말이 평범한 커플 말에 그대로 나온다 — 서로 켜 둔 위치 공유, 모바일 청첩장 비밀번호, 축의금
+ *     통장(위 `ORDINARY_WEDDING_TALK`, `coerciveControlRecall.test.ts` 의 평범한 대화). 낱말 목록은 실제
+ *     통제 서술 45개 중 0개를 잡았고, 넓혔더니 평범한 결혼 대화 30개 중 15개를 걸었다
+ *     (`coerciveControlSignals.ts` 머리말). 이 파일 위쪽이 그 탐지기를 채팅에 걸었다가 되돌린 기록이다.
+ *  2. 잘못 걸리면 값이 크다 — 글이 공유 대화에서 조용히 사라져 나만 레인으로 옮겨지고, 상대에게 보내던
+ *     글은 막히고, 답에 112·1366 이 붙고, 그 턴의 도구가 0개가 된다. "위치 공유를 항상 켜두라고 해서
+ *     답답해" 에 긴급전화를 안내하는 것은 도움이 아니다.
+ *  3. 여섯 중 셋(시어머니 SNS·엄마 통장·아빠 의절)은 통제하는 사람이 배우자가 아니다. 안전 레인이 주는
+ *     보호(배우자가 못 읽게 하기)가 닿지 않는다.
+ *
+ * 이미 잡는 통제는 그대로다 — 닫힌 어휘로 된 배우자의 직접 통제(`친구 못 만나게 해`·`남편이 제 휴대폰
+ * 검사해요`·`신랑이 돈 못 쓰게 해요`)와 통제에 폭력이 붙은 말은 안전 레인이다. 여기 여섯은 요청·조르기·
+ * 캐묻기와 배우자 아닌 사람의 통제다.
+ *
+ * **값**: 이 여섯은 공유 레인에 남는다. 배우자가 통제하는 쪽이라면 그 사람이 읽는다. 이 문장들에 맞는
+ * 도구는 "긴급 안내 없이 비공개로만 저장" 이지만, 지금은 비공개 저장과 긴급 안내가 한 스위치에 묶여 있다
+ * (`amoraQuestionScope.ts` 의 `BARE_THREAT_DISCLOSURE_PATTERN` 머리말) — 파운더 판단 사안이다.
+ *
+ * 아래 단언은 "이 문장들이 안전하다" 가 아니라 "이 판정기가 이 문장들을 안전 레인으로 보내지 않기로 했다"
+ * 를 고정한다. 바꾸려면 먼저 위 평범한 대화와 `coerciveControlRecall.test.ts` 에서 오탐을 재라.
+ */
+const CONTROL_ONLY_STATEMENTS = [
+  "예랑이가 내 폰 비밀번호를 알려달라고 계속 졸라서 좀 무서워",
+  "남자친구가 위치 공유를 항상 켜두라고 해서 답답해",
+  "시어머니 되실 분이 내 SNS를 하나하나 다 보고 계신 것 같아서 소름 돋아",
+  "엄마가 결혼 반대한다면서 내 통장을 가져가셨어",
+  "아빠가 이 결혼 하면 의절하겠다고 하셔서 너무 무서워",
+  "남친이 내가 친구 만나고 오면 누구랑 뭐 했는지 꼬치꼬치 캐물어서 숨 막혀",
+] as const;
+
+describe("통제만 있는 문장은 채팅 안전 레인으로 보내지 않는다 — 2026-11-16 결정, 값은 공유 레인", () => {
+  it.each(CONTROL_ONLY_STATEMENTS)("%s", (text) => {
+    expect(hasAmoraSafetySignal(text, "chat")).toBe(false);
+  });
+
+  it("중재 전용 탐지기를 채팅에 걸어도 여섯 중 하나만 잡는다 — 낱말을 넓혀 풀 문제가 아니다", () => {
+    expect(CONTROL_ONLY_STATEMENTS.filter((text) => hasCoerciveControlSignal(text))).toEqual([
+      "엄마가 결혼 반대한다면서 내 통장을 가져가셨어",
+    ]);
+  });
+
+  it("결정의 경계 — 통제에 폭력이 붙거나 배우자의 직접 통제면 안전 레인이다", () => {
+    for (const text of [
+      "예비신랑이 제 휴대폰 비밀번호를 안 알려주면 소리 지르고 물건을 던져요",
+      "남편이 제 휴대폰 검사해요",
+      "신랑이 돈 못 쓰게 해요",
+      "친구 못 만나게 해",
+    ]) {
+      expect(hasAmoraSafetySignal(text, "chat"), text).toBe(true);
+    }
   });
 });
 
