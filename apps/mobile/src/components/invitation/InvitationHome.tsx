@@ -51,6 +51,11 @@ type Props = {
    * 같고, 누르면 `onPress` 를 부른다. 없으면 그리지 않는다(예시).
    */
   leadDecision?: { id: string; title: string; sub: string | null; owner: DecisionOwner; onPress: () => void };
+  /**
+   * 실제 커플: 홈 맨 아래(두 분이 정할 것 뒤)에 두는 줄. 라운지가 "서비스 메뉴"(`InvitationServiceMenu`)를 넘긴다
+   * (2026-11-20 파운더 결정 4). 웹 청첩장 홈의 맨 아래 줄과 같은 자리다. 없으면 그리지 않는다(예시).
+   */
+  footer?: ReactNode;
 };
 
 /**
@@ -69,6 +74,7 @@ export default function InvitationHome({
   bottomExtra = 0,
   stepActors,
   leadDecision,
+  footer,
 }: Props) {
   const insets = useSafeAreaInsets();
   const rows: { item: Pick<DecisionItem, "id" | "title" | "sub" | "owner">; onPress?: () => void }[] = [
@@ -147,6 +153,7 @@ export default function InvitationHome({
             {showDecisionsNote ? <Text style={[typo.sans, styles.decisionsNote]}>{decisionsNote}</Text> : null}
           </View>
         ) : null}
+        {footer}
       </View>
     </ScrollView>
   );

@@ -19,6 +19,8 @@ const runtimeVariables = [
   "AMORA_WEB_SEARCH_COUPLE_DAILY_CAP",
   "AMORA_WEB_SEARCH_GLOBAL_DAILY_CAP",
   "AMORA_COMMUNITY_AI_COMMENT_ENABLED",
+  // 문지기(D-89, 2026-11-20). 켜면 모든 아모라 턴에서 판정 모델을 한 번 부른다 — 비용이 드는 길이다.
+  "AMORA_GATEKEEPER_ENABLED",
   "AMORA_CONVERSATION_SEGMENT_READ_ENABLED",
   "AMORA_TODAY_ONE_ENABLED",
   "AI_LOG_RETENTION_CRON_ENABLED",
@@ -72,6 +74,7 @@ test("the example environment keeps external Amora side effects fail-closed", as
     "AMORA_WEB_SEARCH_ENABLED=false",
     "AMORA_WEB_SEARCH_NAVER_PRODUCTS=local",
     "AMORA_COMMUNITY_AI_COMMENT_ENABLED=false",
+    "AMORA_GATEKEEPER_ENABLED=false",
     "AMORA_CONVERSATION_SEGMENT_READ_ENABLED=false",
     "AMORA_TODAY_ONE_ENABLED=false",
     "AI_LOG_RETENTION_CRON_ENABLED=false",

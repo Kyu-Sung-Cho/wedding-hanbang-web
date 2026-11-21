@@ -1,4 +1,5 @@
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
+import { isAmoraGatekeeperReplyMetadata } from "@/lib/ai/amoraGatekeeperContract";
 import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
 
 export type AmoraTrustedHistoryVisibility =
@@ -102,7 +103,10 @@ function isServerAuthoredAssistantFor(
   // 대신 지켜지는 것: 서버가 쓴 행(sender_id null·sender_type ai·role assistant),
   // 정확한 응답 링크, 상대 대상 아님, 그리고 아래 범위 판정.
   return row.metadata.in_reply_to_user_message_id === userMessageId
-    && isTrustedHistoryScope(row.metadata.question_scope);
+    && isTrustedHistoryScope(row.metadata.question_scope)
+    // 문지기(D-89)가 막은 턴은 사용자 글과 답을 함께 뺀다. 범위 밖으로 거절한 답은 W4 라
+    // 위의 범위 목록을 지나므로 표식으로 따로 본다.
+    && !isAmoraGatekeeperReplyMetadata(row.metadata);
 }
 
 function isSafeWeddingHistoryUser(row: AmoraTrustedHistoryRow): boolean {

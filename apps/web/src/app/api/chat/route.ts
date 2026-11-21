@@ -223,6 +223,10 @@ import {
 } from "@/lib/ai/amoraCrisisSafety";
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import {
+  finishAmoraChatGatekeeper,
+  startAmoraChatGatekeeper,
+} from "@/lib/ai/amoraGatekeeperChat";
+import {
   AiMessagePersistenceError,
   findPersistedAiMessage,
   persistAiMessage,
@@ -712,6 +716,14 @@ function replayPersistedMessage(message: PersistedAiMessage): Response {
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
   return new Response(payload, { headers: SSE_HEADERS });
 }
+
+// 중재를 공유하기 전에 멈추는 답. 낱말 안전 확인과 문지기(D-89)가 같은 답을 쓴다 — 웹은 이
+// 코드를 보고 나만 상담 탭으로 옮긴다(`requestStructuredMediation` 의 safety_hold).
+const MEDIATION_SAFETY_PREFLIGHT_REQUIRED_BODY = {
+  error:
+    "이 내용은 커플 중재로 공유하기 전에 안전 확인과 비공개 지원이 먼저 필요해요.",
+  code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
+} as const;
 
 function replayEphemeralCrisisMessage(
   content: string,
@@ -1275,11 +1287,7 @@ export async function POST(request: Request) {
     )
   ) {
     return NextResponse.json(
-      {
-        error:
-          "이 내용은 커플 중재로 공유하기 전에 안전 확인과 비공개 지원이 먼저 필요해요.",
-        code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
-      },
+      MEDIATION_SAFETY_PREFLIGHT_REQUIRED_BODY,
       { status: 422, headers: { "Cache-Control": "no-store" } },
     );
   }
@@ -1693,6 +1701,21 @@ export async function POST(request: Request) {
   );
   if (limited) return limited;
 
+  // 문지기(D-89) 판정을 여기서 시작만 한다. 판정 모델이 1~3초 걸려서 아래 첨부 확인·클레임·
+  // 개인정보 판번호 읽기와 겹치게 하고, 결과는 저장 문맥을 읽기 전에 받는다. 스위치
+  // `AMORA_GATEKEEPER_ENABLED` 가 꺼져 있으면 아무것도 부르지 않는다. 위기 안내는 위의 고정
+  // 관문이 이미 끝냈다. 규칙과 실패할 때의 동작은 `lib/ai/amoraGatekeeper.ts` 머리말에 있다.
+  const amoraGatePending = startAmoraChatGatekeeper({
+    requestKind,
+    isDemo,
+    userText: earlyCrisisUserText,
+    questionScope: effectivePreliminaryScope?.scope ?? null,
+    isCardConfirmation: bodyConfirmedActionId !== undefined,
+    actorId,
+    coupleId,
+    signal: request.signal,
+  });
+
   let validatedAttachments: ValidatedAmoraAttachment[];
   try {
     validatedAttachments = validateAmoraAttachments(attachmentInput);
@@ -1989,6 +2012,49 @@ export async function POST(request: Request) {
       );
     }
   }
+  // 문지기(D-89) 결과를 여기서 받는다(판정은 요청 제한 검사 뒤에 시작해 두었다). 저장 문맥을
+  // 읽기 전이라 막힌 턴은 커플 자료를 읽지도, 모델을 부르지도 않고 고정 문장으로 끝난다.
+  const amoraGateOutcome = await finishAmoraChatGatekeeper(amoraGatePending, {
+    requestKind,
+    isDemo,
+    userText: earlyCrisisUserText,
+    questionScope: effectivePreliminaryScope?.scope ?? null,
+    isCardConfirmation: bodyConfirmedActionId !== undefined,
+    actorId,
+    coupleId,
+    visibility,
+    clientRequestId,
+    userMessageId: typeof bodyUserMessageId === "string" ? bodyUserMessageId : undefined,
+    visibleClientRequestKey,
+    claim: requestClaimAcquired ? claimParams : null,
+    initialPrivacyEpoch,
+    readPrivacyEpoch: () => getAmoraPrivacyEpoch(dataCoupleId, visibility, supabase),
+  });
+  if (amoraGateOutcome.kind === "reply") {
+    requestClaimAcquired = false;
+    requestClaimAttemptCount = null;
+    return replayPersistedMessage(amoraGateOutcome.message);
+  }
+  if (amoraGateOutcome.kind === "mediation_blocked") {
+    await releaseClaimBeforeStream("AMORA_GATEKEEPER_MEDIATION_BLOCKED");
+    return NextResponse.json(
+      MEDIATION_SAFETY_PREFLIGHT_REQUIRED_BODY,
+      { status: 422, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  if (amoraGateOutcome.kind === "privacy_changed") {
+    await releaseClaimBeforeStream("AMORA_PRIVACY_CONTEXT_CHANGED");
+    return NextResponse.json(
+      {
+        error: "대화 정리 또는 개인정보 설정이 바뀌었어요. 다시 시도해주세요.",
+        code: "AMORA_PRIVACY_CONTEXT_CHANGED",
+        retryable: true,
+        retryPolicy: "same_request",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const memoryEnablement = initialPrivacyContextSnapshot?.memory ?? {
     shared: { enabled: false, resetAt: null },
     bride_private: { enabled: false, resetAt: null },

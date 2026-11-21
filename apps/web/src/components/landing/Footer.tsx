@@ -36,7 +36,7 @@ export default function Footer() {
               <Logo size="sm" variant="white" />
             </Link>
             <p className="text-[var(--hb-on-primary)] text-sm leading-relaxed mt-5 font-light max-w-[320px]">
-              당신만의 AI 동반자 &apos;아모라&apos;가 있는 곳.
+              당신만의 AI 웨딩 비서 &apos;아모라&apos;가 있는 곳.
             </p>
             <p className="text-[var(--hb-on-primary)] text-xs mt-4">
               웨딩한방 · 한방그룹

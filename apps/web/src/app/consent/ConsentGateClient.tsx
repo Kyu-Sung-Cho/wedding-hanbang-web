@@ -9,6 +9,7 @@ import {
   type SignupConsentState,
 } from "@hanbang/shared";
 
+import InvitationAuthShell from "@/components/auth/InvitationAuthShell";
 import SignupConsent from "@/components/auth/SignupConsent";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
@@ -71,9 +72,9 @@ export default function ConsentGateClient({
     }
   }
 
+  // 2026-11-20 파운더 "로그인 페이지도 다 바꿔야": 로그인과 같은 틀(시작 화면 모양)에 넣는다. 문장은 그대로다.
   return (
-    <main className="min-h-screen bg-[var(--hb-surface-page)] px-5 py-16">
-      <div className="mx-auto w-full max-w-[420px]">
+    <InvitationAuthShell labelledBy="consent-title">
         {/* 이 화면에는 두 종류의 사람이 선다. 한쪽에게 맞는 문구가 다른 쪽에게는
             거짓이 되므로 갈라 쓴다.
 
@@ -84,64 +85,62 @@ export default function ConsentGateClient({
               자기 계정에 문제가 생긴 것으로 읽힌다. */}
         {existingAccount ? (
           <>
-            <h1 className="text-[22px] font-semibold text-[var(--hb-text-strong)]">
+            <h1 id="consent-title" className="m-0 font-inv-serif text-[24px] font-normal leading-[1.45] text-inv-ink">
               약관 동의를 한 번만 받을게요
             </h1>
-            <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
+            <p className="-mt-2 text-[15px] leading-[1.7] text-inv-body">
               가입하실 때는 동의를 따로 받지 않았어요. 이용약관과 개인정보 처리방침을
               확인해 주시면 쓰시던 그대로 이어집니다. 계정과 기록은 그대로 있어요.
             </p>
           </>
         ) : (
           <>
-            <h1 className="text-[22px] font-semibold text-[var(--hb-text-strong)]">
+            <h1 id="consent-title" className="m-0 font-inv-serif text-[24px] font-normal leading-[1.45] text-inv-ink">
               시작하기 전에 확인해 주세요
             </h1>
-            <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
+            <p className="-mt-2 text-[15px] leading-[1.7] text-inv-body">
               계정은 만들어졌어요. 서비스를 이용하려면 이용약관과 개인정보 처리방침에
               동의가 필요해요.
             </p>
           </>
         )}
 
-        <div className="mt-6">
-          <SignupConsent value={consent} onChange={setConsent} disabled={submitting} />
-        </div>
+        <SignupConsent value={consent} onChange={setConsent} disabled={submitting} />
 
         {error ? (
-          <p role="alert" className="mt-4 text-[13px] text-rose-700">
+          <p role="alert" className="text-[13px] leading-[1.6] text-inv-warn">
             {error}
           </p>
         ) : null}
 
         <Button
-          variant="primary"
-          size="lg"
+          variant="ink"
+          size="pill-56"
+          weight="bold"
           fullWidth
           loading={submitting}
           disabled={!complete}
           onClick={handleSubmit}
-          className="mt-6"
+          className="mt-2.5 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {submitting ? "저장 중..." : "동의하고 계속하기"}
         </Button>
 
         {/* 동의하지 않을 자유가 있어야 동의가 동의다. 나가는 길을 준다. */}
         <Button
-          variant="ghost"
-          size="md"
+          variant="text"
+          size="pill-44"
           fullWidth
           disabled={submitting}
           onClick={handleSignOut}
-          className="mt-3 font-normal underline underline-offset-2"
+          className="font-normal underline underline-offset-2"
         >
           동의하지 않고 로그아웃
         </Button>
 
-        <p className="mt-6 text-[12px] leading-relaxed text-[var(--hb-text-muted)]">
+        <p className="text-center text-[12px] leading-relaxed text-inv-muted">
           계정 삭제를 원하시면 로그아웃 후 고객센터({CONTACT.email})로 알려주세요.
         </p>
-      </div>
-    </main>
+    </InvitationAuthShell>
   );
 }
