@@ -143,6 +143,7 @@ import {
 import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
 import { appendAmoraToolResultHistory, appendAmoraBoundedToolResultHistory } from "@/lib/ai/amoraToolResultHistory";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { selectAmoraTaskChatTools } from "@/lib/amoraTasks/taskChatTool";
 import { isPlaceSearchConfigured } from "@/lib/ai/tools/placeSearchTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
 import { hasNewAmoraChangeIntent } from "@/lib/ai/amoraPendingActionContinuity";
@@ -3863,16 +3864,20 @@ export async function POST(request: Request) {
     durable: !isDemo && isDurableUserMessageBound, scope: questionScope,
   });
   const personalConversationToolNames = new Set(personalConversationTools.map(tool => tool.name));
+  // 맡은 일 시작 카드(D-84). 카드만 만들고 시작은 사람이 누른다. 공유 대화의 W0 에서만 준다.
+  const taskOfferTools = filterAmoraToolsByQuestionScope(selectAmoraTaskChatTools({
+    visibility, requestKind, durable: !isDemo && isDurableUserMessageBound, isDemo,
+  }), questionScope);
   const availableTools = [...filterAmoraToolsByQuestionScope(
     runnableTools.filter((tool) => !isMutatingTool(tool.name)),
     questionScope,
-  ), ...personalConversationTools];
+  ), ...personalConversationTools, ...taskOfferTools];
   const availableToolNameSet = new Set(
     availableTools.map((tool) => tool.name),
   );
   const questionScopeToolNameCeiling = new Set(
     [...filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, questionScope)
-      .map((tool) => tool.name), ...personalConversationToolNames],
+      .map((tool) => tool.name), ...personalConversationToolNames, ...taskOfferTools.map((tool) => tool.name)],
   );
   const pendingProposalTools =
     !isDemo
@@ -5434,6 +5439,8 @@ export async function POST(request: Request) {
             "search_vendors", "recommend_vendors", "get_vendor_detail",
             "get_available_slots", "create_booking", "cancel_booking", "search_nearby_places",
             "analyze_quote", "simulate_guest_guarantee",
+            // 맡은 일 시작 카드(웹·앱 모두 그린다).
+            "offer_amora_task",
           ] as const;
           const declaredRenderedTools = request.headers
             .get("x-hanbang-rendered-tools")

@@ -421,7 +421,9 @@ test("the first arrival cards stay direct children of the home's content column"
   // 직접 자식으로 그려진다(알림 묶음도 Fragment 다).
   const home = readSource("../components/invitation/InvitationHome.tsx");
   assert.match(home, /<View style=\{styles\.content\}>\s*\{notices\}/);
-  assert.match(loungeSource, /return \(\s*<>\s*\{partnerChanges\}\s*\{joinedPlanHandoff\}\s*\{todayOneCare\}\s*\{firstArrival\}/);
+  // 2026-11-20: 아모라가 맡은 일(`AmoraTasksCard`)이 오늘의 한 가지와 첫 도착 사이에 한 줄로 들어간다. 그 카드도
+  // 감싸지 않은 직접 자식이다.
+  assert.match(loungeSource, /return \(\s*<>\s*\{partnerChanges\}\s*\{joinedPlanHandoff\}\s*\{todayOneCare\}\s*<AmoraTasksCard \/>\s*\{firstArrival\}/);
   // 새 홈은 안내를 위해 스크롤을 옮기지 않는다(InvitationHome 은 안내 스크롤러를 등록하지 않는다). 화면 밖에 있는
   // 앵커는 안내가 조용히 건너뛴다 — `FirstRunCoachMarks` 의 규칙 그대로다.
   assert.doesNotMatch(home, /useFirstRunAnchorScroller/);

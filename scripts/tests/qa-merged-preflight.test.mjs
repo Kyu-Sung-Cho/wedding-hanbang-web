@@ -184,11 +184,11 @@ test("qa:merged가 qa:local의 검사 목록을 그대로 쓴다", async () => {
   }
 });
 
-test("공유 QA 목록은 CI와 같은 현재 웨딩홀 문의 정적 계약을 검사하고 배포 인가로 표시하지 않는다", async () => {
+test("공유 QA 목록은 CI와 같은 현재 아모라 맡은 일 정적 계약을 검사하고 배포 인가로 표시하지 않는다", async () => {
   const { checks } = await import("../verify-local.mjs");
   const fences = checks.filter(check => check.name === "supabase release fence");
   assert.equal(fences.length, 1);
-  assert.deepEqual(fences[0].args, ["pnpm", "exec", "node", "scripts/hall-inquiry-release.mjs", "--check-only"]);
+  assert.deepEqual(fences[0].args, ["pnpm", "exec", "node", "scripts/amora-tasks-release.mjs", "--check-only"]);
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
@@ -197,7 +197,7 @@ test("공유 QA 목록은 CI와 같은 현재 웨딩홀 문의 정적 계약을 
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /HALL_INQUIRY_LOCAL_VERIFIED: migrations=244; predecessor_files=\d+; remote_writes=false; deployment_authorized=false/);
+  assert.match(result.stdout, /AMORA_TASKS_LOCAL_VERIFIED: migrations=245; predecessor_files=\d+; remote_writes=false; deployment_authorized=false/);
 });
 
 /** 저장소 수준 검사를 빼먹으면 배포 펜스·인계 계약·훅 배선이 검사되지 않는다. */
@@ -242,7 +242,7 @@ test("ingest 타입체크가 포함돼 있다", async () => {
   );
   assert.match(verify, /"ingest:typecheck"/, "ingest 타입체크가 빠지면 그 코드는 아무도 안 본다");
   assert.match(verify, /"test:repo"/, "저장소 스크립트 테스트가 빠지면 배포 펜스가 검사되지 않는다");
-  assert.match(verify, /"scripts\/hall-inquiry-release\.mjs", "--check-only"/, "현재 정적 릴리스 펜스는 반드시 돌아야 한다");
+  assert.match(verify, /"scripts\/amora-tasks-release\.mjs", "--check-only"/, "현재 정적 릴리스 펜스는 반드시 돌아야 한다");
 
   // 두 곳이 같은 검사를 돌리면 qa:merged가 그만큼 느려지고, 목록이 조용히 어긋난다.
   assert.doesNotMatch(

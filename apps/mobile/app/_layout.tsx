@@ -101,6 +101,7 @@ function RootLayout() {
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             {/* 2026-11-17 파운더 디자인 아티팩트: 웨딩홀 비교 → 편지 확인 → 상담 확정(로그인한 커플). */}
             <Stack.Screen name="halls" options={{ headerShown: false }} />
+            <Stack.Screen name="amora-task/[id]" options={{ headerShown: false }} />
           </Stack>
           </ConsentGate>
         </SafeAreaProvider>

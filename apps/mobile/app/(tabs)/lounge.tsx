@@ -103,6 +103,7 @@ import InvitationServiceMenu from "@/components/invitation/InvitationServiceMenu
 import InvitationFirstChat from "@/components/invitation/InvitationFirstChat";
 import InvitationStateScreen from "@/components/invitation/InvitationStateScreen";
 import LoungeRecordsEntry from "@/components/invitationLive/LoungeRecordsEntry";
+import AmoraTasksCard from "@/components/amoraTasks/AmoraTasksCard";
 
 interface BookingOutcomeTask {
   id: string;
@@ -438,6 +439,7 @@ function LoungeNotices({
       {partnerChanges}
       {joinedPlanHandoff}
       {todayOneCare}
+      <AmoraTasksCard />
       {firstArrival}
       {records}
     </>

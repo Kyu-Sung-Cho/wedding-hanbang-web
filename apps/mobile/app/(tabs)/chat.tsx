@@ -179,6 +179,7 @@ import { invitationTabBarClearance } from "@/components/invitation/InvitationTab
 import { lineHeight as invitationLineHeight, palette as invitationPalette, paragraph17, typo as invitationType } from "@/components/invitation/invitationStyle";
 import { useKeyboardShown } from "@/lib/useKeyboardShown";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
+import AmoraTaskOfferCard from "@/components/amoraTasks/AmoraTaskOfferCard";
 
 // 사이트 주소는 헬퍼로 짓는다. 운영에서 EXPO_PUBLIC_SITE_URL 이 없거나 안전하지
 // 않으면 이 헬퍼가 던진다 — 하드코딩하면 그 보호가 사라진다.
@@ -674,6 +675,7 @@ const MOBILE_RENDERED_TOOLS = [
   "restore_schedule_event",
   "add_amora_action",
   "log_wedding_event",
+  "offer_amora_task",
 ] as const;
 
 class ChatTransportError extends Error {
@@ -4961,6 +4963,9 @@ export default function ChatScreen() {
           ))}
           {toolResultCards.map((model, index) => (
             <ToolResultCard key={`${model.toolName}-${index}`} model={model} />
+          ))}
+          {isAi && (item.metadata?.toolResults ?? []).filter((result) => result.toolName === "offer_amora_task").map((result, index) => (
+            <AmoraTaskOfferCard key={`${result.toolName}-${index}`} toolOutput={result.toolOutput} />
           ))}
           {isAi && !isThinking && !isPinnedSafetyCard && userId && (item.visibility === "bride_private" || item.visibility === "groom_private") && (
             <PersonalActionSave key={`${userId}:${item.couple_id}:${item.id}`} ownerId={userId} coupleId={item.couple_id} messageId={item.id} content={visibleContent} personalActionDraft={item.metadata?.personal_action_draft} personalActionsView={item.metadata?.personal_actions_view} />

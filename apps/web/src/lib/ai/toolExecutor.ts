@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/tools/riskSupportTools";
 import { executeAnalyzeQuoteWithTrustEngine } from "@/lib/ai/tools/quoteMarketTools";
 import { executeSearchNearbyPlaces } from "@/lib/ai/tools/placeSearchTools";
+import { executeOfferAmoraTask, OFFER_AMORA_TASK_TOOL_NAME } from "@/lib/amoraTasks/taskChatTool";
 import {
   executeCheckVendorAvailability,
   executeGetVendorDetail,
@@ -719,6 +720,8 @@ async function executeToolOnce(
         return await executeSearchNearbyPlaces(toolInput);
       case "analyze_quote":
         return executeAnalyzeQuoteWithTrustEngine(toolInput);
+      case OFFER_AMORA_TASK_TOOL_NAME:
+        return await executeOfferAmoraTask(toolInput, context);
     default:
       return {
         toolName,

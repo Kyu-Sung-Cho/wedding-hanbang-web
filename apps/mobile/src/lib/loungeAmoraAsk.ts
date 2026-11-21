@@ -67,6 +67,21 @@ export function stageLoungeAmoraAsk(input: { ownerId: string; task: LoungeAmoraT
 }
 
 /**
+ * 정해진 글을 고치지 않고 그대로 건넬 준비를 한다(2026-11-20, 아모라가 맡은 일 결과 화면의 「다음에 할 일」).
+ * 할 일 질문과 같은 한 칸·같은 번호를 쓰므로 대화 화면은 같은 문(`entry=lounge_task&ask=`)으로 받아 입력칸에
+ * 넣기만 하고 보내지 않는다. 누가 눌렀는지 모르거나 글이 비었으면 아무것도 남기지 않고 null 이다.
+ */
+export function stageLoungeAmoraAskText(input: { ownerId: string; text: string }): number | null {
+  if (typeof input.ownerId !== "string" || !input.ownerId) return null;
+  if (typeof input.text !== "string") return null;
+  const text = input.text.trim().slice(0, LOUNGE_AMORA_ASK_MAX_LENGTH);
+  if (!text) return null;
+  sequence += 1;
+  pending = { id: sequence, ownerId: input.ownerId, text };
+  return sequence;
+}
+
+/**
  * 그 번호의 질문을 한 번 받는다. 다른 사람이 열었으면 질문을 버리고 null 이다(계정이 바뀐
  * 사이에 남은 질문이 다른 사람의 입력칸에 들어가지 않게).
  */

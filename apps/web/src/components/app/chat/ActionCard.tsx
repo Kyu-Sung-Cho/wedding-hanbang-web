@@ -1,6 +1,7 @@
 "use client";
 
 import AmoraMark from "@/components/ui/AmoraMark";
+import AmoraTaskOfferCard from "@/components/amoraTasks/AmoraTaskOfferCard";
 
 import { useState } from "react";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
@@ -679,6 +680,8 @@ function ScheduleMiniCard() {
 export default function ActionCard({ result }: ActionCardProps) {
   // get_wedding_info는 AI가 텍스트로 안내하므로 카드 불필요
   if (result.toolName === "get_wedding_info") return null;
+  // 맡은 일의 시작 카드("이 일을 맡을게요")는 사람이 눌러야 시작하는 카드라 자기 카드로 그린다.
+  if (result.toolName === "offer_amora_task") return <AmoraTaskOfferCard result={result} />;
 
   // 사용자에게 설명할 메시지가 없는 내부 실패만 카드를 그리지 않는다.
   // 이전 사고: DB 부족 등으로 AI가 같은 tool 을 6번 호출해 모두 실패하면

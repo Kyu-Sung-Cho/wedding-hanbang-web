@@ -21,6 +21,8 @@ export const WEDDING_APP_ROUTES = [
   // 2026-11-17 파운더 디자인 아티팩트의 준비 순서·웨딩홀 비교(편지·상담 확정은 그 아래 주소).
   "journey",
   "halls",
+  // 아모라가 맡은 일의 결과 화면(`amora-tasks/[id]`). 홈 카드와 대화 카드의 진행 보기가 연다.
+  "amora-tasks",
   "saved",
   "budget",
   "checklist",

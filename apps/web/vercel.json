@@ -8,6 +8,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/amora-tasks",
+      "schedule": "*/2 * * * *"
+    },
+    {
       "path": "/api/cron/care-moments",
       "schedule": "*/5 * * * *"
     },
