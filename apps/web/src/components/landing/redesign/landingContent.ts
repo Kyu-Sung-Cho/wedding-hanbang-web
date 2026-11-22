@@ -180,8 +180,8 @@ export const landingContent = {
         heading: "가입 없이 이용",
         links: [
           { label: "공시 가격·위약금", href: "/price" },
-          { label: "견적 질문 만들기", href: "/wedding/community/quote-check" },
-          { label: "웨딩코드", href: "/wedding-code" },
+          // 2026-11-22: 견적 확인은 커뮤니티 밖 새 주소로 옮겼고, '웨딩코드'는 뺐다(2026-11-21 파운더 결정).
+          { label: "견적 질문 만들기", href: "/wedding/quote-check" },
           { label: "결혼 예절 가이드", href: "/wedding/manners" },
         ],
       },

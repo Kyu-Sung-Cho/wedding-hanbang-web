@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type Ref } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import NotificationPanel from "@/components/app/NotificationPanel";
 import AmoraWorkspaceNav from "@/components/app/amora/AmoraWorkspaceNav";
@@ -13,7 +13,6 @@ import AmoraMark from "@/components/ui/AmoraMark";
 import Button from "@/components/ui/Button";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
 import { stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
-import { SHOW_SIGNED_IN_COMMUNITY } from "@/lib/features/signedInCommunity";
 import { useAuthStore } from "@/stores/authStore";
 import { daysUntilWedding } from "@/lib/utils/weddingDate";
 
@@ -155,16 +154,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
             </span>
           </div>
 
-          {SHOW_SIGNED_IN_COMMUNITY && !amoraWorkspace && <button
-            type="button"
-            onClick={() => router.push(weddingPath("/community?feed=all#community-feed"))}
-            className={`${compactWorkspace ? "hidden md:flex" : "flex"} h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[var(--hb-accent-hover)]`}
-            aria-label="커뮤니티 검색"
-            title="커뮤니티 검색"
-          >
-            <Search className="h-5 w-5" />
-          </button>}
-
+          {/* 2026-11-22: 늘 꺼져 있던 '커뮤니티 검색' 단추(SHOW_SIGNED_IN_COMMUNITY=false)를 걷었다. 커뮤니티를 닫았다(D-81). */}
           <div className={planningWorkspace && appPathname !== "/schedule" ? "relative hidden md:block" : "relative"}>
             <button
               type="button"

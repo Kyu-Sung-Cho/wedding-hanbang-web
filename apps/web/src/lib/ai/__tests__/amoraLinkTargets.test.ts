@@ -23,13 +23,25 @@ const APP_DIR = resolve(process.cwd(), "src", "app");
 /** 라우트 존재 판정은 리라이트 회귀 테스트와 같은 헬퍼를 쓴다(판정이 갈리면 안 된다). */
 const staticPageRoutes = (): Set<string> => collectStaticPageRoutes(APP_DIR);
 
-/** next.config.ts의 `/wedding/*` 리라이트를 따라 실제 페이지 주소로 바꾼다. */
+/**
+ * 견적 확인의 옛 주소. 2026-11-22 커뮤니티를 닫으면서 화면을 커뮤니티 밖(`/wedding/quote-check`)으로
+ * 옮겼고, next.config 가 이 옛 주소를 새 주소로 보낸다. 아모라 할 일 카드는 DB 저장 함수가 `quote`
+ * 기본 링크를 이 옛 주소로 대조하므로 옛 주소를 그대로 저장한다(`amoraAtomicToolOperation.ts`).
+ * 아래 첫 테스트가 그 리다이렉트가 실제로 next.config 에 있는지도 본다.
+ */
+const LEGACY_QUOTE_CHECK_PATH = "/wedding/community/quote-check";
+const QUOTE_CHECK_REDIRECT_RULE =
+  /source:\s*"\/wedding\/community\/quote-check"\s*,\s*destination:\s*"\/wedding\/quote-check"/u;
+
+/**
+ * next.config.ts 의 리다이렉트·리라이트를 따라 실제 페이지 주소로 바꾼다.
+ *
+ * 2026-11-22 전에는 `/wedding` 이 커뮤니티 피드(`/community`)였고 `/wedding/community/**` 가
+ * `/community/**` 로 리라이트됐다. 지금 `/wedding` 은 `app/wedding/page.tsx` 문이고, 커뮤니티 주소는
+ * '닫았어요' 화면이라 실제 페이지로 셈하지 않는다(아모라가 그리로 보내면 죽은 경로로 잡힌다).
+ */
 function resolveWeddingPath(path: string): string {
-  if (path === "/wedding") return "/community";
-  const communityPrefix = "/wedding/community/";
-  if (path.startsWith(communityPrefix)) {
-    return `/community/${path.slice(communityPrefix.length)}`;
-  }
+  if (path === LEGACY_QUOTE_CHECK_PATH) return resolveWeddingPath("/wedding/quote-check");
   const match = /^\/wedding\/([^/]+)(\/.*)?$/.exec(path);
   if (!match) return path;
   const [, segment, rest = ""] = match;
@@ -44,6 +56,11 @@ const AI_SOURCES = ["tools.ts", "prompts.ts"] as const;
 
 describe("아모라가 안내하는 앱 경로", () => {
   it("도구 스키마·프롬프트에 적힌 /wedding 경로가 모두 실제로 열린다", () => {
+    // 옛 견적 주소를 새 주소로 따라가는 것은 next.config 에 그 리다이렉트가 있을 때만 맞다.
+    expect(
+      readFileSync(resolve(process.cwd(), "next.config.ts"), "utf8"),
+      "옛 견적 확인 주소를 새 주소로 보내는 리다이렉트가 없다",
+    ).toMatch(QUOTE_CHECK_REDIRECT_RULE);
     const routes = staticPageRoutes();
     const dead: string[] = [];
 

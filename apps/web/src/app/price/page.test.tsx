@@ -45,7 +45,7 @@ describe("public price hub follow-through", () => {
 
   it("offers quote questions without an unsupported completion-time promise", async () => {
     const page = await pageDocument();
-    const quoteEntry = page.querySelector('a[href="/wedding/community/quote-check"]');
+    const quoteEntry = page.querySelector('a[href="/wedding/quote-check"]');
 
     expect(quoteEntry?.textContent).toContain("이미 견적서를 받았다면");
     expect(quoteEntry?.textContent).toContain("업체에 보낼 질문");

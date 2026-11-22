@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { approxMeasure } from "@/lib/weddingCode/shareCard";
+import { approxMeasure } from "@/lib/canvasCard";
 import {
   buildItemLine,
   formatReportManwon,

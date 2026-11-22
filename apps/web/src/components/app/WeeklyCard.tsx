@@ -180,7 +180,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         )}
 
         <Link
-          {...weddingLinkProps("/community/quote-check")}
+          {...weddingLinkProps("/quote-check")}
           className="group rounded-[6px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
         >
           <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">

@@ -42,7 +42,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://hanbang.ai"),
   title: "웨딩한방 — 결혼 준비를 아모라와 정리하세요",
   description:
-    "아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리됩니다. 실제 경험이 필요할 때는 예비부부 커뮤니티에서 찾아보고 질문하세요.",
+    // 2026-11-22: 둘째 문장("실제 경험이 필요할 때는 예비부부 커뮤니티에서 …")을 뺐다. 커뮤니티를 닫았다(D-81).
+    "아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리됩니다.",
   icons: {
     icon: "/images/favicon.png",
     apple: "/images/apple-touch-icon.png",

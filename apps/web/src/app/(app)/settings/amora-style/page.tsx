@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowLeft,
   Check,
@@ -22,12 +22,6 @@ import {
 } from "@/lib/amora/personalization";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
-import Button from "@/components/ui/Button";
-import {
-  consumeWeddingCodeAmoraHandoff,
-  WEDDING_CODE_AMORA_HANDOFF_PARAM,
-} from "@/lib/weddingCode/profile/amoraHandoff";
-import type { AmoraPersonalizationChanges } from "@/lib/amora/personalization";
 
 function formatUpdatedAt(value: string | null): string | null {
   if (!value) return null;
@@ -42,10 +36,15 @@ function formatUpdatedAt(value: string | null): string | null {
 
 export default function AmoraStyleSettingsPage() {
   const user = useAuthStore((state) => state.user);
-  return <AmoraStyleSettingsContent key={user?.id ?? "guest"} ownerId={user?.id ?? null} accountLabel={user?.email || "현재 로그인한 계정"} />;
+  return <AmoraStyleSettingsContent key={user?.id ?? "guest"} ownerId={user?.id ?? null} />;
 }
 
-function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string | null; accountLabel: string }) {
+/*
+ * 2026-11-22: 웨딩코드에서 고른 도움 방식을 이어 받던 길(`?wcAmoraHandoff=`, 확인 칸
+ * "웨딩코드에서 직접 고른 도움 방식")을 끊었다. 웨딩코드를 내렸다(2026-11-21 파운더 결정).
+ * 이 설정 화면과 이미 저장된 값(`amora_personalization_preferences`)은 그대로 쓴다.
+ */
+function AmoraStyleSettingsContent({ ownerId }: { ownerId: string | null }) {
   const isDemo = useAuthStore((state) => state.isDemo);
   const personalization = useAmoraPersonalization(!isDemo && Boolean(ownerId));
   const baseline =
@@ -64,27 +63,6 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
       : baseline;
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [handoff, setHandoff] = useState<AmoraPersonalizationChanges | null>(null);
-  const handoffRead = useRef(false);
-
-  useEffect(() => {
-    if (!ownerId || isDemo || personalization.status !== "ready" || handoffRead.current) return;
-    let active = true;
-    // 계정과 기존 설정을 확인한 렌더가 유지될 때만 외부 탭 저장소를 한 번 소비한다.
-    queueMicrotask(() => {
-      if (!active) return;
-      handoffRead.current = true;
-      const url = new URL(window.location.href);
-      const nonces = url.searchParams.getAll(WEDDING_CODE_AMORA_HANDOFF_PARAM);
-      if (nonces.length === 0) return;
-      const pending = nonces.length === 1 ? consumeWeddingCodeAmoraHandoff(nonces[0]) : null;
-      url.searchParams.delete(WEDDING_CODE_AMORA_HANDOFF_PARAM);
-      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-      setHandoff(pending);
-      if (!pending) setNotice("이어 온 선택이 만료됐거나 이 탭에 없어요. 아래에서 직접 다시 골라 주세요.");
-    });
-    return () => { active = false; };
-  }, [ownerId, isDemo, personalization.status]);
 
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(baseline),
@@ -181,29 +159,6 @@ function AmoraStyleSettingsContent({ ownerId, accountLabel }: { ownerId: string 
         </section>
       ) : (
         <>
-          {handoff && (
-            <section className="mb-5 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-5" aria-label="웨딩코드에서 직접 고른 도움 방식 확인">
-              <h2 className="text-[var(--hb-text-strong)]">웨딩코드에서 직접 고른 도움 방식</h2>
-              <p className="mt-2 break-all text-sm text-[var(--hb-text-strong)]">저장할 내 계정: {accountLabel}</p>
-              <p className="mt-1 text-sm text-[var(--hb-text-strong)]">아직 저장하지 않았어요. 기존 설정과 비교한 뒤 아래 선택지에 채울 수 있어요. 상대의 설정은 바뀌지 않아요.</p>
-              <dl className="mt-3 space-y-2 text-sm text-[var(--hb-text-strong)]">
-                {AMORA_PERSONALIZATION_SECTIONS.filter(section => handoff[section.key] !== undefined).map(section => (
-                  <div key={section.key}>
-                    <dt className="font-semibold">{section.title}</dt>
-                    <dd>현재: {section.choices.find(choice => choice.value === baseline[section.key])?.label} → 직접 고른 값: {section.choices.find(choice => choice.value === handoff[section.key])?.label}</dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => {
-                  setDraftState({ revision: baselineRevision, preferences: mergeAmoraPersonalization(baseline, handoff) });
-                  setHandoff(null);
-                  setNotice("선택지에 채웠어요. 확인한 뒤 변경 저장을 눌러 주세요.");
-                }}>이 선택으로 설정 채우기</Button>
-                <Button variant="ghost" onClick={() => setHandoff(null)}>이어 온 선택 취소</Button>
-              </div>
-            </section>
-          )}
           <div className="space-y-4">
             {AMORA_PERSONALIZATION_SECTIONS.map((section) => (
               <section

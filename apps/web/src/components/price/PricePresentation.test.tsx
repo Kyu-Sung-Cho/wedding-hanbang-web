@@ -55,8 +55,9 @@ describe("consumer price presentation", () => {
     // 2026-07-23: 빈 결과 문구를 "왜 비었는지 + 다음 경로"로 정직화한 계약.
     expect(html).toContain("이 조건에 맞는 공시 업체가 아직 없어요.");
     expect(html).toContain("공시는 업체가 직접 공개한 것만 표시돼요.");
-    expect(html).toContain("받은 견적 공유하고 다른 커플 돕기");
-    expect(html).toContain("/wedding/community/quote-check");
+    expect(html).toContain("받은 견적서 확인하기");
+    expect(html).not.toContain("다른 커플 돕기");
+    expect(html).toContain("/wedding/quote-check");
     expect(html).toContain("가격 출처: 한국소비자원 참가격 · 2025년 11월 공시 기준");
     expect(html).toContain("본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.");
   });

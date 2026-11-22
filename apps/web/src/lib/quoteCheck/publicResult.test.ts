@@ -7,7 +7,8 @@ import { describe, expect, it } from "vitest";
 describe("public quote result retirement boundary", () => {
   it("keeps stored quote records out of retired public routes", () => {
     const quoteCheckPage = readFileSync(
-      resolve(process.cwd(), "src/app/(community)/community/quote-check/page.tsx"),
+      // 2026-11-22 커뮤니티를 닫으면서 견적 확인을 커뮤니티 묶음 밖으로 옮겼다.
+      resolve(process.cwd(), "src/app/quote-check/page.tsx"),
       "utf8",
     );
     const publicPage = readFileSync(

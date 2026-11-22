@@ -189,6 +189,11 @@ function progressEntryResult(
 }
 
 function defaultActionHref(categoryKey: string | null, source: string): string {
+  // 견적 확인 화면은 2026-11-22 커뮤니티 밖(`/wedding/quote-check`)으로 옮겼지만 저장 링크는 옛 주소
+  // 그대로 둔다. DB 저장 함수가 입력에 링크가 없으면 `quote` 의 기본 링크를 이 옛 주소로 다시 계산해
+  // 대조하고(마지막 정의 `20260915101500_amora_atomic_not_applicable_status.sql`), 다르면
+  // AMORA_ATOMIC_ACTION_HREF_INVALID 로 저장을 거절한다. 마이그레이션은 이번 단계에서 바꿀 수 없다.
+  // 옛 주소는 next.config 가 새 주소로 보내고, 10월 1일 판 앱도 옛 주소를 견적 화면으로 읽는다.
   if (source === "quote") return "/wedding/community/quote-check";
   if (source === "budget") return "/wedding/budget";
   if (source === "schedule" || categoryKey === "invitation") {

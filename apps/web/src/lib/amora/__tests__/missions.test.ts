@@ -187,6 +187,13 @@ describe("미션에서 실제 화면으로 이어가기", () => {
     expect(getMissionActionHref(action({ categoryKey: "venue" }))).toBe("/checklist?category=venue");
   });
 
+  // 2026-11-22 견적 확인을 커뮤니티 밖으로 옮겼다. 그 전에 저장된 할 일 링크도 새 주소로 연다.
+  it("견적 확인 링크는 옛 주소로 저장돼 있어도 새 주소로 잇는다", () => {
+    expect(getMissionActionHref(action({ href: "/wedding/quote-check" }))).toBe("/quote-check");
+    expect(getMissionActionHref(action({ href: "/wedding/community/quote-check?category=dress" })))
+      .toBe("/quote-check?category=dress");
+  });
+
   it.each(["javascript:alert(1)", "//evil.example", "/\\evil.example", "/api/auth/logout", "/chat/../../api/auth/logout", "/%2f%2fevil.example", "https://evil.example"]) (
     "저장된 위험한 목적지 %s 대신 확인 가능한 채팅 초안으로 연결한다", (href) => {
       const result = getMissionActionHref(action({ href, title: "노출되면 안 되는 개인 문구" }));

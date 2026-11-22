@@ -293,8 +293,10 @@ describe("landing two-sided trust contract", () => {
     }
     // 가입 없이 열리는 도구가 실제 목적지로 간다.
     const open = contentBlock("footer");
-    for (const href of ["/price", "/wedding/community/quote-check", "/wedding-code", "/wedding/manners"]) {
+    // 2026-11-22: 견적 확인은 커뮤니티 밖 새 주소로 옮겼고, 웨딩코드는 내렸다(2026-11-21 파운더 결정).
+    for (const href of ["/price", "/wedding/quote-check", "/wedding/manners"]) {
       expect(open, `가입 없이 이용 묶음에 ${href} 가 없다`).toContain(`href: "${href}"`);
     }
+    expect(open, "내린 웨딩코드가 가입 없이 이용 묶음에 돌아왔다").not.toContain('href: "/wedding-code"');
   });
 });

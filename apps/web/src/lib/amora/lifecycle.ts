@@ -379,7 +379,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
         id: "quote_before_contract",
         title: "받은 견적은 계약 전 한번 점검해요",
         body: "받는 사진 파일 수, 보정해 주는 사진 수, 드레스를 돕는 직원 비용, 이른 시간 추가 비용을 확인해요.",
-        href: weddingPath("/community/quote-check"),
+        href: weddingPath("/quote-check"),
         cta: "견적 체크리스트",
         severity: "warning",
         iconKey: "quote",
@@ -421,14 +421,17 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
   }
 
   if (guardrails.length === 0) {
+    // 2026-11-22 전에는 커뮤니티 후기로 보냈다("후기 보기" → `/wedding`, 그때는 커뮤니티 피드).
+    // 커뮤니티를 닫아서(D-81) 아모라와 다음 할 일을 정리하는 쪽으로 바꿨다. 이 카드의 `cta` 는
+    // 아모라 먼저 말 걸기의 제안 칩으로도 쓰인다(`api/chat/proactive/route.ts`).
     guardrails.push({
       id: "all_steady",
       title: "오늘은 흐름이 좋아요",
-      body: "급한 경고는 없어요. 커뮤니티에서 비슷한 단계의 실제 후기를 보며 다음 선택을 준비하세요.",
-      href: weddingPath(),
-      cta: "후기 보기",
+      body: "급한 경고는 없어요. 다음에 정할 것을 아모라와 하나씩 정리해 보세요.",
+      href: weddingPath("/chat"),
+      cta: "다음 할 일 정리",
       severity: "celebrate",
-      iconKey: "community",
+      iconKey: "chat",
     });
   }
 
@@ -447,7 +450,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
       id: "quote",
       label: "견적 점검",
       text: "계약 전 빠진 항목 확인",
-      href: weddingPath("/community/quote-check"),
+      href: weddingPath("/quote-check"),
       iconKey: "quote",
     },
     {

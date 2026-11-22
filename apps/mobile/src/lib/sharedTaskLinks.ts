@@ -10,7 +10,8 @@ import { checklistCategoryFromSearch, checklistRoute } from "@/lib/checklistCate
  * - `/checklist[?category=…]` → 체크리스트(21개 분야 키만 분야 시트로, 나머지는 목록)
  * - `/chat` → 기존 채팅 탭으로 돌아간다(`dismissTo`). 준비 기록은 루트 스택 화면이라 push 는
  *   (tabs)를 한 벌 더 쌓는다(rootStackChatNavigation.test.mjs).
- * - `/community/quote-check` → 앱의 견적 확인
+ * - `/quote-check` · 옛 `/community/quote-check` → 앱의 견적 확인. 웹은 2026-11-22 견적 확인을 커뮤니티 밖
+ *   (`/wedding/quote-check`)으로 옮겼고, 그 전에 저장된 카드에는 옛 주소가 남아 있다.
  *
  * 앞의 `/wedding` 한 번은 걷어 낸다(웹 경로 접두사). 링크를 주지 않는 것:
  * - `/chat/personal` — 공유 카드에서 나만 상담으로 넘어가면 공개 범위가 섞인다.
@@ -40,6 +41,7 @@ export function sharedTaskLinkTarget(href: unknown): SharedTaskLink | null {
       return { kind: "push", route: checklistRoute(checklistCategoryFromSearch(search)) };
     case "/chat":
       return { kind: "chat" };
+    case "/quote-check":
     case "/community/quote-check":
       return { kind: "push", route: "/quote-check" };
     default:

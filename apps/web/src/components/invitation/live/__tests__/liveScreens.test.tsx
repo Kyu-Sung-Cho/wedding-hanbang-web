@@ -325,7 +325,8 @@ describe("아모라와 대화 /chat", () => {
     expect(container.querySelector("[data-full-chat]")).toBeNull();
   });
 
-  it.each(["scope=private", "prefill=%EC%98%88%EC%82%B0", "amoraExpand=nonce", "wcTasteChat=1", "startHereHandoff=abc", "amoraSource=c.venue"])(
+  // `wcTasteChat`(웨딩코드 넘겨받기)는 2026-11-22 웨딩코드를 내리면서 끊어 이 목록에서 뺐다.
+  it.each(["scope=private", "prefill=%EC%98%88%EC%82%B0", "amoraExpand=nonce", "startHereHandoff=abc", "amoraSource=c.venue"])(
     "다른 화면의 인계(%s)를 들고 오면 그 인계를 처리하는 전체 화면 대화를 연다",
     async (query) => {
       mocks.params = new URLSearchParams(query);

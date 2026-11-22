@@ -65,7 +65,9 @@ describe("AmoraQuoteCheckPage interaction", () => {
     const total = getQuoteCheckItems("studio", "other").length;
     expect(container.textContent).not.toContain("개이 아직");
     expect(container.textContent).toContain(`확인 필요 ${total}개 중 우선 질문`);
-    expect(container.textContent).toContain(`대화와 글쓰기에는 확인 필요 ${total}개 중 우선 8개를 전달해요`);
+    // 2026-11-22 커뮤니티를 닫아 "커뮤니티에 직접 공유하기"(글쓰기)를 뺐다. 이제 아모라 대화에만 넘긴다.
+    expect(container.textContent).toContain(`대화에는 확인 필요 ${total}개 중 우선 8개를 전달해요`);
+    expect(container.textContent).not.toContain("커뮤니티");
     const chat = [...container.querySelectorAll("a")].find(link => link.textContent?.includes("아모라에게 이어서 묻기"));
     const prompt = new URL(chat!.href, "https://hanbang.ai").searchParams.get("prefill");
     expect(prompt).toContain(`확인 필요 ${total}개 중 우선 8개`);

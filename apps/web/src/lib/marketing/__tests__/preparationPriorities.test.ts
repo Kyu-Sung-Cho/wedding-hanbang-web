@@ -72,7 +72,7 @@ function countPhrase(n: number): RegExp {
   return new RegExp(`(${KOREAN_COUNT_WORDS[n]}|${n})\\s*가지`, "u");
 }
 
-const START_HERE_PATH = "src/components/community/StartHereClient.tsx";
+const START_HERE_PATH = "src/components/start-here/StartHereClient.tsx";
 
 /**
  * 계산이 다루는 날짜 **전 구간**.

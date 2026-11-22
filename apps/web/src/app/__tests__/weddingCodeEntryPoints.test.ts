@@ -29,31 +29,24 @@ function withoutComments(source: string): string {
 }
 
 /**
- * 웨딩코드는 로그인 없이 해볼 수 있는 입구다(2026-09-15 파운더 결정: 어디서든 보이게).
- * 로그인 화면은 공개 경로로, 라운지는 같은 문항·결과를 여는 로그인 경로로 이어 준다.
- * 공개 테스트의 주소와 라운지의 주소는 유지한다.
+ * 2026-11-21 파운더 결정으로 웨딩코드와 준비 스타일을 내렸다. 그 전에는 "웨딩코드는 로그인 없이 해볼
+ * 수 있는 입구다(2026-09-15 파운더 결정: 어디서든 보이게)"를 지키던 묶음이었다. 이제 반대로
+ * **들어가는 길이 다시 생기지 않는지** 지킨다. 웨딩코드 주소는 `proxy.ts` 가 라운지로 보낸다.
  */
-describe("WeddingCode entry points", () => {
-  it("로그인 화면에서 계정 없이 웨딩코드로 갈 수 있다", () => {
-    const login = read("(auth)/login/page.tsx");
-    const bottomLinks = login.slice(login.indexOf("{/* 하단 링크 */}"));
-    expect(bottomLinks).toContain('href="/wedding-code"');
-    // 데모 체험 플래그 안쪽에 두면 플래그가 꺼진 운영에서 입구가 사라진다.
-    const demoBlock = login.slice(
-      login.indexOf("isPublicDemoTrialEnabled() && ("),
-      login.indexOf("{/* 하단 링크 */}"),
-    );
-    expect(demoBlock).not.toContain('href="/wedding-code"');
+describe("WeddingCode entry points (retired 2026-11-21)", () => {
+  it("로그인 화면에 웨딩코드로 가는 링크가 없다", () => {
+    const login = withoutComments(read("(auth)/login/page.tsx"));
+    expect(login).not.toContain('"/wedding-code"');
+    expect(login).not.toContain("웨딩코드");
   });
 
-  it("라운지는 웨딩코드를 안내하고 공개 테스트 경로를 잘못 합치지 않는다", () => {
-    // 2026-11-17 파운더 디자인 아티팩트(원문: 이 디자인 완전 같아야해): 라운지가 청첩장 홈이 되면서
-    // 옛 본문 카드(`LoungeHubSections.tsx`)는 그려지지 않는다. 그 파일을 계속 읽으면 근거 없이 통과한다.
-    // 웨딩코드 입구는 이제 홈 아래 서비스 메뉴 링크다(`components/invitation/live/liveRoutes.ts`).
-    const links = readFileSync(path.join(srcRoot, "components/invitation/live/liveRoutes.ts"), "utf8");
-    expect(links).toContain('{ path: "/preparation-style", label: "웨딩코드" }');
+  it("라운지와 서비스 메뉴에 웨딩코드·준비 스타일 입구가 없다", () => {
+    // 라운지는 청첩장 홈(`LiveLounge`)이고, 다른 화면으로 가는 길은 바닥 서비스 메뉴(`liveRoutes.ts`)다.
+    const links = withoutComments(readFileSync(path.join(srcRoot, "components/invitation/live/liveRoutes.ts"), "utf8"));
+    expect(links).not.toContain('"/preparation-style"');
     expect(links).not.toContain('"/wedding-code"');
-    const lounge = readFileSync(path.join(srcRoot, "components/invitation/live/LiveLounge.tsx"), "utf8");
+    expect(links).not.toContain("웨딩코드");
+    const lounge = withoutComments(readFileSync(path.join(srcRoot, "components/invitation/live/LiveLounge.tsx"), "utf8"));
     expect(lounge).not.toContain('"/wedding-code"');
     expect(lounge).not.toContain("우리의 준비 스타일");
   });
