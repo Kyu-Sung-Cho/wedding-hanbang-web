@@ -48,7 +48,7 @@ const MAUVE_BANDS = [
   "src/app/price/layout.tsx",
   "src/app/(community)/layout.tsx",
   "src/components/landing/Footer.tsx",
-  "src/components/community/StartHereClient.tsx",
+  "src/components/start-here/StartHereClient.tsx",
   // 2026-09-17 두 번째 측정에서 더 찾은 모브 면들.
   "src/components/common/AiNoticeFooter.tsx",
   "src/components/landing/PreparationOutcomePreview.tsx",
@@ -129,7 +129,7 @@ describe("모브 채움 위의 글자", () => {
   it("띠·푸터 바탕이 여전히 모브다 — 바탕이 바뀌면 이 검사를 다시 세워야 한다", () => {
     expect(read("src/app/price/layout.tsx")).toContain("bg-[var(--hb-primary)]");
     expect(read("src/components/landing/Footer.tsx")).toContain('<footer className="bg-[var(--hb-primary)]');
-    expect(read("src/components/community/StartHereClient.tsx")).toContain(
+    expect(read("src/components/start-here/StartHereClient.tsx")).toContain(
       '<section className="bg-[var(--hb-primary)] text-white" aria-labelledby="start-here-title">',
     );
     expect(read("src/components/landing/Footer.tsx")).toContain("<AiNoticeFooter variant=\"dark\" />");

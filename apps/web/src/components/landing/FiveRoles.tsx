@@ -50,13 +50,15 @@ const ROLES: Role[] = [
       </>
     ),
   },
+  // 2026-11-22: 05 는 "비슷한 후기 찾아보기(커뮤니티)"였다. 커뮤니티를 닫아서(D-81) 지금 쓸 수 있는
+  // 공개 예절 가이드로 바꿨다(`/wedding/manners`).
   {
     number: "05",
-    title: "비슷한 후기 찾아보기",
+    title: "예절 가이드 읽기",
     body: (
       <>
-        비슷한 시기에 준비하는 사람들의 기록을
-        <span className="text-[var(--hb-text-strong)]"> 커뮤니티에서 함께</span> 확인합니다.
+        지역과 집안마다 다른 관행을
+        <span className="text-[var(--hb-text-strong)]"> 출처와 함께</span> 확인합니다.
       </>
     ),
   },
@@ -81,7 +83,7 @@ export default function FiveRoles() {
             <em className="not-italic text-[var(--hb-accent-hover)]">준비 흐름이 끊기지 않게.</em>
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
-            아모라는 커뮤니티에서 확인한 내용을 내 웨딩 라운지의 다음 행동으로 이어줍니다.
+            아모라는 확인한 내용을 내 웨딩 라운지의 다음 행동으로 이어줍니다.
           </p>
         </motion.div>
 

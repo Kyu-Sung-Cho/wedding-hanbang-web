@@ -2,7 +2,9 @@ import { SIGNUP_CONSENT_PATH } from "@hanbang/shared";
 
 import { getRequestedAuthRedirectPath } from "./safeRedirect";
 
-const DEFAULT_DESTINATION = "/wedding";
+// 2026-11-22 전에는 `/wedding`(그때는 커뮤니티 피드)이었다. 커뮤니티를 닫아서 동의를 마친 사람의
+// 기본 도착지를 웨딩 라운지로 바꿨다. 동의를 마쳤으면 로그인한 사람이라 `/wedding` 문도 라운지로 간다.
+const DEFAULT_DESTINATION = "/wedding/lounge";
 
 function consentPath(destination: string): string {
   return `${SIGNUP_CONSENT_PATH}?${new URLSearchParams({ redirect: destination })}`;

@@ -4,7 +4,22 @@ import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
-const WEDDING_CODE36_UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+/**
+ * 내린 웨딩코드 화면 주소. 2026-11-21 파운더 결정으로 웨딩코드와 준비 스타일을 내렸다.
+ * API(`/api/wedding-code/**`)와 로컬 연구 화면(`/internal/wedding-code-research`)은 여기 없다.
+ * 연구 답 지우기 API 와 보관 크론은 3단계까지 그대로 돈다.
+ */
+const RETIRED_WEDDING_CODE_PAGE_PREFIXES = [
+  "/wedding-code",
+  "/wedding-code-next",
+  "/wedding/preparation-style",
+] as const;
+
+function isRetiredWeddingCodePage(pathname: string): boolean {
+  return RETIRED_WEDDING_CODE_PAGE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 const PUBLIC_NON_AMBIENT_MUTATION_PATHS = new Set([
   // Native signup and password recovery have no ambient cookie or Bearer yet.
@@ -342,34 +357,20 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  // 이미 저장했지만 이전 프록시가 잘못 돌려보낸 결과 주소도 본인 결과 경로로 복구한다.
-  if (request.nextUrl.pathname === "/wedding-code" && request.nextUrl.searchParams.get("v") === "36"
-    && WEDDING_CODE36_UUID.test(request.nextUrl.searchParams.get("rid") ?? "")) {
+  // 웨딩코드는 2026-11-21 파운더 결정으로 내렸다. 화면 주소는 모두 웨딩 라운지로 보낸다
+  // (2026-11-22 파운더 확인: 운영의 연구 답과 지운 기록이 둘 다 0건이라 연구 답 삭제 화면도 따로 두지 않는다).
+  //
+  // `next.config.ts` 리다이렉트가 아니라 여기서 하는 이유: 거기서는 쿼리가 그대로 넘어간다.
+  // 웨딩코드 주소에는 답(`?a=`)·함께 보기 열쇠(`ct`)·결과 id(`rid`)가 실려 다니는데, 라운지의
+  // 로그인 관문이 그 쿼리를 `/login?redirect=` 안에 담고, 이용 통계는 그 안쪽 주소의 쿼리를
+  // 다 지우지 않는다. 그래서 여기서 쿼리를 통째로 버린다. `#` 뒤는 서버에 오지 않아 지울 수
+  // 없지만, 이용 통계와 오류 보고가 보내기 전에 잘라 낸다(`lib/analyticsPrivacy.ts`,
+  // `packages/shared/src/safety/sentryScrub.ts`).
+  if (isRetiredWeddingCodePage(request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/wedding-code/result";
-    url.searchParams.delete("ct");
-    return NextResponse.redirect(url);
-  }
-  const weddingCodeResult = request.nextUrl.pathname === "/wedding-code/result";
-  const currentWeddingCodeResult = weddingCodeResult && request.nextUrl.searchParams.get("v") === "36";
-  const currentWeddingCodeInvite = request.nextUrl.pathname === "/wedding-code"
-    && !request.nextUrl.searchParams.has("v")
-    && !["a", "b", "ga", "gb"].some((key) => request.nextUrl.searchParams.has(key))
-    && WEDDING_CODE36_UUID.test(request.nextUrl.searchParams.get("ct") ?? "");
-  // 새 판은 본인 브라우저의 별도 접근키로 결과를 읽는다. 초대 UUID는 참가만 허용한다.
-  // 구판 주소 정리는 유지하되 새 결과와 유효한 새 초대가 그 정리에 잡히지 않게 한다.
-  if (currentWeddingCodeResult && request.nextUrl.searchParams.has("ct")) {
-    const url = request.nextUrl.clone();
-    url.searchParams.delete("ct");
-    return NextResponse.redirect(url);
-  }
-  if (
-    (weddingCodeResult && !currentWeddingCodeResult) ||
-    (request.nextUrl.pathname === "/wedding-code" && request.nextUrl.searchParams.has("ct") && !currentWeddingCodeInvite)
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/wedding-code";
-    url.searchParams.delete("ct");
+    url.pathname = "/wedding/lounge";
+    url.search = "";
+    url.hash = "";
     return NextResponse.redirect(url);
   }
 

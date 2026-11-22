@@ -93,8 +93,8 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
     router.push(`${SCROLL_ANCHOR_HOME}${href}`);
   }
 
+  // 2026-11-22: 첫 칸 "커뮤니티"(`weddingPath()`, 그때는 커뮤니티 피드)를 뺐다. 커뮤니티를 닫았다(D-81).
   const navLinks = [
-    { href: weddingPath(), label: "커뮤니티", scroll: false },
     { href: weddingPath("/market-prices"), label: "공시 가격", scroll: false },
     { href: weddingPath("/manners"), label: "결혼 예절", scroll: false },
     { href: "/about", label: "소개", scroll: false },

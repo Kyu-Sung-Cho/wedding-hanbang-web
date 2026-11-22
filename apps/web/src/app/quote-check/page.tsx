@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { captureEvent } from "@/lib/analytics";
 import {
-  ArrowLeft,
   Check,
   CheckCircle2,
   CircleHelp,
@@ -13,7 +12,6 @@ import {
   Loader2,
   MessageCircle,
   Minus,
-  PenLine,
 } from "lucide-react";
 import {
   AMORA_QUOTE_CATEGORY_LABELS,
@@ -180,16 +178,13 @@ export default function AmoraQuoteCheckPage() {
     <div className="min-h-screen bg-[var(--hb-surface-page)]">
       <div className="mx-auto grid w-full max-w-[1240px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:py-7">
         <div className="min-w-0">
-          <Link
-            href={weddingPath()}
-            className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--hb-text-muted)] transition-colors hover:text-[var(--hb-text-strong)]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            커뮤니티로 돌아가기
-          </Link>
-
+          {/*
+            2026-11-22 커뮤니티를 닫으면서 이 도구를 커뮤니티 밖으로 옮겼다. "커뮤니티로 돌아가기"와
+            "글쓰기에서 공유하기"는 닫힌 화면으로 가는 링크라 뺐다. 처음 화면으로 가는 길은 레이아웃
+            머리의 로고가 맡는다.
+          */}
           <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 sm:p-5 lg:p-6">
-            <div className="flex flex-col gap-4 border-b border-[#f0efed] pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div className="border-b border-[#f0efed] pb-5">
               <div>
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#dfc9c1] bg-[var(--hb-surface-hover)] px-3 py-1 text-xs font-medium text-[var(--hb-text-strong)]">
                   <ClipboardCheck className="h-3.5 w-3.5" />
@@ -203,13 +198,6 @@ export default function AmoraQuoteCheckPage() {
                   질문을 정리해 드려요. 가격이 좋다·나쁘다를 판단하지 않습니다.
                 </p>
               </div>
-              <Link
-                href={weddingPath("/community/post/write?category=is_normal")}
-                className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] px-4 py-2.5 text-sm font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
-              >
-                <ClipboardCheck className="h-4 w-4" />
-                글쓰기에서 공유하기
-              </Link>
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -436,34 +424,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
     return lines.join("\n");
   }, [result, topMissing, missingTotal]);
 
-  // 사용자가 직접 확인한 뒤 커뮤니티 글로 올리는 게시글 prefill
-  const postTitle = useMemo(
-    () =>
-      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} 견적, 이 항목들도 포함인지 궁금해요`,
-    [result]
-  );
-  const postContent = useMemo(() => {
-    const lines = [
-      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} 견적을 받았는데, 아래 항목은 포함 여부를 아직 확인하지 못해 의견을 듣고 싶어요.`,
-      "",
-      result.summaryTitle,
-      result.summaryText,
-      "",
-    ];
-    if (topMissing.length > 0) {
-      lines.push(`견적서에서 확인 필요 ${missingTotal}개 중 우선 ${topMissing.length}개`);
-      topMissing.forEach((item) => {
-        const tag = item.severity === "critical" ? "[먼저 확인]" : item.severity === "high" ? "[함께 확인]" : "[해당하면 확인]";
-        lines.push(`- ${tag} ${item.name}`);
-      });
-      lines.push("");
-    }
-    lines.push("보통 계약 전에 어떤 내용을 더 확인하는지 알려주세요.");
-    return lines.join("\n");
-  }, [result, topMissing, missingTotal]);
-
   const chatHref = weddingPath(`/chat?prefill=${encodeURIComponent(chatPrompt)}`);
-  const postWriteHref = weddingPath(`/community/post/write?category=is_normal&prefill=quote_check&title=${encodeURIComponent(postTitle)}&body=${encodeURIComponent(postContent)}`);
 
   const copyQuestions = async () => {
     const text = [
@@ -566,21 +527,14 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
         <ReportCardButton result={result} />
       </div>
 
-      {topMissing.length < missingTotal && <p className="mt-4 text-xs leading-5 text-[var(--hb-text-muted)]">대화와 글쓰기에는 확인 필요 {missingTotal}개 중 우선 {topMissing.length}개를 전달해요. 나머지는 위 목록에서 확인한 뒤 필요하면 추가해 주세요.</p>}
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {topMissing.length < missingTotal && <p className="mt-4 text-xs leading-5 text-[var(--hb-text-muted)]">대화에는 확인 필요 {missingTotal}개 중 우선 {topMissing.length}개를 전달해요. 나머지는 위 목록에서 확인한 뒤 필요하면 추가해 주세요.</p>}
+      <div className="mt-4">
         <Link
           href={chatHref}
-          className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-action-hover)]"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-action-hover)]"
         >
           <MessageCircle className="h-4 w-4" />
           아모라에게 이어서 묻기
-        </Link>
-        <Link
-          href={postWriteHref}
-          className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[#dfc9c1] bg-white px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
-        >
-          <PenLine className="h-4 w-4" />
-          커뮤니티에 직접 공유하기
         </Link>
       </div>
 

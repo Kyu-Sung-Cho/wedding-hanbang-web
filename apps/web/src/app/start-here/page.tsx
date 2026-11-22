@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import StartHereClient from "@/components/community/StartHereClient";
+import StartHereClient from "@/components/start-here/StartHereClient";
 import { CONTACT } from "@/lib/constants/contact";
 
 export const metadata: Metadata = {

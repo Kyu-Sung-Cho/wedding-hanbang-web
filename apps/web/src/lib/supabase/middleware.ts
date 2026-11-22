@@ -38,6 +38,23 @@ function buildCustomerGateRedirect(
   return url;
 }
 
+/**
+ * `/wedding` 문(2026-11-22 파운더 결정 7: 로그인했으면 웨딩 라운지, 아니면 랜딩). 2026-11-21 까지 이
+ * 주소는 커뮤니티 피드였다. `app/wedding/page.tsx` 에서 redirect() 하면 루트 `loading.tsx` 경계 때문에
+ * 200 + meta refresh 로 나가 화면이 한 번 번쩍인다(로컬 dev 실측). 그래서 여기서 진짜 307 을 낸다.
+ * 그 페이지는 Supabase 설정이 없어 이 판정을 건너뛰는 환경의 폴백이다(루트 문과 같은 짝).
+ */
+function isWeddingDoor(pathname: string): boolean {
+  return pathname === "/wedding" || pathname === "/wedding/";
+}
+
+function redirectWeddingDoor(request: NextRequest, pathname: "/wedding/lounge" | "/landing"): URL {
+  const destination = request.nextUrl.clone();
+  destination.pathname = pathname;
+  // 유입 표식(UTM 등)은 목적지까지 들고 간다.
+  return destination;
+}
+
 /** 루트는 공개 랜딩으로 보낸다. 명시적인 앱 주소의 인증·동의 판정과 분리한다. */
 function redirectLandingDoor(request: NextRequest): NextResponse {
   const destination = request.nextUrl.clone();
@@ -62,10 +79,16 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // 공개 경로는 auth 체크 없이 즉시 통과 (핵심 최적화)
+  // 공개 경로는 auth 체크 없이 즉시 통과 (핵심 최적화). `/wedding` 문만 로그인 여부를 본다.
+  const weddingDoor = isWeddingDoor(pathname);
   const protectedType = isProtectedPath(pathname);
-  if (!protectedType) {
+  if (!protectedType && !weddingDoor) {
     return supabaseResponse;
+  }
+
+  // 체험 세션도 라운지를 연다. 라운지 쪽 관문(`AuthenticatedAppShell`)이 체험 표식을 다시 검증한다.
+  if (weddingDoor && request.cookies.get("demo_mode")?.value === "true") {
+    return NextResponse.redirect(redirectWeddingDoor(request, "/wedding/lounge"));
   }
 
   // 데모 모드는 고객 앱 shell에만 허용한다. 관리자 보호 경로는 실제 인증 필요.
@@ -98,9 +121,14 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  try {
+    ({ data: { user } } = await supabase.auth.getUser());
+  } catch (error) {
+    // `/wedding` 문만 세션을 못 물어봐도 오류 화면 대신 랜딩으로 보낸다(루트와 같은 기준).
+    // 보호 경로는 예전처럼 그대로 던진다.
+    if (!weddingDoor) throw error;
+  }
 
   const redirectWithSession = (url: URL) => {
     const response = NextResponse.redirect(url);
@@ -110,6 +138,11 @@ export async function updateSession(request: NextRequest) {
     if (cacheControl) response.headers.set("Cache-Control", cacheControl);
     return response;
   };
+
+  // 라운지의 동의·온보딩 관문은 라운지 주소에서 이 함수가 다시 건다. 여기서는 갈 곳만 정한다.
+  if (weddingDoor) {
+    return redirectWithSession(redirectWeddingDoor(request, user ? "/wedding/lounge" : "/landing"));
+  }
 
   // 미인증 → 로그인 페이지로 리다이렉트
   if (!user) {

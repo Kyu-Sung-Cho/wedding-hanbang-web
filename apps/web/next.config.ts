@@ -120,7 +120,21 @@ const nextConfig: NextConfig = {
       // 유통 테스트 착지 A — 비로그인 견적·추가금 진단 (UTM 쿼리는 자동 보존됨)
       {
         source: "/check",
-        destination: "/wedding/community/quote-check",
+        destination: "/wedding/quote-check",
+        permanent: false,
+      },
+      // 2026-11-22 커뮤니티를 닫으면서 견적 확인 도구를 커뮤니티 묶음 밖(`/wedding/quote-check`)으로
+      // 옮겼다. 10월 1일 판 앱이 옛 주소를 웹뷰로 열고(`apps/mobile/app/quote-check/index.tsx`),
+      // 아모라가 만든 할 일 카드에도 옛 주소가 저장돼 있어서 두 옛 주소를 새 주소로 보낸다.
+      // 아래 커뮤니티 규칙보다 먼저 와야 한다(첫 매치가 이긴다).
+      {
+        source: "/community/quote-check",
+        destination: "/wedding/quote-check",
+        permanent: false,
+      },
+      {
+        source: "/wedding/community/quote-check",
+        destination: "/wedding/quote-check",
         permanent: false,
       },
       // 시세표는 공시 가격 허브(/price)로 통합됐다. 페이지 안의 redirect()는 정적
@@ -168,9 +182,12 @@ const nextConfig: NextConfig = {
         destination: "/wedding/budget",
         permanent: false,
       },
+      // 커뮤니티는 2026-11-21 에 닫았다(D-81). 옛 `/community` 주소는 보이는 주소
+      // `/wedding/community` 로 보내고, 거기서 '닫았어요' 화면
+      // (`src/app/wedding/community/[[...rest]]/page.tsx`)이 글 대신 그려진다.
       {
         source: "/community",
-        destination: "/wedding",
+        destination: "/wedding/community",
         permanent: false,
       },
       // 위의 `/community` 정확 규칙이 0개 경우를 먼저 잡으므로 오늘은 증상이 없다.
@@ -198,11 +215,6 @@ const nextConfig: NextConfig = {
       {
         source: "/wedding/wedding/:path+",
         destination: "/wedding/:path+",
-        permanent: false,
-      },
-      {
-        source: "/wedding/community",
-        destination: "/wedding",
         permanent: false,
       },
       {
@@ -254,18 +266,13 @@ const nextConfig: NextConfig = {
         source: "/sai/:path*",
         destination: "https://sai-mu-nine.vercel.app/:path*",
       },
-      {
-        source: "/wedding",
-        destination: "/community",
-      },
-      // 이건 manners·vendors 와 **같은 등급의 위험**이었다 — 목적지 `/community` 아래에
-      // `[category]` 자식이 있어서, 0개 세그먼트로 닿으면 `/community/.rsc` 가 빈
-      // category 로 읽혀 500 이 난다. 오늘 안 터진 이유는 위쪽 `/wedding/community`
-      // 정확 리다이렉트가 먼저 가로채기 때문이지 이 규칙이 안전해서가 아니다.
-      {
-        source: "/wedding/community/:path+",
-        destination: "/community/:path+",
-      },
+      // 2026-11-22: `/wedding` → `/community`(피드)와 `/wedding/community/:path+` →
+      // `/community/:path+`(글 화면) 두 리라이트를 뺐다. 커뮤니티를 닫아서다(D-81).
+      // - `/wedding` 은 이제 `src/app/wedding/page.tsx` 가 받는다. 로그인했으면 라운지,
+      //   아니면 랜딩으로 보낸다(2026-11-22 파운더 결정 7).
+      // - `/wedding/community` 아래는 `src/app/wedding/community/[[...rest]]/page.tsx` 가
+      //   '닫았어요' 화면을 그린다. 글 본문을 그리지 않으니 글 본문 정화기 구멍도 닿지 않는다.
+      //   리라이트가 있으면 파일 라우트보다 먼저 걸려 닫힌 화면을 가리므로 다시 넣지 말 것.
       // `:path*`는 0개 세그먼트에도 걸린다. `/wedding/manners`가 목적지 `/manners/`로
       // 넘어가고, RSC 요청은 거기에 `.rsc`를 붙여 `/manners/.rsc`를 만든다. 그 경로는
       // 빈 슬러그를 가진 `/manners/[slug]`로 읽혀 서버가 500으로 죽었다(운영 로그:

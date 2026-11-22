@@ -67,8 +67,9 @@ export const LIVE_MORE_LINKS: readonly { path: string; label: string }[] = [
   { path: "/schedule", label: "일정" },
   { path: "/budget", label: "예산" },
   { path: "/checklist", label: "웨딩 체크리스트" },
-  { path: "/preparation-style", label: "웨딩코드" },
-  { path: "/community/quote-check", label: "견적 확인 도구" },
+  // 2026-11-22: '웨딩코드'(→ 준비 스타일)를 뺐고(2026-11-21 파운더 결정), 견적 확인은 커뮤니티 밖 새 주소로 옮겼다.
+  // 앱 홈 서비스 메뉴(`apps/mobile/src/lib/homeServiceMenu.mjs`)도 같은 커밋에서 맞춘다.
+  { path: "/quote-check", label: "견적 확인 도구" },
   { path: "/manners", label: "예절 가이드" },
   { path: "/settings", label: "설정" },
 ];

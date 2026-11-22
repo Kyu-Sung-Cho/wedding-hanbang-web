@@ -45,6 +45,9 @@ test("채팅은 기존 채팅 탭으로 돌아가고, 견적 확인은 앱 화�
   assert.deepEqual(sharedTaskLinkTarget("/wedding/chat"), { kind: "chat" });
   assert.deepEqual(sharedTaskLinkTarget("/wedding/community/quote-check"), { kind: "push", route: "/quote-check" });
   assert.deepEqual(sharedTaskLinkTarget("/community/quote-check"), { kind: "push", route: "/quote-check" });
+  // 2026-11-22 웹이 견적 확인을 커뮤니티 밖 새 주소로 옮겼다. 아모라가 새로 저장하는 주소도 같은 화면으로 간다.
+  assert.deepEqual(sharedTaskLinkTarget("/wedding/quote-check"), { kind: "push", route: "/quote-check" });
+  assert.deepEqual(sharedTaskLinkTarget("/quote-check?category=dress"), { kind: "push", route: "/quote-check" });
 });
 
 test("나만 상담·보드 자신·라운지·업체·예약·모르는 경로·외부 주소에는 링크를 주지 않는다", () => {

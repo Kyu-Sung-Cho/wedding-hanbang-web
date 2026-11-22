@@ -263,7 +263,7 @@ describe("색이 칠해진 머리·영역 위의 글자", () => {
 
 /** 선 하나로만 "누를 수 있는 것" 이 되는 컨트롤이 모여 있던 파일. */
 const OUTLINE_CONTROL_FILES = [
-  "components/community/StartHereClient.tsx",
+  "components/start-here/StartHereClient.tsx",
   "components/community/CommunityLandingClient.tsx",
   "components/price/PriceExplorer.tsx",
   "components/price/ComboBar.tsx",
@@ -348,7 +348,7 @@ describe("선 하나로 구분되는 컨트롤의 경계", () => {
   });
 
   it("시작 안내의 선 버튼·칩은 paper.outline 을 쓴다", () => {
-    const start = readFileSync(join(srcRoot, "components/community/StartHereClient.tsx"), "utf8");
+    const start = readFileSync(join(srcRoot, "components/start-here/StartHereClient.tsx"), "utf8");
     expect(start.match(/border-\[var\(--color-paper-outline\)\]/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
     expect(start).toContain("border border-[var(--hb-on-primary)] px-5 text-[14px] font-semibold text-white");
   });

@@ -426,12 +426,15 @@ describe("사진 머리 아래 알림 자리", () => {
     expect(wide.container.querySelector("[data-first-run-tutorial]")).not.toBeNull();
   });
 
-  it("라운지는 커뮤니티를 부르지 않고, 웨딩코드와 견적 확인 도구는 바닥 링크로 연다", async () => {
+  // 2026-11-22: 웨딩코드(→ 준비 스타일)를 내렸고(2026-11-21 파운더 결정), 견적 확인은 커뮤니티 밖 새 주소로 옮겼다.
+  it("라운지는 커뮤니티·웨딩코드를 부르지 않고, 견적 확인 도구는 바닥 링크로 연다", async () => {
     const api = routes();
     const { container } = await render(<LiveLounge />);
     expect(api.calls.some((call) => call.url.startsWith("/api/community/"))).toBe(false);
-    expect(linkTo(container, "/wedding/preparation-style")?.textContent).toBe("웨딩코드");
-    expect(linkTo(container, "/wedding/community/quote-check")).not.toBeNull();
+    expect(linkTo(container, "/wedding/preparation-style")).toBeNull();
+    expect(container.textContent).not.toContain("웨딩코드");
+    expect(linkTo(container, "/wedding/quote-check")).not.toBeNull();
+    expect(linkTo(container, "/wedding/community/quote-check")).toBeNull();
   });
 
   it("체험 모드(예시 커플)에는 알림 자리를 그리지 않는다", async () => {

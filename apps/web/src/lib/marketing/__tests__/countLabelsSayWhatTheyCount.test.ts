@@ -273,8 +273,10 @@ describe("랜딩의 문장 수는 도착 화면이 묻는 문항 수다", () => 
       expect(count, `${name} 블록의 문장 수가 실제 검사와 다르다`)
         .toBe(WEDDING_CODE_V31_QUESTIONS.length);
     }
-    expect(copy.map(([, text]) => text).join(""), "웨딩코드로 가는 길이 사라졌다")
-      .toMatch(/href:\s*"\/wedding-code"/u);
+    // 2026-11-22: 웨딩코드를 내려(2026-11-21 파운더 결정) 랜딩에서 그 길을 뺐다. 예전에는 "웨딩코드로 가는
+    // 길이 사라졌다"를 막았다. 이제 문장 수를 말하는 카피가 남아 있다면 위 단언이 같은 수를 요구한다.
+    expect(copy.map(([, text]) => text).join(""), "내린 웨딩코드로 가는 길이 랜딩에 돌아왔다")
+      .not.toMatch(/href:\s*"\/wedding-code"/u);
   });
 
   it("랜딩의 컴포넌트에도 잘못된 수나 예전 장면 수가 남아 있지 않다", () => {

@@ -697,10 +697,7 @@ export default function LoginPage() {
           <Link href="/landing" className="inline-flex min-h-11 items-center text-[13px] text-inv-body transition-colors hover:text-inv-ink">
             ← 서비스 소개로
           </Link>
-          {/* 계정을 만들기 전에 해볼 수 있는 것. 데모 체험과 달리 설정 플래그에 묶이지 않는다. */}
-          <Link href="/wedding-code" className="inline-flex min-h-11 items-center text-[13px] font-medium text-inv-ink underline underline-offset-4 transition-colors hover:text-inv-muted">
-            로그인 없이 웨딩코드 먼저 해보기
-          </Link>
+          {/* 2026-11-22: "로그인 없이 웨딩코드 먼저 해보기" 링크를 뺐다. 웨딩코드를 내렸다(2026-11-21 파운더 결정). */}
         </div>
     </InvitationAuthShell>
   );

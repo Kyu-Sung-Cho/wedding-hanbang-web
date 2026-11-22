@@ -82,11 +82,13 @@ function collectSourceFiles(dir: string, out: string[] = []): string[] {
 const sourceFiles = collectSourceFiles(SOURCE_ROOT);
 
 /**
- * `components/community/StartHereClient.tsx`는 브리지 범위 안에 있지만 `/start-here`
+ * 2026-11-22 커뮤니티를 닫으면서 이 파일을 `components/community/` 에서 `components/start-here/` 로 옮겼다.
+ * 그래서 이제는 브리지 범위 밖이라 아래 목록이 없어도 같은 결과지만, 다시 범위 안으로 들어와도 틀리지 않게 남긴다.
+ * (옮기기 전 설명) `components/start-here/StartHereClient.tsx`는 브리지 범위 안에 있지만 `/start-here`
  * (테마 밖)에서도 렌더된다. 여기 쓰인 클래스는 브리지가 안 걸린 채로도 보이므로
  * "브리지 안에서 쓰인다"고 셀 수 없다.
  */
-const RENDERED_OUTSIDE_TOO = ["src/components/community/StartHereClient.tsx"];
+const RENDERED_OUTSIDE_TOO = ["src/components/start-here/StartHereClient.tsx"];
 
 const reachableDirs = bridgeReachableComponentDirs(sourceFiles);
 
