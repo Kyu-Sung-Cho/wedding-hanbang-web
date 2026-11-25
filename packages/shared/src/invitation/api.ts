@@ -192,11 +192,31 @@ export type LetterState = {
   recipients: readonly { hallId: string; name: string }[];
 };
 
+/**
+ * D-83 1단계(2026-11-18): 저장한 편지 한 판을 받는 곳마다 보낼 글로 엮은 것. 커플이 자기 폰에서 보낸다.
+ * 서버는 이 글을 아무 데도 보내지 않는다. 글은 저장된 판으로만 만들고 화면에서 고쳐 쓰지 않는다.
+ */
+export type LetterSelfSendMessage = { hallId: string; name: string; text: string };
+
+export type LetterSelfSend = {
+  /** 이 글을 만든 판. 화면의 편지가 이 판과 다르면(고치는 중) 보낼 글을 숨긴다. */
+  versionId: string;
+  fingerprint: string;
+  messages: readonly LetterSelfSendMessage[];
+  /** 휴대폰 번호 알려주기를 켰지만 글에는 넣지 않았다. 화면이 그렇다고 한 줄 알린다. */
+  phoneOmitted: boolean;
+};
+
 export type InvitationLetterResponse = {
   /** 담은 홀이 없으면 null. */
   letter: LetterModel | null;
   state: LetterState | null;
   missing: readonly ("shortlist" | InvitationConditionKey)[];
+  /**
+   * 커플이 직접 보내기(D-83 1단계)가 켜진 서버만 이 칸을 준다. 켜져 있고 저장한 판이 없으면 null 이다.
+   * 꺼져 있으면 칸 자체가 없다(응답이 이 칸보다 먼저 나간 서버와 같다).
+   */
+  selfSend?: LetterSelfSend | null;
 };
 
 export type LetterApprovePost = { versionId: string; fingerprint: string };
@@ -212,6 +232,13 @@ export type LetterApproveResult = {
 
 // ── 상담(W5)·오늘 한 일 ─────────────────────────────────────────────────────
 
+/**
+ * 받은 답 붙여 넣기(D-83 1단계). `halls` 는 고를 수 있는 웨딩홀(담은 홀과 열린 편지의 받는 곳)이다.
+ * `addedCount` 는 붙여 넣은 답으로 일정에 넣은 상담 수(취소한 것은 빼고)다. 이 상담들은 운영자가 적은 답장이 아니라
+ * 상담 모델(`consultation`)에 나타나지 않으므로, 화면은 이 수로 "아직 잡힌 상담이 없어요"라고 잘못 말하지 않는다.
+ */
+export type ConsultationReplyPaste = { halls: readonly { hallId: string; name: string }[]; addedCount: number };
+
 export type InvitationConsultationResponse = {
   consultation: ConsultationModel | null;
   replyId: string | null;
@@ -219,9 +246,17 @@ export type InvitationConsultationResponse = {
   inCalendar: boolean;
   /** 상담 시각(ISO). */
   startsAt: string | null;
+  /** 커플이 직접 보내기(D-83 1단계)가 켜진 서버만 준다. 꺼져 있으면 칸이 없다. */
+  replyPaste?: ConsultationReplyPaste;
 };
 
 export type ConsultationSchedulePost = { replyId: string };
+
+/**
+ * 붙여 넣은 업체 답에서 사람이 고른 날짜(와 시간)로 상담 일정 하나를 넣는다(D-83 1단계).
+ * 붙여 넣은 글은 이 요청에 들어가지 않는다. 기기 밖으로 나가는 것은 이 세 칸뿐이다.
+ */
+export type ConsultationPasteSchedulePost = { hallId: string; date: string; time?: string };
 
 export type ConsultationScheduleResult = { added: boolean; alreadyInCalendar: boolean; eventId: string };
 

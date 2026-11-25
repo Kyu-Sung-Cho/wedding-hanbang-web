@@ -12,6 +12,8 @@ const runtimeVariables = [
   "HALL_INQUIRY_SENDING_ENABLED",
   "HALL_INQUIRY_DAILY_CAP",
   "HALL_INQUIRY_GLOBAL_DAILY_CAP",
+  // 커플이 직접 보내기(D-83 1단계, 2026-11-18). 켜면 편지 응답·승인 거절·받은 답 붙여 넣기가 바뀐다.
+  "HALL_INQUIRY_SELF_SEND_ENABLED",
   // 찾아보기(2026-11-20, D-85·D-88). 켜면 검색어가 네이버로, 페이지 요청이 업체 사이트로 나간다 — 바깥 행동이다.
   "AMORA_WEB_SEARCH_ENABLED",
   // 부를 네이버 상품 목록. 콘솔에서 상품을 켜는 것만으로 운영 동작이 바뀌지 않게 한다(기본 local).
@@ -71,6 +73,7 @@ test("the example environment keeps external Amora side effects fail-closed", as
     "AMORA_AUXILIARY_MEMORY_ENABLED=false",
     "AMORA_CARE_OUTBOUND_ENABLED=false",
     "HALL_INQUIRY_SENDING_ENABLED=false",
+    "HALL_INQUIRY_SELF_SEND_ENABLED=false",
     "AMORA_WEB_SEARCH_ENABLED=false",
     "AMORA_WEB_SEARCH_NAVER_PRODUCTS=local",
     "AMORA_COMMUNITY_AI_COMMENT_ENABLED=false",

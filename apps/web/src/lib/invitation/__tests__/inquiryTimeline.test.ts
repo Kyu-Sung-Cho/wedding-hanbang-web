@@ -1,7 +1,18 @@
+import type { LetterState } from "@hanbang/shared/invitation";
 import { describe, expect, it } from "vitest";
 import type { ScheduleEvent } from "@/types/database.types";
-import { buildActivity } from "../activity";
-import { buildConsultation, consultationEventDraft, consultationSourceKey, isInCalendar } from "../consultation";
+import { buildActivity, pastedConsultationHallId, pastedHallIdsAddedToday } from "../activity";
+import {
+  CONSULTATION_SOURCE_PREFIX,
+  PASTED_CONSULTATION_SOURCE_PREFIX,
+  buildConsultation,
+  consultationEventDraft,
+  consultationSourceKey,
+  findPastedInCalendar,
+  isInCalendar,
+  pastedConsultationEventDraft,
+  pastedConsultationSourceKey,
+} from "../consultation";
 import type { HallListing } from "../hallCompare";
 import { parseDispatchRow, parseReplyRow, type DispatchRow, type InquiryTimeline, type LetterVersionRow, type ReplyRow } from "../inquiryRepository";
 import { LIVE_COPY } from "../liveCopy";
@@ -187,5 +198,161 @@ describe("inquiry timeline into screen sentences", () => {
       LIVE_COPY.update.paused, LIVE_COPY.update.capped];
     for (const line of coupleLines) expect(line, line).toMatch(/(됐어요|들어갔어요)/);
     for (const line of [...operatorLines, ...coupleLines]) expect(line, line).not.toMatch(/아모라|AI|에이아이/);
+  });
+});
+
+describe("couple self-send mode (D-83 stage 1)", () => {
+  const EMPTY: InquiryTimeline = { dispatches: [], replies: [], versions: [] };
+  const BRIDE = "11111111-1111-4111-8111-111111111111";
+  const GROOM = "22222222-2222-4222-8222-222222222222";
+  const openVersion: LetterVersionRow = { ...version, approvalCompletedAt: "2026-11-17T03:00:00Z", queuedAt: null };
+
+  function openLetter(state: Partial<LetterState>): { version: LetterVersionRow; state: LetterState } {
+    return {
+      version: openVersion,
+      state: {
+        letterId: openVersion.letterId,
+        versionId: openVersion.id,
+        version: 1,
+        fingerprint: openVersion.fingerprint,
+        status: "approved_not_queued",
+        approver: { mode: "unset", designatedUserId: null, revision: 0 },
+        approvedBy: [BRIDE],
+        approvedWhilePaused: [],
+        waitingFor: [],
+        viewerCanApprove: true,
+        viewerIsApprover: true,
+        sendingEnabled: false,
+        notQueuedReason: "sending_disabled",
+        recipients: [{ hallId: HALL_A, name: "소담 하우스" }, { hallId: HALL_B, name: "가온 웨딩홀" }],
+        ...state,
+      },
+    };
+  }
+
+  it("drops the paused and capped approval news only when asked", () => {
+    for (const reason of ["sending_disabled", "daily_cap", "global_daily_cap"] as const) {
+      const open = openLetter({ notQueuedReason: reason });
+      const before = buildAmoraUpdate({ timeline: EMPTY, openLetter: open, now: NOW });
+      expect(before, reason).toMatchObject({
+        text: reason === "sending_disabled" ? LIVE_COPY.update.paused : LIVE_COPY.update.capped,
+        primary: { target: "letter" },
+      });
+      // 칸을 주지 않거나 false 면 이 칸이 생기기 전과 같다.
+      expect(buildAmoraUpdate({ timeline: EMPTY, openLetter: open, now: NOW, selfSendMode: false }), reason).toEqual(before);
+      expect(buildAmoraUpdateDetail({ timeline: EMPTY, openLetter: open, now: NOW, selfSendMode: true }), reason).toBeNull();
+    }
+  });
+
+  it("still tells real recorded events in self-send mode", () => {
+    // 승인이 답장들보다 늦어 평소에는 멈춤 소식이 가장 최근 일이다.
+    const latest = openLetter({ notQueuedReason: "sending_disabled" });
+    const open = { ...latest, version: { ...openVersion, approvalCompletedAt: "2026-11-17T04:50:00Z" } };
+    expect(buildAmoraUpdate({ timeline, openLetter: open, now: NOW })?.text).toBe(LIVE_COPY.update.paused);
+    const withReplies = buildAmoraUpdate({ timeline, openLetter: open, now: NOW, selfSendMode: true });
+    expect(withReplies?.text).toBe("가온 웨딩홀은 21일 토요일 오후 4시를 제안했어요.");
+    expect(withReplies).toEqual(buildAmoraUpdate({ timeline, openLetter: null, now: NOW }));
+  });
+
+  it("leaves out the letter approval decision only when asked", () => {
+    const awaiting = openLetter({ status: "awaiting_approval", notQueuedReason: null, approvedBy: [GROOM], waitingFor: [BRIDE], approver: { mode: "both", designatedUserId: null, revision: 1 } });
+    const input = { timeline, openLetter: awaiting, viewerId: BRIDE, nameOf: () => "민지" };
+    const before = inquiryDecisions(input);
+    expect(before.map((item) => item.id)).toEqual([`proposal-${proposed.id}`, `letter-${openVersion.id}`]);
+    expect(before[1]).toMatchObject({ title: LIVE_COPY.decisions.letterApproval, sub: LIVE_COPY.decisions.letterYourTurn, target: "letter" });
+    expect(inquiryDecisions({ ...input, selfSendMode: false })).toEqual(before);
+    // 대체 시간 같은 다른 결정은 그대로 남는다.
+    expect(inquiryDecisions({ ...input, selfSendMode: true }).map((item) => item.id)).toEqual([`proposal-${proposed.id}`]);
+    const draft = openLetter({ status: "draft", notQueuedReason: null, approvedBy: [], waitingFor: [BRIDE, GROOM] });
+    expect(inquiryDecisions({ timeline: EMPTY, openLetter: draft, viewerId: BRIDE, nameOf: () => null, selfSendMode: true })).toEqual([]);
+  });
+});
+
+describe("consultations picked from a pasted reply (D-83 stage 1)", () => {
+  const event = (overrides: Partial<ScheduleEvent>): ScheduleEvent => ({
+    id: "evt_paste", date: "2026-11-30", title: "소담 하우스 상담",
+    createdAt: "2026-11-17T02:10:00.000Z", updatedAt: "2026-11-17T02:10:00.000Z", ...overrides,
+  } as ScheduleEvent);
+
+  it("keys them by hall, date and time, apart from reply consultations", () => {
+    expect(PASTED_CONSULTATION_SOURCE_PREFIX.startsWith(CONSULTATION_SOURCE_PREFIX)).toBe(false);
+    expect(pastedConsultationSourceKey(HALL_A, "2026-11-30", "14:00")).toBe(`hall-consultation-pasted:${HALL_A}:2026-11-30T14:00`);
+    expect(pastedConsultationSourceKey(HALL_A, "2026-11-30")).toBe(`hall-consultation-pasted:${HALL_A}:2026-11-30`);
+  });
+
+  it("drafts one schedule line with the hall's consultation title and no memo", () => {
+    const draft = pastedConsultationEventDraft({ hallId: HALL_A, hallName: "소담 하우스", date: "2026-11-30", time: "14:00" });
+    expect(draft).toEqual({
+      date: "2026-11-30", time: "14:00", title: "소담 하우스 상담", categoryKey: "venue",
+      sourceKey: `hall-consultation-pasted:${HALL_A}:2026-11-30T14:00`, status: "planned", assignee: { kind: "couple" },
+    });
+    expect(draft).not.toHaveProperty("memo");
+    for (const time of [undefined, null]) {
+      const dayOnly = pastedConsultationEventDraft({ hallId: HALL_A, hallName: "소담 하우스", date: "2026-11-30", time });
+      expect(dayOnly).not.toHaveProperty("time");
+      expect(dayOnly.sourceKey).toBe(`hall-consultation-pasted:${HALL_A}:2026-11-30`);
+    }
+  });
+
+  it("finds an earlier pick by the hall and the event's current day and time, ignores cancelled ones, and never mixes it up with a reply consultation", () => {
+    const key = pastedConsultationSourceKey(HALL_A, "2026-11-30", "14:00");
+    const slot = { hallId: HALL_A, date: "2026-11-30", time: "14:00" };
+    expect(findPastedInCalendar([event({ sourceKey: key, time: "14:00" })], slot)?.id).toBe("evt_paste");
+    expect(findPastedInCalendar([event({ sourceKey: key, time: "14:00", status: "cancelled" })], slot)).toBeNull();
+    // 날짜만 고른 자리와 시각까지 고른 자리는 다른 자리다.
+    const dayOnly = event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30") });
+    expect(findPastedInCalendar([dayOnly], slot)).toBeNull();
+    expect(findPastedInCalendar([dayOnly], { hallId: HALL_A, date: "2026-11-30" })?.id).toBe("evt_paste");
+    // 날짜만 고르면 그날 그 홀의 상담이 시각과 상관없이 있으면 있는 것이다(일정 화면에서 시각을 채운 상담).
+    const dayLaterTimed = event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30"), time: "14:00" });
+    expect(findPastedInCalendar([dayLaterTimed], { hallId: HALL_A, date: "2026-11-30" })?.id).toBe("evt_paste");
+    expect(findPastedInCalendar([dayLaterTimed], { hallId: HALL_A, date: "2026-12-01" })).toBeNull();
+    expect(findPastedInCalendar([dayLaterTimed], { hallId: HALL_B, date: "2026-11-30" })).toBeNull();
+    // 같은 자리라도 다른 홀의 상담, 답장으로 넣은 상담은 아니다.
+    expect(findPastedInCalendar([event({ sourceKey: pastedConsultationSourceKey(HALL_B, "2026-11-30", "14:00"), time: "14:00" })], slot)).toBeNull();
+    expect(findPastedInCalendar([event({ sourceKey: consultationSourceKey(confirmed.id), time: "14:00" })], slot)).toBeNull();
+    // 일정 화면에서 옮긴 상담은 옮긴 자리에 있다. 열쇠에 남은 처음 자리는 비어 있다.
+    const moved = event({ sourceKey: key, date: "2026-12-01", time: "15:00" });
+    expect(findPastedInCalendar([moved], slot)).toBeNull();
+    expect(findPastedInCalendar([moved], { hallId: HALL_A, date: "2026-12-01", time: "15:00" })?.id).toBe("evt_paste");
+    expect(findPastedInCalendar([event({ sourceKey: key, date: "2026-12-02", time: "14:00" })], slot)).toBeNull();
+    expect(isInCalendar([event({ sourceKey: key })], confirmed.id)).toBeNull();
+    // 붙여 넣어 넣은 일정은 답장 ID 로 읽히지 않는다. 홀 이름을 받지 못했으면 오늘 한 일 줄도 만들지 않는다.
+    expect(buildActivity({ timeline: { dispatches: [], replies: [], versions: [] }, events: [event({ sourceKey: key })], now: NOW })).toEqual([]);
+  });
+
+  it("puts today's pasted consultations into today's activity as the couple's own entry", () => {
+    const empty = { dispatches: [], replies: [], versions: [] };
+    const today = event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30", "14:00") });
+    const yesterday = event({
+      id: "evt_old", sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-29"),
+      createdAt: "2026-11-15T02:10:00.000Z", updatedAt: "2026-11-15T02:10:00.000Z",
+    });
+    const names = new Map([[HALL_A, "소담 하우스"]]);
+    expect(buildActivity({ timeline: empty, events: [today, yesterday], now: NOW, pastedHallNames: names })).toEqual([
+      { timeLabel: "11:10", actor: "couple", text: LIVE_COPY.activity.schedule("소담 하우스") },
+    ]);
+    // 활동 경로는 오늘 붙여 넣어 넣은 상담의 홀만 읽는다. 다른 날 것과 답장 일정은 빼고, 같은 홀은 한 번만이다.
+    const second = event({ id: "evt_2", sourceKey: pastedConsultationSourceKey(HALL_A, "2026-12-01") });
+    const reply = event({ id: "evt_reply", sourceKey: consultationSourceKey(confirmed.id) });
+    expect(pastedHallIdsAddedToday([today, second, yesterday, reply], NOW)).toEqual([HALL_A]);
+    expect(pastedHallIdsAddedToday([yesterday, reply], NOW)).toEqual([]);
+  });
+
+  it("takes a hall id from the key only when it is shaped like one, so a hand-written key cannot break the hall read", () => {
+    expect(pastedConsultationHallId(pastedConsultationSourceKey(HALL_A.toUpperCase(), "2026-11-30"))).toBe(HALL_A);
+    expect(pastedConsultationHallId("hall-consultation-pasted:abc:2026-11-30")).toBeNull();
+    expect(pastedConsultationHallId("hall-consultation-pasted::2026-11-30")).toBeNull();
+    expect(pastedConsultationHallId(consultationSourceKey(confirmed.id))).toBeNull();
+    expect(pastedConsultationHallId(undefined)).toBeNull();
+    // 앞머리가 비슷해도(같은 길이의 다른 열쇠) 붙여 넣은 상담의 열쇠가 아니면 홀 ID 를 꺼내지 않는다.
+    expect(pastedConsultationHallId(`hall-consultation-manual:${HALL_A}:2026-11-30`)).toBeNull();
+    // 두 분이 일정 기록에 직접 써 넣은 열쇠는 홀 읽기에 가지 않고, 그 줄만 빠진다.
+    const handWritten = event({ id: "evt_hand", sourceKey: "hall-consultation-pasted:abc:2026-11-30" });
+    const today = event({ sourceKey: pastedConsultationSourceKey(HALL_A, "2026-11-30", "14:00") });
+    expect(pastedHallIdsAddedToday([handWritten, today], NOW)).toEqual([HALL_A]);
+    const names = new Map([[HALL_A, "소담 하우스"]]);
+    expect(buildActivity({ timeline: { dispatches: [], replies: [], versions: [] }, events: [handWritten, today], now: NOW, pastedHallNames: names }))
+      .toEqual([{ timeLabel: "11:10", actor: "couple", text: LIVE_COPY.activity.schedule("소담 하우스") }]);
   });
 });

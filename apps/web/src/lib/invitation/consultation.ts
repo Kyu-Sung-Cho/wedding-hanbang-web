@@ -40,6 +40,64 @@ export function consultationEventDraft(input: { reply: ReplyRow; hallName: strin
   };
 }
 
+/**
+ * 받은 답 붙여 넣기(D-83 1단계)로 넣은 상담 일정의 표시. 답장 기록이 없으니 홀과 사람이 고른 날짜(와 시간)로 적는다.
+ * 답장 일정(`hall-consultation:`)으로 읽히지 않도록 그 앞머리로 시작하지 않는다(오늘 한 일이 답장 ID 로 읽는다).
+ */
+export const PASTED_CONSULTATION_SOURCE_PREFIX = "hall-consultation-pasted:";
+
+export function pastedConsultationSourceKey(hallId: string, date: string, time?: string): string {
+  return `${PASTED_CONSULTATION_SOURCE_PREFIX}${hallId}:${date}${time ? `T${time}` : ""}`;
+}
+
+/**
+ * 붙여 넣은 답에서 사람이 고른 날짜로 만든 일정 한 줄. 메모는 두지 않는다: 붙여 넣은 글은 서버에 오지 않고,
+ * 상대에게 가는 변경 알림이 메모까지 옮겨 적기 때문이다.
+ */
+export function pastedConsultationEventDraft(input: {
+  hallId: string;
+  hallName: string;
+  date: string;
+  time?: string | null;
+}): ScheduleEventDraft & { sourceKey: string } {
+  const time = input.time ?? undefined;
+  return {
+    date: input.date,
+    ...(time ? { time } : {}),
+    title: LIVE_COPY.consultationTitle(input.hallName),
+    categoryKey: "venue",
+    sourceKey: pastedConsultationSourceKey(input.hallId, input.date, time),
+    status: "planned",
+    assignee: { kind: "couple" },
+  };
+}
+
+/** 붙여 넣은 답에서 사람이 고른 자리. 홀 ID 는 확인해 소문자로 맞춘 값이다. */
+export type PastedConsultationSlot = { hallId: string; date: string; time?: string | null };
+
+/**
+ * 그 홀의 붙여 넣은 상담이 그 날짜·시간에 이미 있으면 그 일정. 일정의 지금 날짜·시간으로 본다: 일정 화면에서 옮긴
+ * 상담은 옮긴 자리에 있고, 열쇠에 남은 처음 자리는 비어 있다(처음 자리를 다시 고르면 새로 넣는다). 날짜만 고르면
+ * 그날 그 홀의 상담이 시각과 상관없이 있으면 있는 것으로 본다(일정 화면에서 시각을 채운 상담을 두 번 넣지 않게).
+ * 취소한 일정은 없는 것으로 본다.
+ */
+export function findPastedInCalendar(events: readonly ScheduleEvent[], slot: PastedConsultationSlot): ScheduleEvent | null {
+  const hallKey = `${PASTED_CONSULTATION_SOURCE_PREFIX}${slot.hallId}:`;
+  const time = slot.time || null;
+  return events.find((event) => typeof event.sourceKey === "string"
+    && event.sourceKey.startsWith(hallKey)
+    && event.date === slot.date
+    && (time === null || (event.time || null) === time)
+    && getScheduleEventStatus(event) !== "cancelled") ?? null;
+}
+
+/** 붙여 넣은 답으로 넣은 상담 일정의 수. 취소한 일정은 세지 않는다. 상담 화면이 "아직 잡힌 상담이 없어요"를 고를 때 쓴다. */
+export function countPastedInCalendar(events: readonly ScheduleEvent[]): number {
+  return events.filter((event) => typeof event.sourceKey === "string"
+    && event.sourceKey.startsWith(PASTED_CONSULTATION_SOURCE_PREFIX)
+    && getScheduleEventStatus(event) !== "cancelled").length;
+}
+
 function proposalUpdate(
   proposal: { reply: ReplyRow; hallName: string },
   events: readonly ScheduleEvent[],

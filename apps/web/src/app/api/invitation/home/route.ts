@@ -10,6 +10,7 @@ import { apiError, privateJson } from "@/lib/invitation/http";
 import { buildAmoraUpdateDetail, inquiryDecisions } from "@/lib/invitation/inquiryView";
 import { loadLetterView } from "@/lib/invitation/letterService";
 import { openCoupleRequest } from "@/lib/invitation/routeContext";
+import { isInquirySelfSendEnabled } from "@/lib/invitation/switches";
 import { log } from "@/utils/log";
 
 /**
@@ -42,7 +43,9 @@ export async function GET(request: Request) {
     }
 
     const names = new Map(context.members.map((member) => [member.id, member.name]));
-    const update = buildAmoraUpdateDetail({ timeline: letterView.timeline, openLetter: letterView.open });
+    // 직접 보내기(D-83 1단계)에서는 승인을 쓰지 않으므로 승인을 기다리는 소식과 결정 줄을 만들지 않는다.
+    const selfSendMode = isInquirySelfSendEnabled();
+    const update = buildAmoraUpdateDetail({ timeline: letterView.timeline, openLetter: letterView.open, selfSendMode });
     const home = buildHomeModel({
       context,
       conditions: parseInvitationConditions(progress[INVITATION_CONDITIONS_PROGRESS_KEY]),
@@ -52,6 +55,7 @@ export async function GET(request: Request) {
         openLetter: letterView.open,
         viewerId: context.userId,
         nameOf: (userId) => names.get(userId) ?? null,
+        selfSendMode,
       }),
       actions,
     });

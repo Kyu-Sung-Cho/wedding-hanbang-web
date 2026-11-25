@@ -141,6 +141,24 @@ describe("InvitationWebSpace", () => {
     );
   });
 
+  it("오늘 한 일에 시각과 글이 같은 줄이 둘이어도(같은 분에 같은 홀 상담을 둘 넣음) 새 줄이 오면 줄 수가 그대로 맞다", async () => {
+    const same = { timeLabel: "13:50", text: "가온 웨딩홀 상담이 일정에 들어갔어요" };
+    const later = { timeLabel: "13:55", text: "소담 하우스 상담이 일정에 들어갔어요" };
+    const rows = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll('[data-panel="today"] ol > li')).map((li) => text(li));
+    const { container, rerender } = await renderSpace({ model: { ...EXAMPLE_WEB_SPACE, activity: [same, same] } });
+    expect(rows(container)).toEqual([`13:50${same.text}`, `13:50${same.text}`]);
+
+    await rerender(
+      <InvitationWebSpace
+        model={{ ...EXAMPLE_WEB_SPACE, activity: [later, same, same] }}
+        resolveRoute={testRoute}
+        photoSrc={testPhoto}
+      />,
+    );
+    expect(rows(container)).toEqual([`13:55${later.text}`, `13:50${same.text}`, `13:50${same.text}`]);
+  });
+
   it("웨딩홀 후보 칸과 준비 순서 칸을 누르면 그 내용이 보인다", async () => {
     const { container } = await renderSpace();
 

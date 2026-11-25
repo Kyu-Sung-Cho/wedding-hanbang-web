@@ -2,8 +2,11 @@ import {
   EXAMPLE_CONSULTATION,
   EXAMPLE_HOME,
   EXAMPLE_LETTER,
+  LETTER_COPY,
+  SELF_SEND_COPY,
   buildJourneyModel,
   type CompareModel,
+  type ConsultationReplyPaste,
   type InquiryApproverResponse,
   type InvitationActivityResponse,
   type InvitationConditionsResponse,
@@ -13,6 +16,7 @@ import {
   type InvitationJourneyResponse,
   type InvitationLetterResponse,
   type JourneyPlan,
+  type LetterSelfSend,
   type LetterState,
 } from "@hanbang/shared/invitation";
 
@@ -135,6 +139,56 @@ export function letterResponse(state: Partial<LetterState> = {}, overrides: Part
     missing: [],
     ...overrides,
   };
+}
+
+/** 서버가 저장한 판으로 엮는 보낼 글의 꼴(받는 곳, 인사와 본문, 맺음말). */
+function selfSendText(name: string): string {
+  return `${LETTER_COPY.to([name])}\n\n${SELF_SEND_COPY.greeting} ${EXAMPLE_LETTER.body}\n\n${EXAMPLE_LETTER.signature}`;
+}
+
+/** 직접 보내기(D-83 1단계)가 켜진 서버가 판 하나로 엮어 주는 보낼 글. 받는 곳은 `letterState` 와 같은 두 곳이다. */
+export function selfSendFor(
+  versionId: string = VERSION,
+  fingerprint: string = FINGERPRINT,
+  overrides: Partial<LetterSelfSend> = {},
+): LetterSelfSend {
+  return {
+    versionId,
+    fingerprint,
+    messages: [
+      { hallId: HALL_A, name: "하나 웨딩홀", text: selfSendText("하나 웨딩홀") },
+      { hallId: HALL_B, name: "둘 컨벤션", text: selfSendText("둘 컨벤션") },
+    ],
+    phoneOmitted: false,
+    ...overrides,
+  };
+}
+
+/**
+ * 직접 보내기(D-83 1단계)가 켜진 서버의 편지 응답. 그 서버는 `selfSend` 칸을 싣고(저장한 판이 없으면 null) 휴대폰 번호
+ * 알려주기 줄을 뺀다(`letterService.ts`, 글에 번호가 들어가지 않는다). 꺼진 서버의 응답은 `letterResponse` 그대로다.
+ */
+export function selfSendLetterResponse(
+  state: Partial<LetterState> = {},
+  overrides: Partial<InvitationLetterResponse> = {},
+): InvitationLetterResponse {
+  const response = letterResponse(state, { selfSend: null, ...overrides });
+  if (!response.letter) return response;
+  return { ...response, letter: { ...response.letter, shares: response.letter.shares.filter((share) => share.key !== "phone") } };
+}
+
+/** 받은 답 붙여 넣기(D-83 1단계)에서 고를 수 있는 웨딩홀. 아직 붙여 넣은 답으로 넣은 상담은 없다. */
+export const REPLY_PASTE: ConsultationReplyPaste = {
+  halls: [
+    { hallId: HALL_A, name: "하나 웨딩홀" },
+    { hallId: HALL_B, name: "둘 컨벤션" },
+  ],
+  addedCount: 0,
+};
+
+/** 받은 답 붙여 넣기의 칸. 고를 웨딩홀과 넣은 상담 수만 바꿔 쓴다. */
+export function replyPaste(overrides: Partial<ConsultationReplyPaste> = {}): ConsultationReplyPaste {
+  return { ...REPLY_PASTE, ...overrides };
 }
 
 export function approverResponse(overrides: Partial<InquiryApproverResponse> = {}): InquiryApproverResponse {

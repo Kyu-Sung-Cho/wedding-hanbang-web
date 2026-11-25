@@ -28,13 +28,24 @@ type InvitationLetterSheetProps = {
   /** 실제 커플: "문구 고치기"를 누른 뒤 편지 글 자리에 대신 그리는 글 고치기 칸. */
   editor?: ReactNode;
   /**
-   * 실제 커플: 알려줄 정보 아래에 더 그릴 것(새 휴대폰 번호 칸, 누가 승인할지 고르는 칸, 승인·보내기 상태 한 줄).
-   * 예시 커플은 넘기지 않아 아티팩트 모양 그대로다.
+   * 실제 커플: 알려줄 정보 아래에 더 그릴 것(새 휴대폰 번호 칸, 누가 승인할지 고르는 칸, 승인·보내기 상태 한 줄,
+   * 직접 보내기에서는 받는 곳마다 보낼 글). 예시 커플은 넘기지 않아 아티팩트 모양 그대로다.
    */
   extra?: ReactNode;
   /** 실제 커플: 이미 보냈거나 이 판을 이미 승인했으면 보내기를 잠근다. 보내는 중이면 기다림 표시를 한다. */
   sendDisabled?: boolean;
   sendBusy?: boolean;
+  /**
+   * 실제 커플(직접 보내기, D-83 1단계): 아래 단추의 글자를 바꾼다(그때 아래 단추는 판을 저장만 하고, 보내기는 업체마다
+   * 복사·공유·"문자로 열기" 단추가 한다). 없으면 LETTER_COPY 의 파운더 확정 D-83 문구다. 제목은 두 모드 모두
+   * LETTER_COPY.title 이다(파운더 결정 2026-11-23).
+   */
+  sendLabel?: string;
+  /**
+   * 실제 커플(직접 보내기): 상대가 읽고 좋다고 했다는 줄을 숨긴다. 직접 보내기에는 상대 승인이 없어(승인 경로는 409) 그 줄은
+   * 스위치를 켜기 전에 받은 승인만 말할 수 있어서다(파운더 결정 2026-11-23: 숨긴다).
+   */
+  hidePartnerRead?: boolean;
   className?: string;
 };
 
@@ -87,12 +98,15 @@ export default function InvitationLetterSheet({
   extra,
   sendDisabled = false,
   sendBusy = false,
+  sendLabel,
+  hidePartnerRead = false,
   className,
 }: InvitationLetterSheetProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const laterRef = useRef<HTMLAnchorElement>(null);
   const count = model.recipients.length;
   const backdrop = model.backdropPhoto ? photoSrc(model.backdropPhoto) : null;
+  const sendText = sendLabel ?? LETTER_COPY.send;
 
   useEffect(() => {
     dialogRef.current?.focus({ preventScroll: true });
@@ -164,7 +178,7 @@ export default function InvitationLetterSheet({
 
         {extra}
 
-        {model.partnerApprovedName ? (
+        {model.partnerApprovedName && !hidePartnerRead ? (
           <p className="text-[13px] leading-[1.6] text-inv-body">{LETTER_COPY.partnerRead(model.partnerApprovedName)}</p>
         ) : null}
 
@@ -179,11 +193,11 @@ export default function InvitationLetterSheet({
               disabled={sendDisabled}
               loading={sendBusy}
             >
-              {LETTER_COPY.send}
+              {sendText}
             </Button>
           ) : (
             <Button href={resolveRoute("status")} variant="ink" size="pill-56" weight="bold" fullWidth>
-              {LETTER_COPY.send}
+              {sendText}
             </Button>
           )}
           {onLater ? (

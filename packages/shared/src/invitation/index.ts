@@ -11,3 +11,4 @@ export * from "./exampleCouple";
 export * from "./conditions";
 export * from "./api";
 export * from "./regions";
+export * from "./vendorReply";

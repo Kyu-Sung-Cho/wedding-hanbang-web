@@ -1,9 +1,15 @@
+import { SELF_SEND_COPY } from "@hanbang/shared/invitation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiError, privateJson, readJsonBody } from "@/lib/invitation/http";
 import { approveLetter } from "@/lib/invitation/inquiryRpc";
 import { loadLetterView } from "@/lib/invitation/letterService";
 import { openCoupleRequest } from "@/lib/invitation/routeContext";
-import { inquiryDailyCap, inquiryGlobalDailyCap, isInquirySendingEnabled } from "@/lib/invitation/switches";
+import {
+  inquiryDailyCap,
+  inquiryGlobalDailyCap,
+  isInquirySelfSendEnabled,
+  isInquirySendingEnabled,
+} from "@/lib/invitation/switches";
 import { isRecord, isUuid } from "@/utils/requestValidation";
 import { log } from "@/utils/log";
 
@@ -12,6 +18,9 @@ import { log } from "@/utils/log";
  * 승인 방식이 끝나면 운영자 대기열에 넣는다. 다만 문의 스위치가 꺼져 있거나 커플·서비스 전체 하루 상한을
  * 넘으면 승인만 남기고 넣지 않으며, 응답의 `notQueuedReason` 이 그 이유를 말한다. 두 번 눌러도 한 번만 들어간다.
  * 승인은 지금 방식에서 승인할 수 있는 사람의 것만 남고, 문의가 켜진 뒤에는 켜진 동안의 승인만 센다.
+ *
+ * 커플이 직접 보내기(D-83 1단계)가 켜져 있으면 승인을 받지 않는다(409 SELF_SEND_MODE). 로그인·요청 제한·DB 보다
+ * 먼저 멈추므로 승인 줄도, 승인 알림도 생기지 않는다. 옛 앱이 승인을 눌러도 같은 말로 돌려보낸다.
  */
 
 export const dynamic = "force-dynamic";
@@ -19,6 +28,7 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 1024;
 
 export async function POST(request: Request) {
+  if (isInquirySelfSendEnabled()) return apiError(409, "SELF_SEND_MODE", SELF_SEND_COPY.approveRefused);
   try {
     const opened = await openCoupleRequest(request, { mutation: { key: "letter-approve", perMinute: 20 } });
     if (!opened.ok) return opened.response;

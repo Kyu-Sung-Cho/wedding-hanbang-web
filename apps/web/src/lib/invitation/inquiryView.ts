@@ -84,23 +84,26 @@ function versionSteps(version: LetterVersionRow | undefined, timeline: InquiryTi
   return steps.slice(0, 4);
 }
 
-/**
- * 홈의 아모라 소식 한 단락. 가장 최근에 실제로 일어난 일 하나를 말한다. 없으면 null 이고 화면은 그 칸을 그리지 않는다.
- */
-export function buildAmoraUpdate(input: {
+export type AmoraUpdateInput = {
   timeline: InquiryTimeline;
   openLetter: { version: LetterVersionRow; state: LetterState } | null;
   now?: Date;
-}): AmoraUpdate | null {
+  /**
+   * 커플이 직접 보내기(D-83 1단계). 승인을 쓰지 않으므로 "편지가 승인됐어요… 아직 보내지 않았어요" 소식을
+   * 만들지 않는다. 기본은 false 이고 그때는 이 칸이 생기기 전과 같다.
+   */
+  selfSendMode?: boolean;
+};
+
+/**
+ * 홈의 아모라 소식 한 단락. 가장 최근에 실제로 일어난 일 하나를 말한다. 없으면 null 이고 화면은 그 칸을 그리지 않는다.
+ */
+export function buildAmoraUpdate(input: AmoraUpdateInput): AmoraUpdate | null {
   return buildAmoraUpdateDetail(input)?.update ?? null;
 }
 
 /** 소식과 함께 "무엇을 했나요?" 줄의 actor 를 준다. `update.steps` 는 그 줄의 글만 같은 순서로 담는다. */
-export function buildAmoraUpdateDetail(input: {
-  timeline: InquiryTimeline;
-  openLetter: { version: LetterVersionRow; state: LetterState } | null;
-  now?: Date;
-}): AmoraUpdateDetail | null {
+export function buildAmoraUpdateDetail(input: AmoraUpdateInput): AmoraUpdateDetail | null {
   const { timeline } = input;
   const now = input.now ?? new Date();
   const versionOf = (dispatch: DispatchRow | undefined) =>
@@ -186,7 +189,8 @@ export function buildAmoraUpdateDetail(input: {
     }
   }
 
-  const open = input.openLetter;
+  // 직접 보내기에서는 승인한 편지가 대기열을 기다리지 않는다. 그 소식(멈춤·상한)을 후보에 넣지 않는다.
+  const open = input.selfSendMode ? null : input.openLetter;
   const capped = open?.state.notQueuedReason === "daily_cap" || open?.state.notQueuedReason === "global_daily_cap";
   if (open && open.state.status === "approved_not_queued" && open.version.approvalCompletedAt
     && (open.state.notQueuedReason === "sending_disabled" || capped)) {
@@ -221,6 +225,8 @@ export function inquiryDecisions(input: {
   openLetter: { version: LetterVersionRow; state: LetterState } | null;
   viewerId: string;
   nameOf: (userId: string) => string | null;
+  /** 커플이 직접 보내기(D-83 1단계)에서는 승인을 쓰지 않으므로 편지 승인 줄을 만들지 않는다. 기본 false. */
+  selfSendMode?: boolean;
 }): DecisionItem[] {
   const items: DecisionItem[] = openProposals(input.timeline).map(({ reply, hallName }) => ({
     id: `proposal-${reply.id}`,
@@ -230,7 +236,7 @@ export function inquiryDecisions(input: {
     target: "status",
   }));
 
-  const open = input.openLetter;
+  const open = input.selfSendMode ? null : input.openLetter;
   const pending = open && (open.state.status === "awaiting_approval" || open.state.status === "draft");
   if (open && pending && open.state.waitingFor.length > 0) {
     const waiting = open.state.waitingFor;

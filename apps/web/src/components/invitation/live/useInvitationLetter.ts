@@ -7,10 +7,12 @@ import {
   type InquiryApproverPut,
   type InquiryApproverRespondPost,
   type InquiryApproverResponse,
+  type InvitationLetterResponse,
   type LetterApproveResult,
   type LetterModel,
   type LetterNotQueuedReason,
   type LetterSavePut,
+  type LetterSelfSend,
   type LetterShare,
   type LetterState,
 } from "@hanbang/shared/invitation";
@@ -21,8 +23,9 @@ import {
   isLetterApproveResponse,
   isLetterResponse,
   isLetterSaveResponse,
+  type LetterSaveResponse,
 } from "./invitationGuards";
-import { approverFailedMessage, letterFailedMessage } from "./liveStateCopy";
+import { approverFailedMessage, letterFailedMessage, selfSendSaveFailedMessage } from "./liveStateCopy";
 import { useMountedRef, type LiveIdentity } from "./useLiveIdentity";
 import { useInvitationQuery } from "./useInvitationQuery";
 
@@ -39,6 +42,9 @@ type LetterEdits = {
 };
 
 export type LetterNotice = { tone: "status" | "error"; text: string };
+
+/** 편지 글에 들어가는 조건 가운데 먼저 물을 것(희망 시기·하객 수). 지역은 편지 글에 들어가지 않는다. */
+export type LetterConditionKey = "month" | "guests";
 
 export type InvitationLetterState = {
   loading: boolean;
@@ -77,6 +83,35 @@ export type InvitationLetterState = {
   /** 확인을 기다리는 제안의 방식을 같은 꼴의 한 줄로. 제안이 없으면 null. */
   proposalLine: string | null;
   memberName: (id: string) => string | null;
+  /**
+   * 커플이 직접 보내기(D-83 1단계)가 켜진 서버다(응답에 `selfSend` 칸이 있다). 꺼진 서버는 칸이 없고 화면은
+   * 예전 그대로다(승인 칸과 보내기 단추).
+   */
+  selfSendMode: boolean;
+  /** 지금 보이는 편지 판으로 엮은 보낼 글. 고치는 중이거나 글을 만든 판이 화면의 판과 다르면 null 이다. */
+  selfSend: LetterSelfSend | null;
+  /** 편지 글에 들어갈 조건 가운데 비어 있는 것(희망 시기·하객 수). */
+  missingConditions: readonly LetterConditionKey[];
+  /** 직접 보내기의 저장 단추를 누를 수 있는가(`needsSave` 이고 도는 쓰기가 없을 때만). */
+  canPrepare: boolean;
+  /**
+   * 직접 보내기에서 저장해야 보낼 글이 나오는 편지다(고친 것이 있거나 저장한 판이 없고, 대기열에 넣은 편지가 아니다).
+   * `canPrepare` 와 달리 쓰기가 도는 동안(저장, 승인 방식 제안에 답하기)에도 그대로다. 화면은 저장하면 보낼 글이 나온다는
+   * 줄을 이 값으로 그린다. 쓰는 동안 그 줄이 사라졌다 나타나지 않게 한다.
+   */
+  needsSave: boolean;
+  /** 화면의 편지를 새 판으로 저장만 한다. 승인은 부르지 않는다(보내는 것은 두 분 폰이다). */
+  prepare: () => Promise<void>;
+  /**
+   * `prepare` 의 저장이 돌고 있다. `busy` 는 쓰기 무엇이든(승인 방식 제안에 답하기 포함) 참이므로, 직접 보내기 화면의
+   * "저장하고 있어요"는 이 값으로 그린다. 제안에 답하는 동안 저장한다고 말하지 않게 한다.
+   */
+  preparing: boolean;
+  /**
+   * 이 화면에서 `prepare` 가 판을 저장한 횟수. 화면은 이 수가 늘 때만(저장한 뒤 보낼 글이 나타날 때) 보낼 글로 초점을
+   * 옮긴다. 고친 것을 되돌려 글이 다시 보일 때는 늘지 않는다.
+   */
+  preparedCount: number;
 };
 
 /** 승인 방식 한 줄. 아직 고르지 않았으면 한 분이 승인하면 둘 다에게 알린다고 말한다. */
@@ -138,6 +173,54 @@ function resultLine(result: LetterApproveResult, viewerId: string | null, nameOf
 }
 
 /**
+ * 직접 보내기(D-83 1단계)에서 불러온 편지의 상태 한 줄. 이 단계는 승인을 쓰지 않으므로 승인을 저장했다는 줄과
+ * 기다리는 사람 줄은 말하지 않는다. 이 단계 전에 대기열에 넣은 편지만 이미 보냈다고 말한다.
+ */
+function selfSendStateLine(state: LetterState): string | null {
+  return state.status === "queued" ? LETTER_STATE_COPY.alreadySent : null;
+}
+
+/** 보낼 글은 그 글을 만든 판이 화면의 판과 같고 고친 것이 없을 때만 보인다. */
+function visibleSelfSend(
+  selfSend: LetterSelfSend | null | undefined,
+  state: LetterState | null,
+  dirty: boolean,
+): LetterSelfSend | null {
+  if (!selfSend || !state || dirty) return null;
+  return selfSend.versionId === state.versionId && selfSend.fingerprint === state.fingerprint ? selfSend : null;
+}
+
+function letterConditionsMissing(missing: InvitationLetterResponse["missing"] | undefined): LetterConditionKey[] {
+  return (missing ?? []).filter((key): key is LetterConditionKey => key === "month" || key === "guests");
+}
+
+/**
+ * PUT `/letter` 본문. 화면이 보인 받는 곳·글·알려줄 정보 그대로다. 화면은 가린 번호만 받으므로 새로 적은 번호가
+ * 없으면 비워 보내 앞 판의 번호를 쓰게 한다. `send` 의 저장 본문과 같은 꼴이다(`send` 는 그대로 두었다).
+ */
+function letterSaveBody(state: LetterState, model: LetterModel, typedPhone: string): LetterSavePut {
+  const shareOn = (key: ShareKey) => model.shares.find((share) => share.key === key)?.on ?? false;
+  const nameValue = model.shares.find((share) => share.key === "name")?.value ?? "";
+  return {
+    letterId: state.letterId,
+    recipientHallIds: state.recipients.map((recipient) => recipient.hallId),
+    body: model.body,
+    shares: {
+      name: { on: shareOn("name"), value: shareOn("name") ? nameValue || null : null },
+      phone: { on: shareOn("phone"), value: shareOn("phone") ? typedPhone.trim() || null : null },
+      budget: { on: shareOn("budget") },
+    },
+  };
+}
+
+/** PUT 응답에서 새로 저장한 판 칸을 뺀 편지 응답. 화면 자료는 GET 응답과 같은 모양으로 둔다. */
+function withoutSavedVersion(value: LetterSaveResponse): InvitationLetterResponse {
+  const { saved, ...response } = value;
+  void saved;
+  return response;
+}
+
+/**
  * 편지 시트(`/halls/letter`)의 읽기와 쓰기.
  *
  *   - GET `/letter`·`/approver` 를 함께 읽는다.
@@ -145,6 +228,8 @@ function resultLine(result: LetterApproveResult, viewerId: string | null, nameOf
  *   - 보내기는 POST `/letter/approve` 에 화면이 본 판 ID 와 지문을 그대로 보낸다. 그 사이 판이 바뀌었으면 409 라
  *     바뀐 편지를 다시 읽고 다시 확인하게 한다.
  *   - 문의 보내기 스위치가 꺼져 있으면 승인만 저장되고 업체로 가지 않았다고 사실대로 말한다.
+ *   - 커플이 직접 보내기(D-83 1단계)가 켜진 서버면 승인 대신 `prepare` 로 판을 저장만 하고, 저장한 판으로 서버가
+ *     엮은 보낼 글(`selfSend`)을 그 판이 화면에 보일 때만 준다. 꺼진 서버에서는 예전과 똑같이 움직인다.
  */
 export function useInvitationLetter(identity: LiveIdentity): InvitationLetterState {
   const options = { owner: identity.owner, enabled: !identity.isDemo, refreshKey: identity.refreshKey };
@@ -153,6 +238,8 @@ export function useInvitationLetter(identity: LiveIdentity): InvitationLetterSta
   const [edits, setEdits] = useState<LetterEdits | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<LetterNotice | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [preparedCount, setPreparedCount] = useState(0);
   const mounted = useMountedRef();
   // 같은 그림에서 두 번 누르면 두 번 다 `busy` 가 거짓으로 보인다. 쓰기 하나가 끝날 때까지 다음 쓰기를 막는 표시.
   const writingRef = useRef(false);
@@ -282,6 +369,13 @@ export function useInvitationLetter(identity: LiveIdentity): InvitationLetterSta
       });
       if (!mounted.current) return;
       if (!approved.ok) {
+        // 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜졌다. 실패한 것은 없으니 아무 말도 남기지 않고 다시 읽는다:
+        // 다시 읽은 편지에는 보낼 글(`selfSend`)이 있고 이 화면은 그 모습을 그릴 줄 안다(앱 화면도 같다).
+        if (approved.code === "SELF_SEND_MODE") {
+          setNotice(null);
+          reloadLetter();
+          return;
+        }
         setNotice({ tone: "error", text: letterFailedMessage(approved) });
         // 판이 바뀌었으면 바뀐 편지를 다시 읽는다. 사람이 다시 읽고 다시 눌러야 한다.
         if (approved.code === "LETTER_VERSION_CHANGED" || approved.code === "LETTER_LOCKED") reloadLetter();
@@ -294,6 +388,38 @@ export function useInvitationLetter(identity: LiveIdentity): InvitationLetterSta
     });
   }, [busy, dirty, letter, memberName, model, mounted, ownEdits, reloadLetter, replaceLetter, state, viewerId, writeOnce]);
 
+  /**
+   * 직접 보내기(D-83 1단계)의 저장. `send` 의 저장 절반과 같고 승인은 부르지 않는다. 저장한 판의 보낼 글(`selfSend`)은
+   * PUT 응답에 함께 와서 화면이 곧바로 보인다.
+   *
+   * 저장이 실패하면 서버가 말한 이유를(없으면 다시 누르라고) 말한다. 이 단계는 아무것도 보내지 않으므로 이미 보냈다고
+   * 말하지 않는다. 409 는 화면의 편지가 서버의 편지와 어긋났다는 뜻이라(보낼 준비를 마친 편지, 받는 홀이 바뀜, 판이
+   * 바뀜) 같은 본문으로 다시 눌러도 늘 같은 409 다. 그래서 409 면 코드와 상관없이 편지를 다시 읽어 지금 받는 곳으로
+   * 바꾼다(다시 읽은 편지의 판이 다르면 고친 것은 그 판과 함께 버려진다. `send` 의 409 와 같다). 그 밖의 실패는 고친
+   * 것을 그대로 둔다.
+   */
+  const prepare = useCallback(async () => {
+    if (!letter || !state || !model || busy) return;
+    await writeOnce(async () => {
+      setPreparing(true);
+      try {
+        const body = letterSaveBody(state, model, ownEdits?.phone ?? "");
+        const saved = await invitationRequest("/letter", { method: "PUT", body, accept: isLetterSaveResponse });
+        if (!mounted.current) return;
+        if (!saved.ok) {
+          setNotice({ tone: "error", text: selfSendSaveFailedMessage(saved) });
+          if (saved.status === 409) reloadLetter();
+          return;
+        }
+        replaceLetter(withoutSavedVersion(saved.data));
+        setEdits(null);
+        setPreparedCount((count) => count + 1);
+      } finally {
+        if (mounted.current) setPreparing(false);
+      }
+    });
+  }, [busy, letter, model, mounted, ownEdits, reloadLetter, replaceLetter, state, writeOnce]);
+
   const chooseApprover = useCallback(
     async (mode: Exclude<InquiryApproverMode, "unset">, designatedUserId?: string) => {
       if (busy) return;
@@ -302,6 +428,13 @@ export function useInvitationLetter(identity: LiveIdentity): InvitationLetterSta
         const result = await invitationRequest("/approver", { method: "PUT", body, accept: isApproverResponse });
         if (!mounted.current) return;
         if (!result.ok) {
+          // 화면을 연 뒤 직접 보내기(D-83 1단계)가 켜졌다(보내기와 같다). 승인 방식은 이제 쓰이지 않고 실패한 것도 없으니
+          // 아무 말도 남기지 않고 편지를 다시 읽어 보낼 글을 보인다. 서버의 문장(앱을 업데이트하라는 말)은 옛 앱에게 하는 말이다.
+          if (result.code === "SELF_SEND_MODE") {
+            setNotice(null);
+            reloadLetter();
+            return;
+          }
           setNotice({ tone: "error", text: approverFailedMessage(result) });
           return;
         }
@@ -343,11 +476,17 @@ export function useInvitationLetter(identity: LiveIdentity): InvitationLetterSta
 
   const failure = letterQuery.failure ?? approverQuery.failure;
   const loading = (letterQuery.loading && !letterData) || (approverQuery.loading && !approver);
-  const loadedLine = state ? stateLine(state, viewerId, memberName) : null;
+  // 칸이 있으면(값이 null 이어도) 직접 보내기가 켜진 서버다. 칸이 없으면 예전과 같은 상태 줄을 쓴다.
+  const selfSendMode = letterData ? letterData.selfSend !== undefined : false;
+  const loadedLine = state
+    ? (selfSendMode ? selfSendStateLine(state) : stateLine(state, viewerId, memberName))
+    : null;
   const shownNotice = notice ?? (loadedLine && !dirty ? { tone: "status" as const, text: loadedLine } : null);
   const canSend = Boolean(
     state && !busy && state.status !== "queued" && (state.viewerCanApprove || dirty),
   );
+  const needsSave = Boolean(state && state.status !== "queued" && (dirty || !state.versionId || !state.fingerprint));
+  const canPrepare = needsSave && !busy;
 
   return {
     loading,
@@ -379,5 +518,13 @@ export function useInvitationLetter(identity: LiveIdentity): InvitationLetterSta
     approverLine: approver ? modeLine(approver.setting, memberName) : null,
     proposalLine: pending ? modeLine(pending, memberName) : null,
     memberName,
+    selfSendMode,
+    selfSend: visibleSelfSend(letterData?.selfSend, state, dirty),
+    missingConditions: letterConditionsMissing(letterData?.missing),
+    canPrepare,
+    needsSave,
+    prepare,
+    preparing,
+    preparedCount,
   };
 }

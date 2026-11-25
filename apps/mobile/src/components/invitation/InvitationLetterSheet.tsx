@@ -24,6 +24,18 @@ type Props = {
   notice?: string | null;
   /** 저장·승인을 기다리는 동안 보내기를 다시 누르지 못하게 한다. */
   sendBusy?: boolean;
+  /**
+   * 직접 보내기(D-83 1단계)에서만 쓰는 칸들. 주지 않으면 시트는 오늘과 똑같다. 제목은 두 모드 모두 LETTER_COPY.title
+   * (파운더 확정 D-83 문구 "N곳에 보낼 편지예요", 2026-11-23 결정으로 직접 보내기에서도 같다)이다.
+   * - hidePartnerRead: 상대가 읽고 좋다고 했다는 줄을 숨긴다. 직접 보내기에는 상대 승인이 없어(승인 경로는 409) 그 줄은
+   *   스위치를 켜기 전에 받은 승인만 말할 수 있어서다(파운더 결정 2026-11-23: 숨긴다).
+   * - selfSend: 알려줄 정보 아래에 두는 보낼 글 묶음.
+   * - mainAction: 보내기 단추 대신 둘 주 단추. 주면 보내기 단추를 그리지 않는다(승인하지 않는다).
+   *   `onPress` 가 없으면 눌리지 않는다.
+   */
+  hidePartnerRead?: boolean;
+  selfSend?: ReactNode;
+  mainAction?: { label: string; onPress?: () => void };
 };
 
 /**
@@ -40,6 +52,9 @@ export default function InvitationLetterSheet({
   approver,
   notice,
   sendBusy = false,
+  hidePartnerRead = false,
+  selfSend,
+  mainAction,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
@@ -111,7 +126,9 @@ export default function InvitationLetterSheet({
 
           {approver}
 
-          {model.partnerApprovedName ? (
+          {selfSend}
+
+          {model.partnerApprovedName && !hidePartnerRead ? (
             <Text style={[typo.sans, styles.note]}>{LETTER_COPY.partnerRead(model.partnerApprovedName)}</Text>
           ) : null}
 
@@ -120,16 +137,28 @@ export default function InvitationLetterSheet({
           ) : null}
 
           <View style={styles.actions}>
-            <InvitationButton
-              label={LETTER_COPY.send}
-              // 받을 곳이 없으면 보낼 수 없다. 저장·승인을 기다리는 동안에도 다시 누르지 못한다.
-              onPress={count > 0 && !sendBusy ? (onSend ?? (() => onNavigate("status"))) : undefined}
-              variant="ink"
-              height={56}
-              fontSize={16}
-              weight="700"
-              style={(count === 0 || sendBusy) && styles.unavailable}
-            />
+            {mainAction ? (
+              <InvitationButton
+                label={mainAction.label}
+                onPress={mainAction.onPress}
+                variant="ink"
+                height={56}
+                fontSize={16}
+                weight="700"
+                style={!mainAction.onPress && styles.unavailable}
+              />
+            ) : (
+              <InvitationButton
+                label={LETTER_COPY.send}
+                // 받을 곳이 없으면 보낼 수 없다. 저장·승인을 기다리는 동안에도 다시 누르지 못한다.
+                onPress={count > 0 && !sendBusy ? (onSend ?? (() => onNavigate("status"))) : undefined}
+                variant="ink"
+                height={56}
+                fontSize={16}
+                weight="700"
+                style={(count === 0 || sendBusy) && styles.unavailable}
+              />
+            )}
             <InvitationButton
               label={LETTER_COPY.later}
               onPress={onLater ?? (() => onNavigate("compare"))}
