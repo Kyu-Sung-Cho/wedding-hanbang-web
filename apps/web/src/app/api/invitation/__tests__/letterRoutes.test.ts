@@ -296,7 +296,8 @@ describe("letter approve (WS1, WS2, WS5)", () => {
 
 describe("couple self-send (D-83 stage 1)", () => {
   const approveBody = { versionId: IDS.version, fingerprint: FINGERPRINT };
-  const closing = "\n\n결혼을 준비하는 두 사람 드림\nAI 웨딩 비서의 도움을 받아 쓴 문의예요.";
+  // 업체 글은 맺음말로 끝난다(AI 안내 줄은 넣지 않는다, 파운더 결정 2026-11-23).
+  const closing = "\n\n결혼을 준비하는 두 사람 드림";
   const bodyLine = "안녕하세요. 2027년 5월 토요일 낮에 예식을 생각하고 있는 커플입니다.";
 
   // 한 시험에서 여러 번 부르므로 hook 처럼 보이는 이름(use…)을 피한다.

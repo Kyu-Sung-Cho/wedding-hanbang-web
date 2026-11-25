@@ -122,8 +122,8 @@ export function withAndParticle(name: string): string {
  * dialogLabel·title·partnerRead·send 는 아티팩트 원문("상담 문의 보내기 전 확인", "이 편지를 N곳에 보낼까요?",
  * "…같은 편지를 두 번 보내지 않아요.", "N곳에 보내기")과 일부러 다르다. send 에는 숫자를 쓰지 않는다.
  * 직접 보내기 스위치(HALL_INQUIRY_SELF_SEND_ENABLED)가 꺼져 있으면 이 단추는 승인 저장 흐름이다. 켜져 있으면(D-83 1단계)
- * 시트는 SELF_SEND_COPY 를 쓴다: 아래 단추는 판 저장이고, 보내기는 업체마다 "문자로 열기"가 한다. 둘 중 어느 문구로
- * 맞출지는 파운더 결정이다.
+ * 파운더 결정(2026-11-23)대로 제목은 이 title 그대로이고, 아래 단추만 SELF_SEND_COPY.save("이 편지로 할게요", 판 저장)로
+ * 바꾸며 partnerRead 는 숨긴다. 보내기는 업체마다 복사·공유·"문자로 열기"가 한다.
  */
 export const LETTER_COPY = {
   dialogLabel: "상담 문의 편지 확인",

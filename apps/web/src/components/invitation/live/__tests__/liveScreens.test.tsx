@@ -803,7 +803,7 @@ describe("직접 보내기(D-83 1단계) /halls/letter", () => {
     selfSendRoutes({ "GET /api/invitation/letter": json({ ...response, letter: { ...response.letter!, partnerApprovedName: "준호" } }) });
     const { container } = await render(<LiveLetter />);
 
-    expect(text(container.querySelector("h1"))).toBe(SELF_SEND_COPY.title(2));
+    expect(text(container.querySelector("h1"))).toBe(LETTER_COPY.title(2));
     expect(container.querySelector("[data-letter-approver]")).toBeNull();
     expect(container.textContent).not.toContain(LETTER_STATE_COPY.approverHeading);
     expect(container.textContent).not.toContain(LETTER_STATE_COPY.approvedNotSent);
@@ -919,7 +919,7 @@ describe("직접 보내기(D-83 1단계) /halls/letter", () => {
     await click(buttonNamed(container, SELF_SEND_COPY.save));
     expect(container.querySelector('[role="alert"]')?.textContent).toBe("받는 홀이 바뀌었어요. 담은 홀을 다시 확인해 주세요.");
     expect(api.count("GET", "/api/invitation/letter")).toBe(2);
-    expect(text(container.querySelector("h1"))).toBe(SELF_SEND_COPY.title(1));
+    expect(text(container.querySelector("h1"))).toBe(LETTER_COPY.title(1));
     const save = buttonNamed(container, SELF_SEND_COPY.save);
     expect(save.disabled).toBe(false);
 
@@ -1009,7 +1009,7 @@ describe("직접 보내기(D-83 1단계) /halls/letter", () => {
       }),
     });
     const { container } = await render(<LiveLetter />);
-    expect(text(container.querySelector("h1"))).toBe(SELF_SEND_COPY.title(1));
+    expect(text(container.querySelector("h1"))).toBe(LETTER_COPY.title(1));
     expect(container.querySelector("[data-self-send-before-save]")?.textContent).toBe(SELF_SEND_COPY.beforeSave);
     expect(container.querySelector("[data-self-send]")).toBeNull();
     const save = buttonNamed(container, SELF_SEND_COPY.save);

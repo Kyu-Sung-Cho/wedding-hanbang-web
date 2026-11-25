@@ -141,9 +141,9 @@ export function letterResponse(state: Partial<LetterState> = {}, overrides: Part
   };
 }
 
-/** 서버가 저장한 판으로 엮는 보낼 글의 꼴(받는 곳, 인사와 본문, 맺음말, AI 한 줄). */
+/** 서버가 저장한 판으로 엮는 보낼 글의 꼴(받는 곳, 인사와 본문, 맺음말). */
 function selfSendText(name: string): string {
-  return `${LETTER_COPY.to([name])}\n\n${SELF_SEND_COPY.greeting} ${EXAMPLE_LETTER.body}\n\n${EXAMPLE_LETTER.signature}\n${SELF_SEND_COPY.aiNote}`;
+  return `${LETTER_COPY.to([name])}\n\n${SELF_SEND_COPY.greeting} ${EXAMPLE_LETTER.body}\n\n${EXAMPLE_LETTER.signature}`;
 }
 
 /** 직접 보내기(D-83 1단계)가 켜진 서버가 판 하나로 엮어 주는 보낼 글. 받는 곳은 `letterState` 와 같은 두 곳이다. */

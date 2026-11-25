@@ -313,8 +313,9 @@ export default function HallsLetterScreen() {
   const approver = selfSendView ? null : state.approver;
   // 직접 보내기에서도 상대가 이미 낸 승인 방식 제안에는 답할 수 있다(확인·거절만 둔다). 답할 수 없으면 그리지 않는다.
   const proposal = selfSendView && state.approver?.pending?.viewerCanRespond ? state.approver : null;
+  // 파운더 결정(2026-11-23): 제목은 두 모드 모두 시트의 기본 제목(LETTER_COPY.title)이라 넘기지 않고, 상대가 읽고
+  // 좋다고 했다는 줄은 숨긴다(직접 보내기에는 상대 승인이 없다). 아래 단추는 "이 편지로 할게요"다.
   const selfSendProps = selfSendView ? {
-    title: SELF_SEND_COPY.title(shown.recipients.length),
     hidePartnerRead: true,
     mainAction: {
       label: sending ? SELF_SEND_COPY.saving : SELF_SEND_COPY.save,

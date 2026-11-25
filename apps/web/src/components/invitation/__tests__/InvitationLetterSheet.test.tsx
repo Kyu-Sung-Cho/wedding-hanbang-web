@@ -101,15 +101,14 @@ describe("InvitationLetterSheet", () => {
     expect(onEditText).toHaveBeenCalledOnce();
   });
 
-  it("직접 보내기(D-83 1단계) 글자: 제목과 아래 단추 글자를 바꾸고 상대가 읽었다는 줄을 숨긴다. 넘기지 않으면 파운더 확정 문구(LETTER_COPY) 그대로다", async () => {
+  it("직접 보내기(D-83 1단계) 글자: 아래 단추 글자를 바꾸고 상대가 읽었다는 줄을 숨긴다. 제목은 두 모드 모두 파운더 확정 문구(LETTER_COPY.title)다", async () => {
     const onSend = vi.fn();
     const { container } = await renderLetter(EXAMPLE_LETTER, {
       onSend,
-      title: SELF_SEND_COPY.title(2),
       sendLabel: SELF_SEND_COPY.save,
       hidePartnerRead: true,
     });
-    expect(text(container.querySelector("h1"))).toBe(SELF_SEND_COPY.title(2));
+    expect(text(container.querySelector("h1"))).toBe(LETTER_COPY.title(2));
     expect(container.textContent).not.toContain(LETTER_COPY.partnerRead("준호"));
     expect(container.textContent).not.toContain(LETTER_COPY.send);
     await click(buttonNamed(container, SELF_SEND_COPY.save));

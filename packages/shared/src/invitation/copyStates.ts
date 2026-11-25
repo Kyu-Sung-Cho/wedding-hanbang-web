@@ -109,10 +109,11 @@ export const ACTIVITY_COPY = {
 /**
  * D-83 1단계(2026-11-18): 편지를 두 분 폰에서 직접 보낸다. 아모라는 보내지 않는다.
  * 그래서 이 문장들은 "보냈어요"라고 말하지 않는다. 공유 창이나 문자 앱이 열린 것까지만 안다.
- * 모든 문장은 파운더 확인 전 제안이다(D-12).
+ * 파운더 결정(2026-11-23, 질문 넷에 답함): 편지 시트 제목은 두 모드 모두 LETTER_COPY.title("N곳에 보낼 편지예요")이고,
+ * 아래 단추는 save("이 편지로 할게요")이며, 상대가 읽고 좋다고 했다는 줄은 숨기고, 업체 글 끝에 AI 안내 줄을 넣지 않는다.
+ * 그 밖의 문장은 파운더 확인 전 제안이다(D-12).
  */
 export const SELF_SEND_COPY = {
-  title: (count: number) => (count > 1 ? `${count}곳에 직접 보내 주세요` : "직접 보내 주세요"),
   intro: "아모라가 쓴 편지를 두 분 폰에서 보내요. 업체마다 복사하거나 문자로 열어 주세요.",
   save: "이 편지로 할게요",
   saving: "저장하고 있어요",
@@ -151,7 +152,6 @@ export const SELF_SEND_COPY = {
   greeting: "안녕하세요.",
   budgetLine: (amount: string) => `예산은 ${amount} 정도예요.`,
   budgetUnsetLine: "예산은 아직 정하지 않았어요.",
-  aiNote: "AI 웨딩 비서의 도움을 받아 쓴 문의예요.",
 } as const;
 
 /**

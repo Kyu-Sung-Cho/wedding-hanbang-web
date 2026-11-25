@@ -36,14 +36,14 @@ type InvitationLetterSheetProps = {
   sendDisabled?: boolean;
   sendBusy?: boolean;
   /**
-   * 실제 커플(직접 보내기, D-83 1단계): 제목과 아래 단추의 글자를 바꾼다(그때 아래 단추는 판을 저장만 하고, 보내기는
-   * 업체마다 "문자로 열기" 단추가 한다). 없으면 LETTER_COPY 의 파운더 확정 D-83 문구다.
+   * 실제 커플(직접 보내기, D-83 1단계): 아래 단추의 글자를 바꾼다(그때 아래 단추는 판을 저장만 하고, 보내기는 업체마다
+   * 복사·공유·"문자로 열기" 단추가 한다). 없으면 LETTER_COPY 의 파운더 확정 D-83 문구다. 제목은 두 모드 모두
+   * LETTER_COPY.title 이다(파운더 결정 2026-11-23).
    */
-  title?: string;
   sendLabel?: string;
   /**
    * 실제 커플(직접 보내기): 상대가 읽고 좋다고 했다는 줄을 숨긴다. 직접 보내기에는 상대 승인이 없어(승인 경로는 409) 그 줄은
-   * 스위치를 켜기 전에 받은 승인만 말할 수 있다. 직접 보내기에서도 보일지는 파운더 결정을 기다린다.
+   * 스위치를 켜기 전에 받은 승인만 말할 수 있어서다(파운더 결정 2026-11-23: 숨긴다).
    */
   hidePartnerRead?: boolean;
   className?: string;
@@ -98,7 +98,6 @@ export default function InvitationLetterSheet({
   extra,
   sendDisabled = false,
   sendBusy = false,
-  title,
   sendLabel,
   hidePartnerRead = false,
   className,
@@ -146,7 +145,7 @@ export default function InvitationLetterSheet({
         <span aria-hidden="true" className="h-[5px] w-[38px] self-center rounded-[3px] bg-inv-chip-line" />
         <div className="flex items-center gap-3">
           <AmoraOrb size={44} mood="calm" />
-          <h1 className="text-[18px] leading-[1.45] font-bold">{title ?? LETTER_COPY.title(count)}</h1>
+          <h1 className="text-[18px] leading-[1.45] font-bold">{LETTER_COPY.title(count)}</h1>
         </div>
 
         <article className="flex flex-col gap-3 rounded-[6px] bg-inv-paper px-[22px] pt-[22px] pb-[18px] shadow-[0_1px_2px_rgba(30,28,34,0.06),0_10px_28px_rgba(30,28,34,0.08)]">

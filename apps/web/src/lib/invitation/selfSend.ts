@@ -11,7 +11,7 @@ import { LIVE_COPY } from "./liveCopy";
  *   - 휴대폰 번호: 글에 넣지 않는다. 화면은 가린 번호만 받아 왔고 그대로 둔다. 켜 두었으면 phoneOmitted 로 알린다.
  *   - 예산: 판에 남긴 값("N만 원" 또는 "아직 정하지 않았어요")을 정해진 한 줄로 옮긴다.
  *   - 이름: 따로 줄을 두지 않는다. 이름을 알려주기로 했으면 맺음말이 이미 두 사람 이름을 담는다.
- *   - 끝 줄: AI 웨딩 비서의 도움을 받아 쓴 문의라고 밝힌다.
+ *   - 끝: 맺음말로 끝난다. AI 안내 줄은 넣지 않는다(파운더 결정 2026-11-23).
  */
 
 /** 예산을 알려주기로 한 판에만 붙는 한 줄. 값이 비어 있으면(DB 가 막지만) 지어내지 않고 줄을 뺀다. */
@@ -30,7 +30,7 @@ function greeted(body: string): string {
 function messageText(version: LetterVersionRow, recipientName: string, budget: string | null): string {
   const opening = `${LETTER_COPY.to([recipientName])}\n\n${greeted(version.body)}`;
   const withBudget = budget ? `${opening}\n${budget}` : opening;
-  return `${withBudget}\n\n${version.signature}\n${SELF_SEND_COPY.aiNote}`;
+  return `${withBudget}\n\n${version.signature}`;
 }
 
 export function selfSendView(version: LetterVersionRow): LetterSelfSend {

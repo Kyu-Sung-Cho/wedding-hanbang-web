@@ -43,7 +43,6 @@ describe("self-send text (D-83 stage 1)", () => {
       "예산은 3,000만 원 정도예요.",
       "",
       "민지와 준호 드림",
-      "AI 웨딩 비서의 도움을 받아 쓴 문의예요.",
     ].join("\n"));
     expect(view.messages[1].text.startsWith("가온 웨딩홀께\n\n")).toBe(true);
   });
@@ -53,7 +52,9 @@ describe("self-send text (D-83 stage 1)", () => {
     const text = view.messages[0].text;
     expect(text.startsWith(`소담 하우스께\n\n${SELF_SEND_COPY.greeting} `)).toBe(true);
     expect(text).toContain(SELF_SEND_COPY.budgetLine("3,000만 원"));
-    expect(text.endsWith(`\n\n민지와 준호 드림\n${SELF_SEND_COPY.aiNote}`)).toBe(true);
+    // 맺음말로 끝난다. AI 안내 줄은 넣지 않는다(파운더 결정 2026-11-23).
+    expect(text.endsWith("\n\n민지와 준호 드림")).toBe(true);
+    expect(text).not.toContain("AI 웨딩 비서");
   });
 
   it("leaves the budget line out when the budget share is off", () => {
@@ -64,7 +65,6 @@ describe("self-send text (D-83 stage 1)", () => {
       "안녕하세요. 2027년 5월 토요일 낮에 예식을 생각하고 있는 커플입니다. 하객은 200명 정도예요.",
       "",
       "민지와 준호 드림",
-      "AI 웨딩 비서의 도움을 받아 쓴 문의예요.",
     ].join("\n"));
     expect(text).not.toContain("예산");
   });
@@ -94,7 +94,7 @@ describe("self-send text (D-83 stage 1)", () => {
     const named = selfSendView(version({ name: { on: true, value: "김민지" } })).messages[0].text;
     expect(named).not.toContain("김민지");
     const anonymous = selfSendView(version({}, { signature: LIVE_COPY.letter.anonymousSignature })).messages[0].text;
-    expect(anonymous).toContain(`\n\n${LIVE_COPY.letter.anonymousSignature}\n`);
+    expect(anonymous.endsWith(`\n\n${LIVE_COPY.letter.anonymousSignature}`)).toBe(true);
   });
 
   it("never uses the screen-only display sentences", () => {

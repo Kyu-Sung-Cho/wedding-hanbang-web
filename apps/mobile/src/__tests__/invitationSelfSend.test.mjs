@@ -728,15 +728,13 @@ test("the sheet draws today's send button unless a main action is given, and the
   const pressed = [];
   const own = sheetTree({
     ...base,
-    title: SELF_SEND_COPY.title(1),
     hidePartnerRead: true,
     mainAction: { label: SELF_SEND_COPY.save, onPress: () => pressed.push("save") },
     selfSend: element("SelfSendPanel"),
   });
   const labels = buttonsOf(own).map((node) => node.props.label);
   assert.ok(!labels.includes(LETTER_COPY.send), "보내기(승인) 단추를 그리지 않는다");
-  assert.ok(textOf(own).includes(SELF_SEND_COPY.title(1)));
-  assert.ok(!textOf(own).includes(LETTER_COPY.title(1)));
+  assert.ok(textOf(own).includes(LETTER_COPY.title(1)), "제목은 두 모드 모두 확정 문구다(파운더 결정 11-23)");
   assert.ok(!textOf(own).includes(LETTER_COPY.partnerRead("나")), "직접 보내기에는 상대 승인이 없어 상대가 읽었다는 줄을 그리지 않는다");
   assert.ok(nodesOf(own).some((node) => node.type === "SelfSendPanel"));
   buttonsOf(own).find((node) => node.props.label === SELF_SEND_COPY.save).props.onPress();
@@ -858,7 +856,7 @@ test("with the switch on the sheet saves without approving and shows the texts o
   const screen = letterScreen({ letter: on, saveResults: [saved] });
   await screen.open();
   let props = screen.sheet();
-  assert.equal(props.title, SELF_SEND_COPY.title(1));
+  assert.equal("title" in props, false, "제목은 넘기지 않아 시트의 확정 문구(LETTER_COPY.title)를 쓴다");
   assert.equal(props.hidePartnerRead, true);
   assert.equal(props.approver, null, "직접 보내기에는 승인 칸이 없다");
   assert.equal(props.notice, null, "승인 흐름의 말(승인만 저장됨)을 하지 않는다");
@@ -938,7 +936,7 @@ test("with no saved version the panel says saving brings the texts, also after t
   const screen = letterScreen({ letter: stale, saveResults: [resaved] });
   await screen.open();
   props = screen.sheet();
-  assert.equal(props.title, SELF_SEND_COPY.title(2), "지금 담은 홀 수로 말한다");
+  assert.equal(props.model.recipients.length, 2, "지금 담은 홀 수로 말한다(시트가 이 수로 제목을 만든다)");
   assert.deepEqual(props.selfSend.props.view, { messages: null, saveFirst: false, beforeSave: true, askConditions: null, afterSend: true });
   // 앞서 보낸 글의 답은 다시 저장하기 전에도 온다. 저장하라는 줄 아래에 상담 화면 길을 둔다.
   assert.equal(textOf(drawPanel(props)), `${SELF_SEND_COPY.beforeSave}${SELF_SEND_COPY.afterSend}`);

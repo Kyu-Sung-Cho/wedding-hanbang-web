@@ -192,14 +192,13 @@ function PhoneField({ letter }: { letter: InvitationLetterState }) {
 }
 
 /**
- * 직접 보내기(D-83 1단계)의 시트 글자(SELF_SEND_COPY, 파운더 확인 전 제안). 제목은 직접 보내 달라는 말이고, 아래 단추는
- * 판을 저장만 한다. 상대가 읽고 좋다고 했다는 줄은 숨긴다: 이 모드에는 상대 승인이 없어 그 줄은 스위치를 켜기 전에 받은
- * 승인만 말할 수 있다(보일지는 파운더 결정을 기다린다). "저장하고 있어요"는
- * 저장하는 동안만이다(승인 방식 제안에 답하는 동안에는 저장한다고 말하지 않는다).
+ * 직접 보내기(D-83 1단계)의 시트 글자. 파운더 결정(2026-11-23): 제목은 두 모드 모두 LETTER_COPY.title 이라 넘기지 않고,
+ * 아래 단추는 "이 편지로 할게요"(판을 저장만 한다)이며, 상대가 읽고 좋다고 했다는 줄은 숨긴다(이 모드에는 상대 승인이
+ * 없어 그 줄은 스위치를 켜기 전에 받은 승인만 말할 수 있다). "저장하고 있어요"는 저장하는 동안만이다(승인 방식 제안에
+ * 답하는 동안에는 저장한다고 말하지 않는다).
  */
 function selfSendSheetText(letter: InvitationLetterState) {
   return {
-    title: SELF_SEND_COPY.title(letter.model?.recipients.length ?? 0),
     sendLabel: letter.preparing ? SELF_SEND_COPY.saving : SELF_SEND_COPY.save,
     hidePartnerRead: true,
   };
