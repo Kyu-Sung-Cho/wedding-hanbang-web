@@ -17,6 +17,7 @@
     "./amora-crisis-delivery": "./src/safety/amoraCrisisDelivery.ts",
     "./amora-crisis-recovery": "./src/safety/amoraCrisisRecovery.ts",
     "./partner-violence-closed-vocabulary": "./src/safety/partnerViolenceClosedVocabulary.ts",
+    "./self-harm-plan-frames": "./src/safety/selfHarmPlanFrames.ts",
     "./mediation-provenance": "./src/contracts/mediationProvenance.mjs",
     "./community-notification": "./src/contracts/communityNotification.mjs",
     "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs",

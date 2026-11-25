@@ -52,6 +52,9 @@ const SAFETY_CRITICAL = [
   // 없으면 레인을 바꾸는 변경이 델타 측정 없이 관문을 지나간다.
   "packages/shared/src/safety/amoraCrisisDelivery.ts",
   "packages/shared/src/safety/partnerViolenceClosedVocabulary.ts",
+  // 2026-11-17: 위기 관문의 마지막 자리가 부르는 자해 계획·결심 문장 틀. 없으면 그 틀을 넓히는
+  // 변경이 델타 측정 없이 관문을 지나간다.
+  "packages/shared/src/safety/selfHarmPlanFrames.ts",
   "apps/web/src/lib/compliance/ai-log.ts",
 ];
 
