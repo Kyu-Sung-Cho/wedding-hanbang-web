@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { executeGetScheduleEvents } from "@/lib/ai/tools/scheduleTools";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
@@ -43,6 +43,16 @@ const FAR_EVENT = {
 };
 
 describe("조회 창 밖의 일정을 숨기지 않는다", () => {
+  // 기본 조회 창은 오늘(KST)부터 30일이다. 시계를 고정하지 않으면 2027-03-11 부터
+  // FAR 가 창 안에 들어오고, FAR 가 지나면 지난 일정이 되어 코드 변경 없이 깨진다.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-27T03:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("창 안이 비어도 밖에 있다는 것을 알려준다", () => {
     const result = executeGetScheduleEvents({}, ctxWith([FAR_EVENT]));
     const out = result.toolOutput as {
