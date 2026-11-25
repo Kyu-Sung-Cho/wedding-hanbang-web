@@ -12,6 +12,12 @@ const runtimeVariables = [
   "HALL_INQUIRY_SENDING_ENABLED",
   "HALL_INQUIRY_DAILY_CAP",
   "HALL_INQUIRY_GLOBAL_DAILY_CAP",
+  // 찾아보기(2026-11-20, D-85·D-88). 켜면 검색어가 네이버로, 페이지 요청이 업체 사이트로 나간다 — 바깥 행동이다.
+  "AMORA_WEB_SEARCH_ENABLED",
+  // 부를 네이버 상품 목록. 콘솔에서 상품을 켜는 것만으로 운영 동작이 바뀌지 않게 한다(기본 local).
+  "AMORA_WEB_SEARCH_NAVER_PRODUCTS",
+  "AMORA_WEB_SEARCH_COUPLE_DAILY_CAP",
+  "AMORA_WEB_SEARCH_GLOBAL_DAILY_CAP",
   "AMORA_COMMUNITY_AI_COMMENT_ENABLED",
   // 문지기(D-89, 2026-11-20). 켜면 모든 아모라 턴에서 판정 모델을 한 번 부른다 — 비용이 드는 길이다.
   "AMORA_GATEKEEPER_ENABLED",
@@ -65,6 +71,8 @@ test("the example environment keeps external Amora side effects fail-closed", as
     "AMORA_AUXILIARY_MEMORY_ENABLED=false",
     "AMORA_CARE_OUTBOUND_ENABLED=false",
     "HALL_INQUIRY_SENDING_ENABLED=false",
+    "AMORA_WEB_SEARCH_ENABLED=false",
+    "AMORA_WEB_SEARCH_NAVER_PRODUCTS=local",
     "AMORA_COMMUNITY_AI_COMMENT_ENABLED=false",
     "AMORA_GATEKEEPER_ENABLED=false",
     "AMORA_CONVERSATION_SEGMENT_READ_ENABLED=false",

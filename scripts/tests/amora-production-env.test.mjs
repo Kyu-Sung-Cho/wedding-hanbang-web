@@ -73,6 +73,50 @@ test("the production environment gate accepts only an explicit safe configuratio
   assert.deepEqual(report.failed, []);
 });
 
+test("the web search switch stays off unless it is exactly true with a NAVER key (2026-11-20 D-85)", () => {
+  // 비어 있거나 false 면 꺼짐이라 통과한다. 이 칸 때문에 다음 배포가 죽으면 안 된다.
+  for (const value of [undefined, "", "false"]) {
+    const env = validEnv(value === undefined ? {} : { AMORA_WEB_SEARCH_ENABLED: value });
+    assert.deepEqual(JSON.parse(runChecker(env).stdout).failed, [], `AMORA_WEB_SEARCH_ENABLED=${value}`);
+  }
+  // 켰는데 열쇠가 없으면 막는다. 대문자·오타도 막는다(켜는 값은 정확히 true 하나다).
+  for (const overrides of [
+    { AMORA_WEB_SEARCH_ENABLED: "true" },
+    { AMORA_WEB_SEARCH_ENABLED: "true", NAVER_API_HUB_CLIENT_ID: "id-only" },
+    // prove-guard 가 찾은 빈틈(2026-11-20): 비밀값만 있고 ID 가 없는 경우가 없어 ID 검사를 빼도 초록이었다.
+    { AMORA_WEB_SEARCH_ENABLED: "true", NAVER_API_HUB_CLIENT_SECRET: "secret-only" },
+    { AMORA_WEB_SEARCH_ENABLED: "TRUE", NAVER_API_HUB_CLIENT_ID: "id", NAVER_API_HUB_CLIENT_SECRET: "secret" },
+    { AMORA_WEB_SEARCH_ENABLED: "yes", NAVER_API_HUB_CLIENT_ID: "id", NAVER_API_HUB_CLIENT_SECRET: "secret" },
+  ]) {
+    const result = runChecker(validEnv(overrides));
+    assert.equal(result.status, 1, JSON.stringify(overrides));
+    assert.deepEqual(JSON.parse(result.stdout).failed, ["webSearchSwitchSafe"], JSON.stringify(overrides));
+  }
+  const enabled = runChecker(validEnv({
+    AMORA_WEB_SEARCH_ENABLED: "true",
+    NAVER_API_HUB_CLIENT_ID: "client-id",
+    NAVER_API_HUB_CLIENT_SECRET: "client-secret",
+  }));
+  assert.equal(enabled.status, 0, enabled.stderr || enabled.stdout);
+  // 값은 찍지 않는다. 불리언만 나온다.
+  assert.doesNotMatch(enabled.stdout, /client-secret|client-id/);
+});
+
+test("the NAVER product list only accepts products the code handles (2026-11-20)", () => {
+  // 비었으면 지역만이다. 적었다면 local·webkr 만 통과한다.
+  // 빈 칸(쉼표 두 개)은 런타임(`naverWebLookupProducts`)처럼 무시한다.
+  for (const value of [undefined, "", "local", "local,webkr", " webkr , local ", "local,,webkr"]) {
+    const env = validEnv(value === undefined ? {} : { AMORA_WEB_SEARCH_NAVER_PRODUCTS: value });
+    assert.deepEqual(JSON.parse(runChecker(env).stdout).failed, [], `AMORA_WEB_SEARCH_NAVER_PRODUCTS=${value}`);
+  }
+  // 블로그(다루는 코드 없음)·대문자·오타는 막는다.
+  for (const value of ["blog", "local,blog", "LOCAL", "lokal"]) {
+    const result = runChecker(validEnv({ AMORA_WEB_SEARCH_NAVER_PRODUCTS: value }));
+    assert.equal(result.status, 1, value);
+    assert.deepEqual(JSON.parse(result.stdout).failed, ["webSearchNaverProductsKnown"], value);
+  }
+});
+
 test("the production environment gate blocks a missing rate-limit HMAC secret", () => {
   const result = runChecker(validEnv({ RATE_LIMIT_KEY_SECRET: "" }));
   assert.equal(result.status, 1);

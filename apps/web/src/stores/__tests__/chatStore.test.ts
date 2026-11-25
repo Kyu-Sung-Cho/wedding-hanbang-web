@@ -4035,6 +4035,104 @@ describe("useChatStore progress synchronization", () => {
     expect(aiMessage?.metadata?.toolResults).toEqual([placeResult]);
     expect(useChatStore.getState().streamingToolResults).toEqual([]);
   });
+
+  // 2026-11-22: 찾아보기 저장본은 검색이 자리표시뿐이고 페이지 읽기는 업체 주소가 빠져 있다(파운더 결정 4).
+  // done 이 저장본을 실어 와도 방금 끝난 턴은 실시간 카드(업체 표, 도메인과 페이지 링크)를 그대로 그린다.
+  it("keeps the live search_web and read_page results after done instead of the stored placeholder and address-less copy", async () => {
+    mockInsertSingle.mockResolvedValue({
+      data: {
+        id: "message-web-1",
+        couple_id: "couple-1",
+        sender_id: "user-1",
+        sender_type: "bride",
+        role: "user",
+        content: "강남 웨딩홀 대관료 찾아줘",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-11-22T09:30:00.000Z",
+      },
+      error: null,
+    });
+    const liveSearch = {
+      toolName: "search_web",
+      toolInput: { query: "강남 웨딩홀" },
+      toolOutput: {
+        query: "강남 웨딩홀",
+        checkedAt: "2026-11-22T09:30:05.000Z",
+        hits: [{ ref: "a1", source: "naver_local", name: "가상 웨딩홀", url: "https://hall.example/", readable: true }],
+      },
+      success: true,
+      displayMessage: "",
+    };
+    const livePage = {
+      toolName: "read_page",
+      toolInput: { ref: "a1" },
+      toolOutput: {
+        ref: "a1",
+        url: "https://hall.example/price",
+        domain: "hall.example",
+        checkedAt: "2026-11-22T09:30:07.000Z",
+        title: "대관 안내",
+        prices: [],
+        priceStatus: "needs_vendor_check",
+        textless: false,
+      },
+      success: true,
+      displayMessage: "",
+    };
+    const storedSearch = {
+      toolName: "search_web",
+      toolInput: {},
+      toolOutput: { query: "강남 웨딩홀", resultCount: 1, checkedAt: "2026-11-22T09:30:05.000Z", displayOnlyPlaceholder: true },
+      success: true,
+      displayMessage: "",
+    };
+    const storedPage = {
+      toolName: "read_page",
+      toolInput: {},
+      toolOutput: {
+        checkedAt: "2026-11-22T09:30:07.000Z",
+        title: "대관 안내",
+        prices: [],
+        priceStatus: "needs_vendor_check",
+        textless: false,
+        storedCopy: true,
+      },
+      success: true,
+      displayMessage: "",
+    };
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "tool_result", result: liveSearch })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "tool_result", result: livePage })}\n\n`));
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({
+            type: "done",
+            fullContent: "공식 페이지에는 대관료가 적혀 있지 않았어요. 업체에 확인해 주세요.",
+            metadata: { serverMessageId: "ai-message-web-1", toolResults: [storedSearch, storedPage] },
+          })}\n\n`
+        ));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue(new Response(stream, { status: 200 }));
+
+    await useChatStore.getState().sendMessage({
+      content: "강남 웨딩홀 대관료 찾아줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+
+    const aiMessage = useChatStore.getState().messages.find(
+      (message) => message.id === "ai-message-web-1"
+    );
+    expect(aiMessage?.metadata?.toolResults).toEqual([liveSearch, livePage]);
+    expect(useChatStore.getState().streamingToolResults).toEqual([]);
+  });
 });
 
 describe("useChatStore failed provider retry", () => {

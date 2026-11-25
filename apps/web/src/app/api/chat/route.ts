@@ -144,6 +144,13 @@ import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
 import { appendAmoraToolResultHistory, appendAmoraBoundedToolResultHistory } from "@/lib/ai/amoraToolResultHistory";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { isPlaceSearchConfigured } from "@/lib/ai/tools/placeSearchTools";
+import { AMORA_WEB_LOOKUP_TOOLS } from "@/lib/ai/tools/webLookupTools";
+import {
+  blocksToolAfterWebLookupContent,
+  hasWebLookupContent,
+  planAmoraWebLookupTurn,
+  toolsAfterWebLookupContent,
+} from "@/lib/ai/webLookup/webLookupTurn";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
 import { hasNewAmoraChangeIntent } from "@/lib/ai/amoraPendingActionContinuity";
 import {
@@ -3863,16 +3870,25 @@ export async function POST(request: Request) {
     durable: !isDemo && isDurableUserMessageBound, scope: questionScope,
   });
   const personalConversationToolNames = new Set(personalConversationTools.map(tool => tool.name));
+  // 찾아보기(D-85). 스위치가 꺼졌거나 W0 저장 대화가 아니면 빈 계획이다(`webLookupTurn.ts`).
+  const webLookupTurn = planAmoraWebLookupTurn({
+    tools: AMORA_WEB_LOOKUP_TOOLS, questionScope: questionScope.scope, requestKind, isDemo,
+    isDurableUserMessageBound, userTexts: [carriedToolIntent?.priorUserText, lastUserText],
+    // 커플 두 사람의 이름은 검색어에서 뺀다(API HUB 약관 일반조건 7.4 ⑦). 표시용 brideName·groomName 은
+    // 중립 구성(멤버 모델 2)에서 null 이라, 디렉터리의 이름을 역할과 상관없이 모은다(2026-11-20 갈래 4 지적).
+    blockedTerms: profiles.map((profile) => profile.name),
+    renderedToolsHeader: request.headers.get("x-hanbang-rendered-tools"),
+  });
   const availableTools = [...filterAmoraToolsByQuestionScope(
     runnableTools.filter((tool) => !isMutatingTool(tool.name)),
     questionScope,
-  ), ...personalConversationTools];
+  ), ...personalConversationTools, ...webLookupTurn.tools];
   const availableToolNameSet = new Set(
     availableTools.map((tool) => tool.name),
   );
   const questionScopeToolNameCeiling = new Set(
     [...filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, questionScope)
-      .map((tool) => tool.name), ...personalConversationToolNames],
+      .map((tool) => tool.name), ...personalConversationToolNames, ...webLookupTurn.toolNames],
   );
   const pendingProposalTools =
     !isDemo
@@ -4170,6 +4186,7 @@ export async function POST(request: Request) {
       // 변경이 "다른 일정 변경이 먼저 반영되어" 로 거절된다. 체험 세션은 정규화 사본이다.
       progress: resolvedWeddingContext.storedProgress as ToolExecutionContext["weddingContext"]["progress"],
     },
+    ...webLookupTurn.executionContext,
   };
 
   const currentStoredStateReadRequest = !isDemo && requestKind === "chat" && isDurableUserMessageBound
@@ -4285,6 +4302,8 @@ export async function POST(request: Request) {
         const requiredReadResults = new Map<string, ToolExecutionResult>();
         const toolsUsed: string[] = [];
         let lockToolsAfterPlaceSearch = false;
+        // 바깥 글(찾아보기 결과)이 들어왔다. 남은 걸음은 찾아보기 도구만 받고, 이 턴에는 확인 카드를 내지 않는다.
+        let webLookupContentRead = false;
         let toolCallCount = 0;
         let approvedPendingActionExecuted = false;
         let queuedProposal: ReturnType<typeof extractAmoraPendingAction> | null = null;
@@ -4572,7 +4591,7 @@ export async function POST(request: Request) {
               : taskAssessment.text
             : null;
           const pendingExtractionOptions = {
-            allowedTools: canonicalTerminalText === null && pendingOfferEnabled ? pendingProposalTools : [],
+            allowedTools: canonicalTerminalText === null && pendingOfferEnabled && !webLookupContentRead ? pendingProposalTools : [],
             now: Date.now(),
             createActionId: randomUUID,
             // 변경 영향 미리보기와 같은 정본 문맥의 총예산. 예산안 확인문의 표시 전용이다.
@@ -5159,8 +5178,8 @@ export async function POST(request: Request) {
               const providerResult = await chatWithToolsStream({
                 systemPrompt,
                 input: currentMessages,
-                tools: lockToolsAfterPlaceSearch ? [] : availableTools,
-                toolChoice: lockToolsAfterPlaceSearch
+                tools: lockToolsAfterPlaceSearch ? [] : toolsAfterWebLookupContent(availableTools, webLookupContentRead),
+                toolChoice: lockToolsAfterPlaceSearch || webLookupContentRead
                   ? undefined
                   : getPlaceSearchToolChoice({
                       userText: lastUserText,
@@ -5433,7 +5452,7 @@ export async function POST(request: Request) {
           const WEB_RENDERED_TOOLS = [
             "search_vendors", "recommend_vendors", "get_vendor_detail",
             "get_available_slots", "create_booking", "cancel_booking", "search_nearby_places",
-            "analyze_quote", "simulate_guest_guarantee",
+            "analyze_quote", "simulate_guest_guarantee", "search_web", "read_page",
           ] as const;
           const declaredRenderedTools = request.headers
             .get("x-hanbang-rendered-tools")
@@ -5536,6 +5555,7 @@ export async function POST(request: Request) {
             if (
               lockToolsAfterPlaceSearch
               || !availableToolNameSet.has(toolUse.name)
+              || blocksToolAfterWebLookupContent(toolUse.name, webLookupContentRead)
             ) {
               rejectToolCall(
                 toolUse.callId,
@@ -5624,11 +5644,12 @@ export async function POST(request: Request) {
             );
           }
 
-          if (hasEphemeralPlaceSearchResult(toolResults)) {
+          if (hasEphemeralPlaceSearchResult(toolResults, { ignoreBlockedVendorQueries: webLookupTurn.tools.length > 0 })) {
             // NAVER output is untrusted, display-only content. Later rounds get
             // neither that content nor mutation tools.
             lockToolsAfterPlaceSearch = true;
           }
+          if (hasWebLookupContent(toolResults)) webLookupContentRead = true;
 
           // store:false이므로 reasoning(암호화 content 포함), assistant message,
           // function_call 원본과 function_call_output을 모두 다음 요청에 재전송한다.
