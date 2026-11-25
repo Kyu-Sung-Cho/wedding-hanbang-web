@@ -72,11 +72,12 @@ export default function DemoPage() {
           <div className="mt-10 rounded-[6px] bg-[var(--hb-primary)] px-7 py-9 text-white sm:flex sm:items-center sm:justify-between sm:px-10">
             <div>
               <h2 className="font-serif-kr text-2xl">현재 서비스 화면을 둘러보실래요?</h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--hb-on-primary)]">로그인 없이 공시 가격과 커뮤니티 글을 바로 볼 수 있어요.</p>
+              {/* 2026-11-22 전에는 "커뮤니티 글"을 말하고 `/wedding`(그때는 커뮤니티 피드)으로 보냈다(D-81로 닫음). */}
+              <p className="mt-2 text-sm leading-6 text-[var(--hb-on-primary)]">로그인 없이 견적 확인 도구를 바로 써 볼 수 있어요.</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3 sm:mt-0">
-              <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">
-                서비스 둘러보기
+              <Link href="/wedding/quote-check" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">
+                견적 확인해 보기
               </Link>
             </div>
           </div>

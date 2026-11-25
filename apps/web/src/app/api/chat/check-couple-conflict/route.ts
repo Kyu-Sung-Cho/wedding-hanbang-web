@@ -29,6 +29,7 @@ import {
   type CoupleMessage,
 } from "@/lib/ai/conflict-detector";
 import { extractMediation } from "@/lib/ai/mediation";
+import { isAmoraGatekeeperReplyMetadata } from "@/lib/ai/amoraGatekeeperContract";
 import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isAmoraTestUser } from "@/lib/ai/amoraTestAccess";
@@ -258,6 +259,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         triggered: false,
         reason: "crisis_safety_delegated",
+      });
+    }
+
+    // 문지기(D-89)가 막은 턴의 글은 이 모델에도 보내지 않는다. 막은 답 행에만 표식이 있으므로
+    // 그 행이 창에 있으면 위기와 같이 창 전체를 건너뛴다.
+    const containsGatekeeperBlockedTurn = rawMessages.some((message) =>
+      message.sender_type === "ai"
+      && isAmoraGatekeeperReplyMetadata(message.metadata)
+    );
+    if (containsGatekeeperBlockedTurn) {
+      return NextResponse.json({
+        triggered: false,
+        reason: "gatekeeper_turn_delegated",
       });
     }
 

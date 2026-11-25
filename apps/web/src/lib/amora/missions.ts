@@ -54,14 +54,22 @@ export interface AmoraMissionCard {
 }
 
 const CHAT_DRAFT_HREF = `/chat?source=amora_missions&prefill=${encodeURIComponent("함께 남긴 준비 할 일을 살펴보고 다음에 확인할 것을 정리해 줘.")}`;
-const MISSION_DESTINATIONS = new Set(["/chat", "/chat/board", "/checklist", "/budget", "/schedule", "/vendors", "/lounge", "/community/quote-check"]);
+const MISSION_DESTINATIONS = new Set(["/chat", "/chat/board", "/checklist", "/budget", "/schedule", "/vendors", "/lounge", "/quote-check"]);
+/**
+ * 2026-11-22 견적 확인을 커뮤니티 밖(`/wedding/quote-check`)으로 옮겼다. 그 전에 아모라가 저장한
+ * 할 일 링크(`/wedding/community/quote-check`)도 새 주소로 읽는다.
+ */
+const LEGACY_MISSION_DESTINATIONS: ReadonlyMap<string, string> = new Map([
+  ["/community/quote-check", "/quote-check"],
+]);
 
 export function getMissionActionHref(action: AmoraActionItem): string {
   const raw = action.href;
   if (raw && raw.startsWith("/") && !raw.startsWith("//") && !/[\\\u0000-\u0020]/u.test(raw)) {
     try {
       const url = new URL(raw, "https://hanbang.invalid");
-      const route = stripWeddingBasePath(url.pathname);
+      const storedRoute = stripWeddingBasePath(url.pathname);
+      const route = LEGACY_MISSION_DESTINATIONS.get(storedRoute) ?? storedRoute;
       if (url.origin === "https://hanbang.invalid" && MISSION_DESTINATIONS.has(route)) {
         return `${route}${url.search}${url.hash}`;
       }

@@ -155,6 +155,24 @@ const checks = {
     || env.PRODUCTION_WRITE_FENCE_ENABLED === "false",
   profileMemoryConservative:
     env.AMORA_PROFILE_MEMORY_MODE === "conservative",
+  // 찾아보기(2026-11-20, D-85). 비어 있거나 false 면 꺼짐이라 통과한다 — 이 칸 때문에 다음 배포가
+  // 죽지 않게 한다. true 면 검색어가 네이버로 나가므로 열쇠가 있어야 통과한다. 켜는 것은 파운더 승인 뒤다.
+  webSearchSwitchSafe:
+    env.AMORA_WEB_SEARCH_ENABLED === undefined
+    || env.AMORA_WEB_SEARCH_ENABLED === ""
+    || env.AMORA_WEB_SEARCH_ENABLED === "false"
+    || (env.AMORA_WEB_SEARCH_ENABLED === "true"
+      && Boolean(env.NAVER_API_HUB_CLIENT_ID?.trim())
+      && Boolean(env.NAVER_API_HUB_CLIENT_SECRET?.trim())),
+  // 부를 네이버 상품 목록. 비었으면 지역만이라 통과한다. 적었다면 코드가 다룰 줄 아는 local·webkr 만
+  // 통과한다(blog·오타·대문자는 코드가 조용히 빼므로, 적은 사람이 그렇게 될 줄 모르고 넘어가지 않게 막는다).
+  webSearchNaverProductsKnown:
+    env.AMORA_WEB_SEARCH_NAVER_PRODUCTS === undefined
+    || env.AMORA_WEB_SEARCH_NAVER_PRODUCTS.trim() === ""
+    || env.AMORA_WEB_SEARCH_NAVER_PRODUCTS.split(",")
+      .map((token) => token.trim())
+      .filter((token) => token !== "")
+      .every((token) => token === "local" || token === "webkr"),
   supabaseUrlPresent: Boolean(env.NEXT_PUBLIC_SUPABASE_URL),
   supabaseServiceRolePresent: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
   supabaseDestinationPinned: hasPinnedSupabaseDestination(),

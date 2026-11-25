@@ -229,9 +229,12 @@ export interface ChatMessageMetadata {
   /** Fixed server boundary or client-only recovery origin; never raw user text. */
   response_origin?:
     | "deterministic_crisis_safety"
+    | "deterministic_amora_gatekeeper"
     | "client_deterministic_crisis_preflight"
     | "client_deterministic_safety_privacy_preflight"
     | "client_deterministic_crisis_recovery";
+  /** 문지기(D-89)가 막은 턴의 서버 답. 판정 종류와 판만 적고 원문·점수는 적지 않는다. */
+  amora_gatekeeper?: { verdict: "out_of_scope" | "blocked_risk"; version: string };
   safety_classification?: import("@hanbang/shared/amora-crisis-classifier").AmoraCrisisKind;
   safety_contact_policy?: string;
   question_scope?: string;

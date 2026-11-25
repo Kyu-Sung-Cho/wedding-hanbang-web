@@ -1,4 +1,5 @@
 import type { ToolExecutionResult } from "@/types/database.types";
+import type { AmoraWebLookupTurnState } from "@/lib/ai/webLookup/webLookupTurn";
 
 export { formatWon } from "@/lib/formatWon";
 
@@ -47,6 +48,8 @@ export interface ToolExecutionContext {
     venue: string | null;
     progress: Record<string, { category: string; status: string }>;
   };
+  /** 찾아보기(search_web·read_page)를 연 턴에만 있다. `planAmoraWebLookupTurn` 이 만든다. */
+  webLookup?: AmoraWebLookupTurnState;
 }
 
 export function requireDestructiveConfirmation(

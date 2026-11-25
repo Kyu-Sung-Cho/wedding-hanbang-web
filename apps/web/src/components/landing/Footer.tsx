@@ -6,9 +6,10 @@ import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 import { CONTACT } from "@/lib/constants/contact";
 import { weddingPath } from "@/lib/weddingPaths";
 
+// 2026-11-22: "커뮤니티"(`weddingPath()`, 그때는 커뮤니티 피드)를 뺐다. 커뮤니티를 닫았다(D-81).
+// 아래 로고 링크의 `weddingPath()` 는 이제 로그인했으면 라운지, 아니면 랜딩으로 가는 `/wedding` 문이다.
 const SERVICE_LINKS = [
   { label: "아모라 채팅", href: weddingPath("/chat") },
-  { label: "커뮤니티", href: weddingPath() },
   { label: "공시 가격", href: weddingPath("/market-prices") },
   { label: "내 즐겨찾기", href: weddingPath("/favorites") },
 ];
@@ -36,7 +37,7 @@ export default function Footer() {
               <Logo size="sm" variant="white" />
             </Link>
             <p className="text-[var(--hb-on-primary)] text-sm leading-relaxed mt-5 font-light max-w-[320px]">
-              당신만의 AI 동반자 &apos;아모라&apos;가 있는 곳.
+              당신만의 AI 웨딩 비서 &apos;아모라&apos;가 있는 곳.
             </p>
             <p className="text-[var(--hb-on-primary)] text-xs mt-4">
               웨딩한방 · 한방그룹

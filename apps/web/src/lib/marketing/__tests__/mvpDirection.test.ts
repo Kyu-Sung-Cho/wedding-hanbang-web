@@ -324,8 +324,9 @@ describe("web MVP product direction", () => {
     // 열려 있고 로그인 없이 읽힌다(hanbang.ai/community 200 확인). 열려 있는 것을
     // 닫혔다고 말하면 들어올 사람을 돌려보낸다. 실제 화면으로 보내는 쪽이 맞다.
     // `weddingPath()`가 돌려주는 값이 곧 `/wedding`이라 목적지는 그대로다.
-    expect(landingOpenLinks).toContain('label: "웨딩코드", href: "/wedding-code"');
-    expect(landingOpenLinks).toContain('label: "견적 질문 만들기", href: "/wedding/community/quote-check"');
+    // 2026-11-22: 웨딩코드를 내렸고(2026-11-21 파운더 결정), 견적 확인은 커뮤니티 밖 새 주소로 옮겼다.
+    expect(landingOpenLinks).not.toContain('"/wedding-code"');
+    expect(landingOpenLinks).toContain('label: "견적 질문 만들기", href: "/wedding/quote-check"');
     expect(landingProductLinks).not.toContain('href: "/wedding"');
     expect(landingProductLinks).not.toContain('href: "#community-bridge"');
 
@@ -346,9 +347,11 @@ describe("web MVP product direction", () => {
     }
     // 메뉴에서 빠진 화면은 없어진 것이 아니라 라운지가 연다. 들어가는 길이 끊기면 그 화면은
     // 주소를 쳐야만 열리는 화면이 된다(예절 가이드가 2026-08-11까지 그랬다).
-    for (const path of ["/checklist", "/schedule", "/budget", "/preparation-style"]) {
+    for (const path of ["/checklist", "/schedule", "/budget"]) {
       expect(lounge, `라운지에서 ${path}로 가는 길이 없다`).toContain(`"${path}`);
     }
+    // 2026-11-22: 준비 스타일(웨딩코드)은 내렸다(2026-11-21 파운더 결정). 라운지가 그 길을 다시 열지 않는다.
+    expect(lounge, "내린 준비 스타일로 가는 길이 라운지에 돌아왔다").not.toContain('"/preparation-style');
 
     // 공개 내비게이션은 처음 보는 사람에게 준비 흐름을 한 덩어리로 설명한다.
     expect(publicNav).toContain('label: "할 일·일정"');
@@ -520,7 +523,7 @@ describe("web MVP product direction", () => {
   it("presents template timing as a reference order rather than a real deadline", () => {
     const TIMING_PATHS = [
       "src/app/(app)/lounge/page.tsx",
-      "src/components/community/StartHereClient.tsx",
+      "src/components/start-here/StartHereClient.tsx",
       "src/components/app/schedule/ImminentAlerts.tsx",
       "src/components/app/schedule/TimelineView.tsx",
     ];

@@ -162,6 +162,57 @@ describe("vendor admin-preview onboarding boundary", () => {
   });
 });
 
+describe("`/wedding` 문은 로그인이면 라운지, 아니면 랜딩 — 진짜 307 (2026-11-22 파운더 결정 7)", () => {
+  // 2026-11-21 까지 `/wedding` 은 커뮤니티 피드였다. 페이지의 redirect() 로는 루트 loading 경계 때문에
+  // 200 + meta refresh 가 나가므로(로컬 dev 실측) 상태 코드부터 본다.
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    mocks.getUser.mockReset().mockResolvedValue({ data: { user: null } });
+    mocks.createServerClient.mockReset().mockReturnValue({
+      auth: { getUser: mocks.getUser },
+    });
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("로그아웃이면 유입 표식을 들고 랜딩으로 보낸다", async () => {
+    const response = await updateSession(new NextRequest("https://hanbang.ai/wedding?utm_source=old-feed"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/landing?utm_source=old-feed");
+  });
+
+  it("로그인했으면 라운지로 보낸다(동의·온보딩은 라운지 주소에서 다시 건다)", async () => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user: { id: "signed-in", app_metadata: {}, user_metadata: {} } } });
+
+    const response = await updateSession(new NextRequest("https://hanbang.ai/wedding"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/wedding/lounge");
+  });
+
+  it("체험 세션은 세션을 묻지 않고 라운지로 보낸다", async () => {
+    const request = new NextRequest("https://hanbang.ai/wedding");
+    request.cookies.set("demo_mode", "true");
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/wedding/lounge");
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("세션을 못 물어봐도 오류가 아니라 랜딩으로 보낸다", async () => {
+    mocks.getUser.mockRejectedValueOnce(new Error("network down"));
+
+    const response = await updateSession(new NextRequest("https://hanbang.ai/wedding"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/landing");
+  });
+});
+
 describe("루트는 로그인 상태와 관계없이 랜딩으로 보낸다 — 진짜 307", () => {
   /**
    * 이 판정은 원래 서버 컴포넌트(`app/page.tsx`)의 `redirect()`에 있었다. 브라우저에서는
@@ -246,14 +297,14 @@ describe("루트는 로그인 상태와 관계없이 랜딩으로 보낸다 — 
     expect(response.headers.get("location")).toBe("https://hanbang.ai/landing");
   });
 
+  // 2026-11-22: 커뮤니티·웨딩코드를 닫으면서 `/wedding`(커뮤니티 피드였음)과 `/wedding-code` 를 이 목록에서
+  // 뺐다. `/wedding` 은 이제 로그아웃이면 랜딩으로 보내는 문이다(위 별도 묶음). 견적 확인은 새 주소다.
   it.each([
     "/landing",
-    "/wedding-code",
     "/price",
     "/wedding/manners",
-    "/wedding/community/quote-check",
+    "/wedding/quote-check",
     "/start-here",
-    "/wedding",
     "/login",
   ])("루트가 보내는 곳과 랜딩이 부르는 곳은 로그아웃에게 열려 있다 — %s", async (path) => {
     // 루트가 `/landing` 으로 보내는데 그 `/landing` 이 보호 경로가 되면,

@@ -47,7 +47,7 @@ const ACTIVE_PUBLIC_PATHS = [
   "src/components/landing/Footer.tsx",
   // ServicePreview·Hero·CommunityFeed는 랜딩 개편에서 삭제됐다. 검사할 표면이 없다.
   "src/components/community/ServiceCTA.tsx",
-  "src/app/(community)/community/quote-check/layout.tsx",
+  "src/app/quote-check/layout.tsx",
   // 시세 화면은 살아 있지만 components/app/market-prices/* 가 라우트로 재구성됐다.
   // 죽은 경로를 지우기만 하면 이 표면의 검사가 조용히 사라지므로 살아 있는 파일로 옮긴다.
   "src/app/(community)/market-prices/page.tsx",

@@ -287,9 +287,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             웨딩한방 홈
           </Link>
           <div className="flex items-center gap-4">
-            <Link href="/wedding-code" className="transition-colors hover:text-[var(--hb-text-strong)]">
-              웨딩코드
-            </Link>
+            {/* 2026-11-22: '웨딩코드' 링크를 뺐다. 웨딩코드를 내렸다(2026-11-21 파운더 결정). */}
             <Link href="/price" className="transition-colors hover:text-[var(--hb-text-strong)]">
               공시 가격
             </Link>

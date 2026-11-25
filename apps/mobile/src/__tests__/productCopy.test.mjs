@@ -229,7 +229,7 @@ test("mobile outcome and review copy identifies unverified user records", () => 
 });
 
 test("amora is never introduced as a planner on any active mobile screen", () => {
-  // 제품 계약(CLAUDE.md)의 정본 호칭은 "결혼 준비 동반자"다. 대행하는 플래너가 아니고,
+  // 제품 계약(CLAUDE.md)의 정본 호칭은 "AI 웨딩 비서"다(2026-11-16). 대행하는 플래너가 아니고,
   // 이 제품에서 "파트너"는 배우자될 사람을 가리키므로 아모라의 호칭으로 쓰지 않는다.
   //
   // 웹에는 같은 금지가 amoraVoiceReach.test.ts:28에 이미 있었는데 모바일은 그 테스트
@@ -250,6 +250,22 @@ test("amora is never introduced as a planner on any active mobile screen", () =>
     assert.ok(
       !published.includes(banned),
       `아모라를 "${banned}"로 소개하는 문구가 남아 있습니다`,
+    );
+  }
+});
+
+test("amora's pre-2026-11-16 title does not come back on active mobile screens", () => {
+  // 2026-11-16 파운더 결정: 정본 호칭은 "AI 웨딩 비서"다(그 전 "결혼 준비 동반자").
+  // 웹의 같은 금지는 apps/web/src/lib/ai/__tests__/amoraVoiceReach.test.ts 가 진다.
+  // 옛 이름은 원문에서 본다. 주석에 남은 이름도 다음 사람이 되살릴 재료가 된다.
+  //
+  // 앱에서 호칭을 쓰던 자리는 대화 머리줄 부제 하나였는데, 2026-11-18 디자인 시안 이식(#531)으로
+  // 부제가 없어졌다. 그래서 새 이름이 어디 있는지는 묻지 않고 옛 이름이 돌아오지 않는지만 본다.
+  const published = ACTIVE_PRODUCT_SOURCES.join("\n");
+  for (const oldTitle of ["결혼 준비 동반자", "AI 동반자"]) {
+    assert.ok(
+      !published.includes(oldTitle),
+      `아모라를 옛 호칭 "${oldTitle}"로 부르는 문구가 남아 있습니다`,
     );
   }
 });

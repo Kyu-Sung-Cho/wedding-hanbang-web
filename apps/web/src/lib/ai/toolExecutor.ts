@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/tools/riskSupportTools";
 import { executeAnalyzeQuoteWithTrustEngine } from "@/lib/ai/tools/quoteMarketTools";
 import { executeSearchNearbyPlaces } from "@/lib/ai/tools/placeSearchTools";
+import { executeReadPageTool, executeSearchWebTool } from "@/lib/ai/tools/webLookupTools";
 import {
   executeCheckVendorAvailability,
   executeGetVendorDetail,
@@ -717,6 +718,11 @@ async function executeToolOnce(
         return executeSimulateGuestGuarantee(toolInput);
       case "search_nearby_places":
         return await executeSearchNearbyPlaces(toolInput);
+      // 찾아보기(D-85). 스위치가 꺼진 턴에는 `context.webLookup` 이 없어 실행기가 바로 실패한다.
+      case "search_web":
+        return await executeSearchWebTool(toolInput, context);
+      case "read_page":
+        return await executeReadPageTool(toolInput, context);
       case "analyze_quote":
         return executeAnalyzeQuoteWithTrustEngine(toolInput);
     default:

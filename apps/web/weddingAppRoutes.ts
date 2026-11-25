@@ -36,4 +36,7 @@ export const WEDDING_APP_ROUTES = [
   // 목록에 넣는 이유는 앱 안에서 `/wedding/manners`로 링크하기 위해서다 —
   // 리라이트가 없으면 사이드바·주차 카드의 링크가 그대로 404가 된다.
   "manners",
+  // 견적 확인 도구도 예절 안내처럼 `src/app/quote-check`(라우트 그룹 밖)에 있고 로그인이 필요 없다.
+  // 2026-11-22 커뮤니티를 닫으면서 커뮤니티 묶음(`/wedding/community/quote-check`)에서 옮겼다.
+  "quote-check",
 ] as const;

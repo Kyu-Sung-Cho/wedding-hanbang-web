@@ -88,7 +88,7 @@ describe("the receiving screen actually calls the reader", () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
     const source = readFileSync(
-      resolve(process.cwd(), "src/components/community/StartHereClient.tsx"),
+      resolve(process.cwd(), "src/components/start-here/StartHereClient.tsx"),
       "utf8",
     );
     // 배선이 다시 끊기면 여기서 먼저 깨진다.

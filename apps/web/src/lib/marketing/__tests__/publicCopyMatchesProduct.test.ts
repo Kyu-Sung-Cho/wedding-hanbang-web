@@ -47,7 +47,7 @@ describe("커뮤니티에 없는 필터를 약속하지 않는다", () => {
   const SCREENS = [
     "src/components/landing/FiveRoles.tsx",
     "src/components/landing/redesign/landingContent.ts",
-    "src/components/community/StartHereClient.tsx",
+    "src/components/start-here/StartHereClient.tsx",
   ];
 
   it.each(SCREENS)("%s", (path) => {
@@ -79,15 +79,17 @@ describe("견적 점검 화면에 없는 입력을 약속하지 않는다", () =
   it("화면에 입력란이 없다는 사실을 먼저 고정한다", () => {
     // 문구가 참인지 재려면 목적지가 무엇인지부터 알아야 한다. 나중에 입력란이
     // 생기면 이 검사가 먼저 깨지고, 그때 문구를 되돌리면 된다.
-    const screen = read("src/app/(community)/community/quote-check/page.tsx");
+    const screen = read("src/app/quote-check/page.tsx");
     expect(screen.includes("<input"), "입력란이 생겼습니다 — 문구를 다시 보세요").toBe(false);
     expect(screen.includes("<textarea"), "입력란이 생겼습니다 — 문구를 다시 보세요").toBe(false);
     expect(screen).toContain("선택한 내용은 저장하지 않습니다");
     expect(screen).toContain('fetch("/api/amora/quote-check"');
 
-    // 공개 주소는 재작성된 실제 도구로 이어져야 한다.
+    // 공개 주소는 실제 도구로 이어져야 한다. 2026-11-22 커뮤니티를 닫으면서 도구를 커뮤니티 묶음 밖
+    // (`src/app/quote-check`, 보이는 주소 `/wedding/quote-check`)으로 옮겼고, 옛 주소는 새 주소로 보낸다.
     const routes = read("next.config.ts");
-    expect(routes).toMatch(/source:\s*"\/wedding\/community\/:path\+"\s*,\s*destination:\s*"\/community\/:path\+"/u);
+    expect(read("weddingAppRoutes.ts")).toContain('"quote-check"');
+    expect(routes).toMatch(/source:\s*"\/wedding\/community\/quote-check"\s*,\s*destination:\s*"\/wedding\/quote-check"/u);
   });
 
   it("랜딩이 '넣으면' 이라고 하지 않는다", () => {

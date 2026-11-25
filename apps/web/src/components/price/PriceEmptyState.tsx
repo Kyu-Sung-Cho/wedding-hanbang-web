@@ -69,10 +69,11 @@ export function PriceEmptyState({
         ))}
       </div>
       <Link
-        href="/wedding/community/quote-check"
+        href="/wedding/quote-check"
         className="mt-5 inline-flex min-h-11 items-center justify-center gap-1 px-2 text-xs font-semibold text-[var(--color-rose-700)] underline-offset-4 hover:underline"
       >
-        받은 견적 공유하고 다른 커플 돕기
+        {/* 2026-11-22 전에는 "받은 견적 공유하고 다른 커플 돕기"였다. 견적을 나눌 커뮤니티를 닫았다(D-81). */}
+        받은 견적서 확인하기
         <ArrowRight aria-hidden="true" className="size-3.5" />
       </Link>
     </section>

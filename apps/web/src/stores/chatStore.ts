@@ -44,6 +44,7 @@ import {
   EPHEMERAL_PLACE_SEARCH_TOOL,
   getPersistableToolResults,
 } from "@/lib/ai/placeSearchResultPolicy";
+import { isAmoraWebLookupToolName } from "@/lib/ai/webLookup/webLookupNames";
 import type { AmoraActionItem } from "@/lib/amora/actions";
 import {
   buildUnmatchedAmoraCrisisRecoveryCard,
@@ -1596,6 +1597,13 @@ async function executeChatProviderRequest(
     const ephemeralPlaceResults = completedToolResults.filter(
       (result) => result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL
     );
+    // done 의 저장본 대신 이 턴에 받은 결과로 그리는 도구. 장소 검색과 찾아보기 검색은 저장본이
+    // 자리표시뿐이고(제공자 글을 저장하지 않는다), 찾아보기 페이지 읽기 저장본은 업체 주소가 빠져 있다
+    // (2026-11-22 파운더 결정 4: 실시간 카드는 그대로). 새로고침하면 저장본으로 그린다.
+    const liveDisplayResults = completedToolResults.filter(
+      (result) => result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL || isAmoraWebLookupToolName(result.toolName)
+    );
+    const liveDisplayToolNames = new Set(liveDisplayResults.map((result) => result.toolName));
     // 글자가 없으면 저장하지 않는다 — 도구를 쓴 턴이 실패했을 때 카드만 있고
     // 말은 없는 빈 말풍선이 남았다. 단 장소 검색 결과는 클라이언트에만 존재해
     // 저장하지 않으면 사라지므로, 그 경우에만 텍스트 없이도 저장한다.
@@ -1641,13 +1649,13 @@ async function executeChatProviderRequest(
         && !completedMetadata.in_reply_to_user_message_id
         ? { in_reply_to_user_message_id: request.userMessageId }
         : {}),
-      ...(ephemeralPlaceResults.length > 0
+      ...(liveDisplayResults.length > 0
         ? {
             toolResults: [
               ...((completedMetadata?.toolResults ?? []).filter(
-                (result) => result.toolName !== EPHEMERAL_PLACE_SEARCH_TOOL
+                (result) => !liveDisplayToolNames.has(result.toolName)
               )),
-              ...ephemeralPlaceResults,
+              ...liveDisplayResults,
             ],
           }
         : {}),

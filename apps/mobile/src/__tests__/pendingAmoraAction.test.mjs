@@ -99,6 +99,10 @@ const chatSource = readFileSync(chatPath, "utf8");
 const toolResultCardModule = compileCommonJs(readFileSync(new URL(
   "../components/chat/toolResultCardModel.ts", import.meta.url,
 ), "utf8"));
+// 찾아보기 카드 고르기(2026-11-22). 말풍선이 부르는 순수 함수라 같은 방식으로 넣는다.
+const webLookupResultSelectionModule = compileCommonJs(readFileSync(new URL(
+  "../components/chat/webLookupResultSelection.ts", import.meta.url,
+), "utf8"));
 
 const action = {
   version: 2,
@@ -167,7 +171,7 @@ function renderProposal(receipts, {
     handleWithdrawPendingAction: (actionId) => calls.push(["withdraw", actionId]),
     setDismissedPendingMessageIds: (update) => calls.push(["dismiss", [...update(new Set())]]),
     parseAmoraCitations, describeAmoraCitations, getAmoraVisibleText,
-    normalizeMediationBlock: () => null, ...toolResultCardModule,
+    normalizeMediationBlock: () => null, ...toolResultCardModule, ...webLookupResultSelectionModule,
     colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" }, ivory: { warm: "ivory" } }, st: styles,
   };
   const compiledRender = ts.transpileModule(declaration.getText(tree), {

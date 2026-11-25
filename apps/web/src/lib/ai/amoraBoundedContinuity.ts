@@ -1,3 +1,4 @@
+import { isAmoraGatekeeperReplyMetadata } from "@/lib/ai/amoraGatekeeperContract";
 import {
   classifyAmoraQuestionScope,
 } from "@/lib/ai/amoraQuestionScope";
@@ -464,6 +465,8 @@ export function buildAmoraBoundedContinuity(
     || priorUser.sender_type === "ai"
     || priorUser.sender_id !== input.requesterUserId
     || assistant.metadata?.in_reply_to_user_message_id !== priorUser.id
+    // 문지기(D-89)가 막은 직전 턴은 이어 붙이지 않는다. 낱말 범위는 그 글을 W0 으로 볼 수 있다.
+    || isAmoraGatekeeperReplyMetadata(assistant.metadata)
   ) {
     return null;
   }

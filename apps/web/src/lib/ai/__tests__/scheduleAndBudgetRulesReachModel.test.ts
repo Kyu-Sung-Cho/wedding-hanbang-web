@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { BETA_DISABLED_TOOL_NAMES, BETA_SAFE_TOOLS } from "@/lib/ai/tools";
+import { AMORA_WEB_LOOKUP_TOOL_NAMES } from "@/lib/ai/webLookup/webLookupNames";
 
 /**
  * 일정·예산 운용 규칙이 모델에게 **한 줄도 가지 않았다.**
@@ -112,9 +113,13 @@ describe("쓰기 도구 이름으로 지시문을 걸지 않는다", () => {
     join(process.cwd(), "src", "lib", "ai", "amoraPromptComposer.ts"),
     "utf8",
   );
-  const READ_TOOL_NAMES = new Set(
-    BETA_SAFE_TOOLS.filter((tool) => !isMutatingTool(tool.name)).map((t) => t.name),
-  );
+  // 찾아보기 도구(search_web·read_page, 2026-11-20 D-85)는 WEDDING_TOOLS 밖에서 등록되는 읽기
+  // 도구다. route.ts 가 `webLookupTurn.toolNames` 로 enabledToolNames 에 넣으므로 운영이 실제로
+  // 넘기는 집합에 든다(스위치 AMORA_WEB_SEARCH_ENABLED 가 꺼져 있으면 그 조건도 함께 쉰다).
+  const READ_TOOL_NAMES = new Set([
+    ...BETA_SAFE_TOOLS.filter((tool) => !isMutatingTool(tool.name)).map((t) => t.name),
+    ...[...AMORA_WEB_LOOKUP_TOOL_NAMES].filter((name) => !isMutatingTool(name)),
+  ]);
 
   // buildEnabledToolInstructions 안의 조건만 본다.
   const fnStart = source.indexOf("function buildEnabledToolInstructions");
