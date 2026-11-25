@@ -129,6 +129,8 @@ function homeRoutes(overrides: Parameters<typeof mockApi>[0] = {}) {
   return mockApi({
     "GET /api/invitation/conditions": json(conditionsResponse()),
     "GET /api/invitation/home": json(homeResponse()),
+    // 홈 알림 자리의 오늘의 한 가지. 운영의 지금 상태(서버 스위치 꺼짐)다.
+    "GET /api/amora/today-one": json({ available: false }),
     ...overrides,
   });
 }

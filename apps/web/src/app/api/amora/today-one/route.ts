@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
 import {
   TODAY_ONE_CARE_ACTIONS,
+  TODAY_ONE_CARE_KINDS_PARAM,
   validateTodayOneCareResponse,
   type TodayOneCareAction,
   type TodayOneCareResponse,
 } from "@hanbang/shared";
 
+import { getAmoraActions } from "@/lib/amora/actions";
+import { readAmoraActionSnapshot } from "@/lib/amora/actionRepository";
+import {
+  buildTodayOneDecisionCandidates,
+  buildTodayOneInquiryWaitingCandidates,
+  buildTodayOneTaskDeadlineCandidates,
+  TODAY_ONE_EXTRA_SOURCES,
+} from "@/lib/care/todayOneMore";
+import { loadCoupleContext } from "@/lib/invitation/coupleContext";
+import { inquiryDecisions } from "@/lib/invitation/inquiryView";
+import { loadLetterView } from "@/lib/invitation/letterService";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
@@ -417,6 +429,85 @@ async function readExposureHistory(
   return history;
 }
 
+function wantsMoreKinds(request: Request): boolean {
+  try {
+    return new URL(request.url).searchParams.get(TODAY_ONE_CARE_KINDS_PARAM.name)
+      === TODAY_ONE_CARE_KINDS_PARAM.value;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 할 일 마감, 두 분이 정할 것, 답 없는 문의. 하나를 읽지 못해도 나머지와 일정·예산 카드는 그대로 고른다
+ * (읽지 못한 쪽만 빠지고 로그를 남긴다). 다른 갈래의 자리(`TODAY_ONE_EXTRA_SOURCES`)도 같은 규칙이다.
+ */
+async function loadMoreCandidates(
+  context: TodayOneContext,
+  now: Date,
+): Promise<TodayOneCandidate[]> {
+  const candidates: TodayOneCandidate[] = [];
+  try {
+    const snapshot = await readAmoraActionSnapshot(
+      context.supabase,
+      context.coupleId,
+      getAmoraActions(context.progress),
+      "open",
+    );
+    candidates.push(...buildTodayOneTaskDeadlineCandidates({
+      actions: snapshot.actions,
+      stateRevision: context.stateRevision,
+      now,
+    }));
+  } catch (error) {
+    console.error("[today-one] shared actions unavailable", {
+      code: isRecord(error) && typeof error.code === "string" ? error.code : "unknown",
+    });
+  }
+
+  try {
+    const couple = await loadCoupleContext(context.supabase, context.userId, { journey: true });
+    const letterView = couple.ok ? await loadLetterView(context.supabase, couple.context) : null;
+    if (couple.ok && letterView) {
+      const names = new Map(couple.context.members.map((member) => [member.id, member.name]));
+      candidates.push(
+        ...buildTodayOneDecisionCandidates({
+          decisions: inquiryDecisions({
+            timeline: letterView.timeline,
+            openLetter: letterView.open,
+            viewerId: context.userId,
+            nameOf: (userId) => names.get(userId) ?? null,
+          }),
+          stateRevision: context.stateRevision,
+        }),
+        ...buildTodayOneInquiryWaitingCandidates({
+          timeline: letterView.timeline,
+          stateRevision: context.stateRevision,
+          now,
+        }),
+      );
+    }
+  } catch (error) {
+    console.error("[today-one] inquiry records unavailable", {
+      code: isRecord(error) && typeof error.code === "string" ? error.code : "unknown",
+    });
+  }
+
+  for (const source of TODAY_ONE_EXTRA_SOURCES) {
+    try {
+      candidates.push(...await source.build({
+        coupleId: context.coupleId,
+        userId: context.userId,
+        stateRevision: context.stateRevision,
+        now,
+      }));
+    } catch {
+      console.error("[today-one] extra source unavailable", { source: source.name });
+    }
+  }
+  return candidates;
+}
+
 function validateOwnedResult(value: unknown, userId: string) {
   const validation = validateTodayOneCareResponse(value, userId);
   return validation.ok ? validation.value : null;
@@ -514,12 +605,19 @@ export async function GET(request: Request) {
         progress: context.progress,
         stateRevision: context.stateRevision,
       });
-    if (scheduleCandidates.length === 0 && budgetCandidates.length === 0) {
+    // 25장 2절의 새 종류는 그 카드를 그릴 수 있는 화면(`?kinds=2`)에만 고른다. 이미 설치된 앱은 모르는
+    // 종류를 "형식을 확인하지 못했어요"로 그리고, 그날의 한 장을 그 카드에 써 버린다.
+    const moreCandidates = wantsMoreKinds(request) ? await loadMoreCandidates(context, now) : [];
+    if (
+      scheduleCandidates.length === 0
+      && budgetCandidates.length === 0
+      && moreCandidates.length === 0
+    ) {
       return apiResult(localResult(context.userId, "none", now));
     }
     const exposureHistory = await readExposureHistory(
       context,
-      [...scheduleCandidates, ...budgetCandidates],
+      [...scheduleCandidates, ...budgetCandidates, ...moreCandidates],
       ymdInKst(now),
     );
     if (exposureHistory instanceof NextResponse) return exposureHistory;
@@ -527,6 +625,7 @@ export async function GET(request: Request) {
       exposureHistory,
       scheduleCandidates,
       budgetCandidates,
+      moreCandidates,
     );
 
     const admin = createAdminClient();

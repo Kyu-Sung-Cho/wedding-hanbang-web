@@ -12,8 +12,9 @@
 // 아모라 소식 위)에 둔다. 할 말이 없으면 각 알림이 아무것도 그리지 않아 자리도 생기지 않는다.
 //   - 상대가 바꾼 것(PartnerChangeNotice) · 합류 직후 안내(JoinedPlanHandoff)
 //   - 첫 도착 안내와 초대 코드로 가는 카드(LoungeFirstArrival, 초대 카드는 아직 혼자일 때만)
-//   - 오늘의 한 가지(TodayOneCareCard): 설정에서 켠 사람에게만 보인다. 켤 수 있는 설정이 남아 있는 한
-//     보이는 자리도 있어야 한다(설정이 없는 기능을 약속하지 않는다).
+//   - 먼저 챙기기(AmoraTodayOneSlot): 첫 일정 뒤 한 번 묻는 카드와 오늘의 한 가지(TodayOneCareCard).
+//     오늘의 한 가지는 설정에서 켠 사람에게만 보인다. 켤 수 있는 설정이 남아 있는 한 보이는 자리도
+//     있어야 한다(설정이 없는 기능을 약속하지 않는다).
 //   - 첫 실행 안내(FirstRunCoachMarks)와 아모라의 첫마디(AmoraFab 말풍선). 버튼은 아모라가 먼저 건넨
 //     말이 있거나 안내가 그 버튼을 가리킬 때만 메뉴 위에 뜬다.
 //   - 지난 상담 요청 기록으로 가는 줄(LoungeRecordsEntry): 기록이 있는 커플에게만(2026-09-18 파운더 결정).
@@ -88,7 +89,7 @@ import { navigateInvitationRoute } from "@/lib/invitationRoutes.mjs";
 import { HOME_SERVICE_MENU, HOME_SERVICE_MENU_LABEL } from "@/lib/homeServiceMenu.mjs";
 import { useLiveOwner } from "@/lib/invitationLive";
 import ErrorRetry from "@/components/ErrorRetry";
-import TodayOneCareCard from "@/components/dashboard/TodayOneCareCard";
+import AmoraTodayOneSlot from "@/components/dashboard/AmoraTodayOneSlot";
 import PartnerChangeNotice from "@/components/lounge/PartnerChangeNotice";
 import { LoungeProfileButton } from "@/components/dashboard/WeddingHomeExperience";
 import AmoraFab from "@/components/lounge/AmoraFab";
@@ -1133,7 +1134,7 @@ export default function DashboardScreen() {
                     />
                   ) : null
                 }
-                todayOneCare={<TodayOneCareCard refreshVersion={careRefreshVersion} />}
+                todayOneCare={<AmoraTodayOneSlot refreshVersion={careRefreshVersion} progress={data.progress} />}
                 // 합류 안내가 떠 있을 때는 첫 도착 카드를 접는다 — 환영 카드 두 장이 겹치면 어느
                 // 쪽이 지금 할 일인지 흐려진다(웹과 같다). 안내를 닫으면 다시 나온다. 상대 확인을
                 // 기다리는 동안에도 접어 둔다 — 먼저 보였다가 합류 안내로 뒤바뀌지 않게.

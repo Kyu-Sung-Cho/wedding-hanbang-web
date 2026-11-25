@@ -19,6 +19,7 @@
     "./partner-violence-closed-vocabulary": "./src/safety/partnerViolenceClosedVocabulary.ts",
     "./mediation-provenance": "./src/contracts/mediationProvenance.mjs",
     "./community-notification": "./src/contracts/communityNotification.mjs",
+    "./amora-push": "./src/contracts/amoraPush.mjs",
     "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs",
     "./budget-share": "./src/contracts/budgetShare.mjs",
     "./amora-personal-actions": "./src/contracts/amoraPersonalActions.mjs",

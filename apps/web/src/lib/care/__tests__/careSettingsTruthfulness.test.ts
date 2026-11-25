@@ -16,7 +16,14 @@ const onboardingSource = readFileSync(
 );
 
 describe("web proactive-care settings truthfulness", () => {
-  it("does not offer a new opt-in before proactive email is a released capability", () => {
+  it("offers a new opt-in only through the control that hides itself when no care path can run", () => {
+    // 2026-11-13 10장 P1: 동의 화면을 연다. 켤 수 있는 경로가 하나도 없으면 칸을 그리지
+    // 않는다는 것은 AmoraCarePreferenceControl.test.tsx 가 렌더링으로 잰다. 여기서는 설정
+    // 화면이 그 칸 말고 다른 길로 켜기를 내놓지 않는지 본다.
+    expect(source).toContain(
+      "<AmoraCarePreferenceControl onAvailabilityChange={setCareControlAvailable} />",
+    );
+    expect(source).not.toContain("care_notifications_enabled: true");
     expect(source).not.toContain("parseCareAvailability");
     expect(source).not.toContain("canChangeCareConsent");
     expect(source).not.toContain("아모라 먼저 챙기기");
@@ -26,7 +33,8 @@ describe("web proactive-care settings truthfulness", () => {
   it("preserves an opt-out only for users with a valid historical consent", () => {
     expect(source).toContain("profile?.care_notifications_enabled === true");
     expect(source).toContain("profile.care_notifications_consented_at.trim().length > 0");
-    expect(source).toContain("hasLegacyCareConsent &&");
+    // 새 칸이 그려지면 켜기와 끄기를 그 칸이 맡는다. 그렇지 않을 때는 예전 해제 칸이 남는다.
+    expect(source).toContain("hasLegacyCareConsent && !careControlAvailable &&");
     expect(source).toContain("care_notifications_enabled: false");
     expect(source).toContain("이전 이메일 수신 동의");
     expect(source).toContain("이메일 수신 동의 해제");

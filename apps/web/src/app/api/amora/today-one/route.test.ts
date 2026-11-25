@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { isAmoraTodayOneEnabled } from "@/lib/features/amoraCareFlags";
 import { buildTodayOneScheduleCandidates } from "@/lib/care/todayOne";
+import { readAmoraActionSnapshot } from "@/lib/amora/actionRepository";
+import { loadCoupleContext } from "@/lib/invitation/coupleContext";
 import { checkRateLimit } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { GET, POST } from "./route";
@@ -20,6 +22,10 @@ vi.mock("@/utils/rateLimit", () => ({
 vi.mock("@/utils/trustedMutation", () => ({
   isTrustedMutationRequest: vi.fn(() => true),
 }));
+// 25장 2절의 새 종류가 읽는 자료. `?kinds=2` 가 없으면 이 셋은 불리지 않아야 한다.
+vi.mock("@/lib/amora/actionRepository", () => ({ readAmoraActionSnapshot: vi.fn() }));
+vi.mock("@/lib/invitation/coupleContext", () => ({ loadCoupleContext: vi.fn() }));
+vi.mock("@/lib/invitation/letterService", () => ({ loadLetterView: vi.fn() }));
 
 const USER_ID = "10000000-0000-4000-8000-000000000001";
 const COUPLE_ID = "20000000-0000-4000-8000-000000000001";
@@ -607,5 +613,116 @@ describe("/api/amora/today-one", () => {
     }));
     expect(mismatched.status).toBe(403);
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("/api/amora/today-one 의 새 종류(25장 2절)", () => {
+  const TASK = {
+    id: "act-1",
+    title: "청첩장 문구 정하기",
+    dueDate: "2026-08-03",
+    priority: "normal",
+    status: "open",
+    source: "amora",
+    createdAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-01T00:00:00.000Z",
+  };
+
+  function getMore() {
+    return new Request("http://localhost/api/amora/today-one?kinds=2", {
+      headers: { "sec-fetch-site": "same-origin" },
+    });
+  }
+
+  function withoutSchedule(tables: ReturnType<typeof makeClient>["tables"]) {
+    tables.wedding_journeys.single.mockResolvedValueOnce({
+      data: { wedding_date: null, total_budget: null, progress: {}, state_revision: 7 },
+      error: null,
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(isAmoraTodayOneEnabled).mockReturnValue(true);
+    vi.mocked(checkRateLimit).mockReturnValue(null);
+    vi.mocked(isTrustedMutationRequest).mockReturnValue(true);
+    vi.mocked(loadCoupleContext).mockResolvedValue({
+      ok: false,
+      status: 503,
+      code: "COUPLE_UNAVAILABLE",
+      error: "x",
+    });
+  });
+
+  it("옛 화면(표시 없음)에는 새 종류의 자료를 읽지도 고르지도 않는다", async () => {
+    vi.setSystemTime(new Date("2026-08-02T03:00:00.000Z"));
+    const { client, tables } = makeClient();
+    withoutSchedule(tables);
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const compile = vi.fn();
+    vi.mocked(createAdminClient).mockReturnValue({ rpc: compile } as never);
+
+    const response = await GET(get());
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).result.state).toBe("none");
+    expect(readAmoraActionSnapshot).not.toHaveBeenCalled();
+    expect(loadCoupleContext).not.toHaveBeenCalled();
+    expect(compile).not.toHaveBeenCalled();
+  });
+
+  it("새 화면에는 내일이 마감인 함께 쓰는 할 일을 정해진 문장과 다음 행동으로 고른다", async () => {
+    vi.setSystemTime(new Date("2026-08-02T03:00:00.000Z"));
+    const { client, tables } = makeClient();
+    withoutSchedule(tables);
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    vi.mocked(readAmoraActionSnapshot).mockResolvedValue({ actions: [TASK] } as never);
+    const compile = vi.fn().mockResolvedValue({
+      data: { version: 1, state: "none", recipientUserId: USER_ID, claimedForDate: "2026-08-02" },
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc: compile } as never);
+
+    await GET(getMore());
+
+    expect(readAmoraActionSnapshot).toHaveBeenCalledWith(client, COUPLE_ID, [], "open");
+    expect(compile).toHaveBeenCalledTimes(1);
+    const args = compile.mock.calls[0][1];
+    expect(args.p_priority).toBe(105);
+    expect(args.p_source_key).toMatch(/^task:[0-9a-f]{24}:d1$/);
+    expect(args.p_presentation).toEqual({
+      kind: "task_deadline",
+      whyNow: "내일까지 해 둘 할 일이 있어요.",
+      confirmed: ["할 일: 청첩장 문구 정하기", "마감: 8월 3일"],
+      unknown: ["어디까지 했는지는 할 일 기록만으로는 알 수 없어요."],
+      nextAction: { label: "할 일 보기", href: "/lounge" },
+      impact: "확인만 하며 할 일이나 일정은 바꾸지 않아요.",
+      choices: [
+        { action: "open_source", label: "할 일 보기" },
+        { action: "snooze", label: "나중에" },
+        { action: "dismiss", label: "오늘 닫기" },
+        { action: "mute_source", label: "내용이 바뀔 때까지 숨기기" },
+      ],
+    });
+  });
+
+  it("새 종류의 자료를 읽지 못해도 일정 카드는 그대로 고른다", async () => {
+    vi.setSystemTime(new Date("2026-08-02T03:00:00.000Z"));
+    const { client } = makeClient();
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    vi.mocked(readAmoraActionSnapshot).mockRejectedValue(Object.assign(new Error("down"), { code: "PGRST205" }));
+    vi.mocked(loadCoupleContext).mockRejectedValue(new Error("down"));
+    const compile = vi.fn().mockResolvedValue({ data: READY_RESPONSE, error: null });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc: compile } as never);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await GET(getMore());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ available: true, result: READY_RESPONSE });
+    expect(compile.mock.calls[0][1].p_presentation.kind).toBe("schedule_moment");
+    // 로그에는 코드만 남고 내용은 남지 않는다.
+    expect(JSON.stringify(errors.mock.calls)).not.toContain("down");
+    errors.mockRestore();
   });
 });

@@ -3,12 +3,17 @@ import { buildCareEmailSubject, buildCareEmailHtml } from "../careEmail";
 
 describe("케어 이메일 빌더", () => {
   it("셀 종류별 제목 — 카톡 첫 줄 톤", () => {
+    // 2026-11-13 P2: 화면·메일 문장 규칙(줄표 금지, 18장 D-12)에 맞춰 바꿨다. 받침에 따라
+    // 갈리는 "이에요/예요"를 피하려고 일정 이름 뒤에 쉼표를 둔다. 파운더가 문구를 정한다.
     expect(buildCareEmailSubject({ momentLabel: "청첩장 모임", cellKind: "d3" })).toBe(
-      "청첩장 모임 3일 전이에요 — 아모라가 미리 챙겨왔어요"
+      "청첩장 모임 사흘 전이에요. 아모라가 미리 챙겨 왔어요"
     );
     expect(buildCareEmailSubject({ momentLabel: "상견례", cellKind: "d1" })).toBe(
-      "내일 상견례! 나가기 전 30초 체크"
+      "상견례, 내일이에요. 나가기 전에 함께 확인해요"
     );
+    for (const cellKind of ["d3", "d1", "dAfter"] as const) {
+      expect(buildCareEmailSubject({ momentLabel: "한쪽 가족에게 첫인사", cellKind })).not.toMatch(/—|–/);
+    }
     expect(buildCareEmailSubject({ momentLabel: "청첩장 모임", cellKind: "dAfter" })).toBe(
       "청첩장 모임 어땠어요? 아모라가 궁금해서요"
     );

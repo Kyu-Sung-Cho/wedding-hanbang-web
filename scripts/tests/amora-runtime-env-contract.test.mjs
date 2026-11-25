@@ -8,6 +8,8 @@ const runtimeVariables = [
   "AMORA_OPENAI_ENABLED",
   "AMORA_AUXILIARY_MEMORY_ENABLED",
   "AMORA_CARE_OUTBOUND_ENABLED",
+  // 아모라 앱 알림(D-86, 2026-11-20). 켜면 동의한 사람의 폰에 알림이 간다 — 바깥 행동이다.
+  "AMORA_APP_PUSH_ENABLED",
   // 웨딩홀 문의 편지(2026-11-17). 켜면 승인된 편지가 운영자 대기열로 간다 — 바깥 행동이다.
   "HALL_INQUIRY_SENDING_ENABLED",
   "HALL_INQUIRY_DAILY_CAP",
@@ -70,6 +72,7 @@ test("the example environment keeps external Amora side effects fail-closed", as
     "AMORA_OPENAI_ENABLED=false",
     "AMORA_AUXILIARY_MEMORY_ENABLED=false",
     "AMORA_CARE_OUTBOUND_ENABLED=false",
+    "AMORA_APP_PUSH_ENABLED=false",
     "HALL_INQUIRY_SENDING_ENABLED=false",
     "AMORA_WEB_SEARCH_ENABLED=false",
     "AMORA_WEB_SEARCH_NAVER_PRODUCTS=local",

@@ -104,12 +104,19 @@ test("unshipped care availability cannot block the general settings screen", () 
   assert.doesNotMatch(settingsSource, /아모라 케어 발송 상태를 확인하지 못했어요/);
 });
 
-test("mobile hides care opt-in but preserves a conditional legacy-consent opt-out", () => {
+test("mobile offers care opt-in only through the availability-gated control and keeps the legacy opt-out", () => {
+  // 2026-11-13 10장 P1: 앱에도 동의 화면을 연다. 켤 수 있는 경로가 없으면 칸이 스스로
+  // 숨는다(amoraCarePreference.test.mjs). 그 칸이 보일 때는 그 칸이 끄기까지 맡고,
+  // 보이지 않을 때는 예전 해제 줄이 남는다.
+  assert.match(
+    settingsSource,
+    /<AmoraCarePreferenceControl onAvailabilityChange=\{setCareControlAvailable\} \/>/,
+  );
   assert.doesNotMatch(settingsSource, /아모라 먼저 챙기기/);
   assert.doesNotMatch(settingsSource, /발송이 일시중지됐어요/);
   assert.doesNotMatch(settingsSource, /canChangeCareConsent/);
   assert.match(settingsSource, /hasActiveCareConsent\(profile\)/);
-  assert.match(settingsSource, /legacyCareConsentActive \?/);
+  assert.match(settingsSource, /legacyCareConsentActive && !careControlAvailable \?/);
   assert.match(settingsSource, /care_notifications_enabled: false/);
   assert.match(settingsSource, /이전 이메일 수신 동의 해제/);
   assert.match(settingsSource, /Linking\.openSettings\(\)/);

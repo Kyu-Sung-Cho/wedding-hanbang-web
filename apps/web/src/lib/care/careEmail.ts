@@ -7,15 +7,31 @@ import type { DueMomentCell } from "@/lib/amora/momentLoop";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai";
 
+/** 메일 안 링크가 가리키는 사이트 주소(수신 거부 링크도 같은 곳을 쓴다). */
+export function careEmailSite(): string {
+  return SITE;
+}
+
 export function buildCareEmailSubject(cell: Pick<DueMomentCell, "momentLabel" | "cellKind">): string {
   switch (cell.cellKind) {
     case "d3":
-      return `${cell.momentLabel} 3일 전이에요 — 아모라가 미리 챙겨왔어요`;
+      return `${cell.momentLabel} 사흘 전이에요. 아모라가 미리 챙겨 왔어요`;
     case "d1":
-      return `내일 ${cell.momentLabel}! 나가기 전 30초 체크`;
+      return `${cell.momentLabel}, 내일이에요. 나가기 전에 함께 확인해요`;
     case "dAfter":
       return `${cell.momentLabel} 어땠어요? 아모라가 궁금해서요`;
   }
+}
+
+/**
+ * 받는 사람마다 다른 수신 거부 링크를 보낼 때 붙인다. 저장해 둔 본문(email_html)에는 받는 사람이
+ * 정해지기 전이라 링크를 넣을 수 없다. 링크 주소는 서버가 만든 값이지만 그래도 이스케이프한다.
+ */
+export function appendCareUnsubscribeFooter(html: string, unsubscribeUrl: string): string {
+  return `${html}
+    <p style="font-size: 12px; color: #B5ADA3; text-align: center; line-height: 1.7; margin-top: 8px;">
+      이 메일만 그만 받으려면 <a href="${escapeHtml(unsubscribeUrl)}" style="color: #9d6f36;">여기</a>를 눌러 주세요. 함께 대화의 글은 그대로 와요.
+    </p>`;
 }
 
 function escapeHtml(value: string): string {

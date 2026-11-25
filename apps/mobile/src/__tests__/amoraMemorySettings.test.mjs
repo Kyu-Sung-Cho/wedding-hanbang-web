@@ -24,10 +24,12 @@ test("mobile memory deletion and full reset require explicit confirmation", () =
   assert.match(memorySource, /action: "clear_scope"/);
 });
 
-test("native settings hides proactive-care opt-in while preserving legacy opt-out", () => {
+test("native settings opts into proactive care only through the gated control while preserving legacy opt-out", () => {
+  // 2026-11-13 10장 P1: 켜기는 `/api/amora/care-preferences` 를 쓰는 새 칸만 한다. 설정 화면이
+  // 예전 프로필 경로로 직접 켜는 일은 여전히 없어야 한다.
   assert.doesNotMatch(settingsSource, /care_notifications_enabled: value/);
   assert.doesNotMatch(settingsSource, /care_notifications_enabled: true/);
   assert.match(settingsSource, /care_notifications_enabled: false/);
-  assert.match(settingsSource, /legacyCareConsentActive \?/);
+  assert.match(settingsSource, /legacyCareConsentActive && !careControlAvailable \?/);
   assert.doesNotMatch(settingsSource, /아모라 먼저 챙기기/);
 });

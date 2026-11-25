@@ -17,6 +17,7 @@ import {
   createCommunityPushNavigationGuard,
   createCommunityPushTargetResolver,
 } from "./communityPushNavigation.mjs";
+import { createAmoraPushTapGuard, isAmoraPushData } from "./amoraPushNavigation.mjs";
 
 const PUSH_INSTALLATION_ID_KEY = "hanbang.push-installation-id.v1";
 const PUSH_BOUND_TOKEN_KEY = "hanbang.push-bound-token.v1";
@@ -45,11 +46,16 @@ const communityPushNavigation = createCommunityPushNavigationGuard({
   },
 });
 
+// 아모라 앱 알림(결정 D-86). 내용 없는 고정 문장 하나라 앱을 보고 있을 때도 그대로 보이고, 누르면 홈이나 대화를 연다.
+const amoraPushTaps = createAmoraPushTapGuard({
+  navigate: (href) => router.navigate(href),
+});
+
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    const allowed = await communityPushNavigation.validate(
-      notification.request.content.data,
-    );
+    const data = notification.request.content.data;
+    const allowed = isAmoraPushData(data)
+      || await communityPushNavigation.validate(data);
     return {
       shouldShowAlert: allowed,
       shouldPlaySound: allowed,
@@ -209,6 +215,10 @@ async function handleCommunityPushResponse(
   if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
     return;
   }
+  if (amoraPushTaps.handleTap(response.notification.request.content.data)) {
+    await Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+    return;
+  }
   const handled = await communityPushNavigation.handleTap(
     response.notification.request.content.data,
   );
@@ -232,6 +242,7 @@ export function initCommunityPushNotificationNavigation() {
 
   const receivedSubscription = Notifications.addNotificationReceivedListener(
     (notification) => {
+      if (isAmoraPushData(notification.request.content.data)) return;
       void communityPushNavigation
         .validate(notification.request.content.data)
         .then((allowed) => {
